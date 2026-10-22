@@ -5,7 +5,8 @@
 use crate::prelude::*;
 use std::sync::atomic::AtomicBool;
 
-//how much harder than normal the enemies are made: they are built for an army this many times as big as the player's
+//how much harder than normal the enemies are made: the wild ones are built for an army this many times as big as the player's,
+//the bosses are made rounds further on, and the harder ones make up for some of what the army's relics add to its damage
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Difficulty {
     Easy,
@@ -31,8 +32,26 @@ impl Difficulty {
         match self {
             Difficulty::Easy => 0.7,
             Difficulty::Normal => 1.0,
-            Difficulty::Hard => 1.5,
-            Difficulty::Brutal => 2.2,
+            Difficulty::Hard => 1.8,
+            Difficulty::Brutal => 2.8,
+        }
+    }
+
+    //how many rounds further on than the ones slain bosses are made: tougher, quicker and harder hitting, as they are each time round
+    pub(crate) fn boss_rounds(self) -> u32 {
+        match self {
+            Difficulty::Easy | Difficulty::Normal => 0,
+            Difficulty::Hard => 1,
+            Difficulty::Brutal => 2,
+        }
+    }
+
+    //the power of the damage the relics add that the enemies shrug off (see `Upgrades::hit`): 0 for none of it, 1 for all of it
+    pub(crate) fn relic_answer(self) -> f32 {
+        match self {
+            Difficulty::Easy | Difficulty::Normal => 0.0,
+            Difficulty::Hard => 0.5,
+            Difficulty::Brutal => 0.55,
         }
     }
 
@@ -40,8 +59,8 @@ impl Difficulty {
         match self {
             Difficulty::Easy => "enemies are made for an army 30% smaller",
             Difficulty::Normal => "as it was meant to be played",
-            Difficulty::Hard => "enemies are made for an army 50% bigger",
-            Difficulty::Brutal => "enemies are made for an army more than twice as big",
+            Difficulty::Hard => "enemies for an army 80% bigger, tougher bosses, damage relics count for less",
+            Difficulty::Brutal => "enemies for an army 2.8x as big, much tougher bosses, damage relics count for far less",
         }
     }
 

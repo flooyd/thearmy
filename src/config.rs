@@ -62,6 +62,7 @@ pub(crate) const SHIELD_REGEN_RATE: f32 = 0.25; //...by this share of itself a s
 pub(crate) const MINION_SCALE_POWER: f32 = 0.5; //what an enemy makes is scaled by its own scale to this power, so a summoner's imps stay small when it is huge
 pub(crate) const PHASE_SHIFT_SECONDS: f32 = 3.0; //how long a boss pauses, unhurt, between phases
 pub(crate) const LAST_STAND_AT: f32 = 0.12; //a boss with this share of its health left makes a last stand
+pub(crate) const BOSS_GATE_MARGIN: f32 = 0.999; //a boss can't be hurt past a change it is yet to make (a phase, a split, its last stand), it is held at this share of the health that is the change's
 pub(crate) const MAX_BOSS_MINIONS: usize = 24; //most a boss has alive at once
 pub(crate) const FIRST_BOSS_SECONDS: f32 = 90.0; //the first boss comes this long into a run...
 pub(crate) const BOSS_GAP_SECONDS: f32 = 100.0; //...and each next one this long after the last was slain

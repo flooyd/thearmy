@@ -20,11 +20,17 @@ pub(super) struct Fought {
     lost: usize,
     army: usize,
     recalls: usize,
+    changes: usize, //the phases it made it to, its splits and its last stand, counted
 }
 
 //a whole fight with one boss with an army of `army` units, in an empty world, played the way `style` says. there is nothing
 //else about, and nobody picks up babies
 pub(super) fn fight_a_boss(def: &'static BossDef, army: usize, tier: u32, style: Style, upgrades: &Upgrades, seed: u64) -> Fought {
+    fight_a_hardened_boss(def, army, tier, style, upgrades, seed, 0)
+}
+
+//the same with a boss `rounds` further on, as the difficulty makes it
+pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u32, style: Style, upgrades: &Upgrades, seed: u64, rounds: u32) -> Fought {
     rand::srand(seed);
     let dt = 1.0 / 60.0;
     let mut walls = Walls::default();
@@ -38,6 +44,7 @@ pub(super) fn fight_a_boss(def: &'static BossDef, army: usize, tier: u32, style:
         })
         .collect();
     let mut enemies = vec![Enemy::boss(def, army, tier, player + Vec2::new(BOSS_SPAWN_MIN_TILES * TILE_SIZE, 0.0))];
+    enemies[0].harden(rounds);
     let (mut babies, mut shots, mut hazards, mut squads) = (Vec::new(), Vec::new(), Vec::<Hazard>::new(), Squads::new());
     let mut fx = Effects::default();
     let mut field = field_for(player, &walls);
@@ -46,8 +53,10 @@ pub(super) fn fight_a_boss(def: &'static BossDef, army: usize, tier: u32, style:
     let trace = std::env::var("BOSS_TRACE").ok().and_then(|v| v.parse::<u64>().ok()) == Some(seed);
     let mut next_trace = 0.0;
     let mut dodging = false;
+    let mut changes = 0;
     while seconds < 150.0 && !units.is_empty() && current_boss(&enemies).is_some() {
         seconds += dt;
+        changes = changes.max(enemies.iter().filter_map(|enemy| enemy.boss.as_ref()).map(|state| state.phase + state.generation as usize + state.last_stand as usize).max().unwrap_or(0));
         if trace && seconds >= next_trace {
             next_trace += 1.5;
             let family: Vec<String> = enemies.iter().filter(|e| e.boss.is_some()).map(|e| format!("{:.0}%@{:.0}px", e.health / e.max_health * 100.0, e.position.distance(player))).collect();
@@ -140,7 +149,7 @@ pub(super) fn fight_a_boss(def: &'static BossDef, army: usize, tier: u32, style:
         bury_units(&mut units, &mut fx);
         fx = Effects::default();
     }
-    Fought { won: current_boss(&enemies).is_none() && !units.is_empty(), seconds, lost: army - units.len().min(army), army, recalls }
+    Fought { won: current_boss(&enemies).is_none() && !units.is_empty(), seconds, lost: army - units.len().min(army), army, recalls, changes }
 }
 
 #[test]
@@ -332,4 +341,71 @@ fn how_much_a_boss_fight_varies_over_many_seeds() {
         "{} at {} units over {seeds} seeds: lost the fight {losses} times, won ones lost {:.0}% / {:.0}% / {:.0}% (best / median / worst)",
         def.name, army, won.first().copied().unwrap_or(0.0) * 100.0, won.get(won.len() / 2).copied().unwrap_or(0.0) * 100.0, won.last().copied().unwrap_or(0.0) * 100.0
     );
+}
+
+//what a late run looks like, with the relics of one that was played: BOSS_ONLY=3 picks the boss, ARMY the army (default 10000),
+//TIER the round (default 4). the three difficulties against the same army, standing still and dodging
+#[test]
+#[ignore]
+fn the_boss_balance_of_a_late_run() {
+    let index: usize = std::env::var("BOSS_ONLY").ok().and_then(|v| v.parse().ok()).unwrap_or(3);
+    let army: usize = std::env::var("ARMY").ok().and_then(|v| v.parse().ok()).unwrap_or(10_000);
+    let tier: u32 = std::env::var("TIER").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
+    let def = &BOSSES[index];
+    let relics = late_run_upgrades();
+    eprintln!("{} at round {tier}, {army} units, {} relics, damage x{:.1}", def.name, relics.taken.len(), relics.damage);
+    for difficulty in DIFFICULTIES {
+        let mut upgrades = late_run_upgrades();
+        upgrades.foe_answer = difficulty.relic_answer();
+        for style in [Style::Tank, Style::Dodge] {
+            let rounds = difficulty.boss_rounds();
+            let run = fight_a_hardened_boss(def, army, tier, style, &upgrades, 300, rounds);
+            eprintln!(
+                "{:<7} {style:?}: damage x{:.1} +{rounds} rounds: {} in {:>5.1} s, lost {:>3.0}%, {} of {} changes",
+                difficulty.name(),
+                upgrades.hit(),
+                if run.won { "won " } else { "LOST" },
+                run.seconds,
+                run.lost as f32 / run.army as f32 * 100.0,
+                run.changes,
+                def.phases.len() - 1 + if def.splits { 2 } else { 0 } + 1
+            );
+        }
+    }
+}
+
+//the relics of a run that was played a long way: 35 bosses slain, 40 relics, the damage 39 times what it starts at
+pub(super) fn late_run_upgrades() -> Upgrades {
+    let mut upgrades = Upgrades::default();
+    for (relic, count) in [(Relic::Whetstone, 8), (Relic::GlassCannon, 4), (Relic::IronResolve, 4), (Relic::Regeneration, 6), (Relic::Overclock, 3), (Relic::FleetFeet, 3), (Relic::Aegis, 3), (Relic::Martyr, 2), (Relic::Thorns, 2), (Relic::Tailwind, 3), (Relic::OpeningSalvo, 1), (Relic::Freezing, 1)] {
+        for _ in 0..count {
+            upgrades.take(relic);
+        }
+    }
+    upgrades
+}
+
+//the late run's army against bosses made `rounds` further on, with a few answers to the damage relics. BOSS_ONLY, ARMY and TIER as above
+#[test]
+#[ignore]
+fn the_boss_balance_of_a_late_run_for_a_few_answers() {
+    let index: usize = std::env::var("BOSS_ONLY").ok().and_then(|v| v.parse().ok()).unwrap_or(3);
+    let army: usize = std::env::var("ARMY").ok().and_then(|v| v.parse().ok()).unwrap_or(10_000);
+    let tier: u32 = std::env::var("TIER").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
+    let def = &BOSSES[index];
+    for rounds in [0u32, 1, 2] {
+        for answer in [0.0f32, 0.5, 0.6, 0.7, 0.8, 0.9] {
+            let mut upgrades = late_run_upgrades();
+            upgrades.foe_answer = answer;
+            let runs: Vec<Fought> = (0..2).map(|seed| fight_a_hardened_boss(def, army, tier, Style::Dodge, &upgrades, 300 + seed, rounds)).collect();
+            eprintln!(
+                "{} +{rounds} rounds, answer {answer:.1} (damage x{:>4.1}): won {}/2, {:>5.1} s, lost {:>3.0}%",
+                def.name,
+                upgrades.hit(),
+                runs.iter().filter(|run| run.won).count(),
+                runs.iter().map(|run| run.seconds).sum::<f32>() / 2.0,
+                runs.iter().map(|run| run.lost as f32 / run.army as f32 * 100.0).sum::<f32>() / 2.0
+            );
+        }
+    }
 }

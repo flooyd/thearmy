@@ -316,7 +316,7 @@ pub(crate) fn award_recruits(units: &mut Vec<Unit>, babies: &mut Vec<Baby>, cap:
 //a part of that share. the Whetstone relic and the like strengthen it as they do the units
 fn power_damage(enemy: &Enemy, flat: f32, share: f32, upgrades: &Upgrades) -> f32 {
     let share = if enemy.boss.is_some() { share * CHAMPION_BOSS_SHARE } else { share };
-    (UNIT_DAMAGE * flat + enemy.max_health * share) * upgrades.damage
+    (UNIT_DAMAGE * flat + enemy.max_health * share) * upgrades.hit()
 }
 
 //hurt an enemy with a power, and keep count so a number floats up from it

@@ -591,3 +591,122 @@ fn the_warning_of_a_circle_is_long_enough_to_notice_it_press_recall_and_get_out_
     //and the longest circles still leave the army a chance to fight between them
     assert!(BOSS_WARN_NOVA + BOSS_WARN_PER_1000_PX * 2.0 < BOSS_BLAST_HOLD);
 }
+
+// ---------- a boss can't be hurt past a change it has yet to make ----------
+
+//the changes a boss has to make before it can die: each phase after the first, each split, and its last stand
+fn changes_of(def: &BossDef) -> usize {
+    def.phases.len() - 1 + if def.splits { SPLIT_AT.len() } else { 0 } + 1
+}
+
+#[test]
+fn no_blow_however_big_kills_a_boss_or_skips_a_change_it_has_yet_to_make() {
+    for def in BOSSES.iter().chain([&FINAL_BOSS]) {
+        let units: Vec<Unit> = (0..200).map(|i| unit_on(MIDDLE + Vec2::new(i as f32, 0.0))).collect();
+        let mut enemies = vec![Enemy::boss(def, def.min_army.max(300), 0, MIDDLE + Vec2::new(3000.0, 0.0))];
+        let (mut shots, mut fx) = (Vec::new(), Effects::default());
+        let progress = |boss: &Enemy| {
+            let state = boss.boss.as_ref().unwrap();
+            state.phase + state.generation as usize + state.last_stand as usize
+        };
+        let mut blows = 0;
+        loop {
+            blows += 1;
+            assert!(blows <= 3 * changes_of(def), "{}: it never stopped being held", def.name);
+            let nothing_left = enemies[0].boss_gate() == f32::NEG_INFINITY;
+            let before = progress(&enemies[0]);
+            //a blow of a million times what it has
+            let blow = enemies[0].max_health * 1.0e6;
+            enemies[0].take_damage(blow);
+            if nothing_left {
+                assert!(enemies[0].health <= 0.0, "{}: with every change made it can be killed", def.name);
+                break;
+            }
+            assert!(enemies[0].health > 0.0, "{}: killed with {} of {} changes made", def.name, before, changes_of(def));
+            //more blows in the same frame do nothing: it is held where it is until it has made the change
+            let held = enemies[0].health;
+            let again = enemies[0].max_health;
+            assert_eq!(enemies[0].take_damage(again), 0.0, "{}: still hurt at the gate", def.name);
+            assert_eq!(enemies[0].health, held);
+            boss_act(&mut enemies, &units, MIDDLE, 0.01, &mut shots, &mut fx);
+            assert!(progress(&enemies[0]) > before, "{}: no change after the blow", def.name);
+            //it is unhurt for the pause (and the next, when two changes come at one health), then the blows start again
+            for _ in 0..((PHASE_SHIFT_SECONDS + SPLIT_PAUSE + 1.0) * 100.0) as usize {
+                boss_act(&mut enemies, &units, MIDDLE, 0.01, &mut shots, &mut fx);
+            }
+            fx = Effects::default();
+            shots.clear();
+        }
+        assert_eq!(progress(&enemies[0]), changes_of(def), "{}", def.name);
+    }
+}
+
+#[test]
+fn what_a_boss_is_held_from_is_not_counted_as_damage_done() {
+    let mut boss = Enemy::boss(&BOSSES[0], 500, 0, MIDDLE);
+    let before = boss.health;
+    let dealt = boss.take_damage(boss.max_health * 10.0);
+    assert!((dealt - (before - boss.health)).abs() < 1.0, "{dealt} dealt against {} lost", before - boss.health);
+    assert!(boss.health / boss.max_health < BOSSES[0].phases[1].below && boss.health / boss.max_health > BOSSES[0].phases[1].below * 0.99);
+    //an ordinary enemy is not held by anything
+    let mut grunt = Enemy::new(MIDDLE, kind_named("Grunt"), 1.0);
+    let dealt = grunt.take_damage(grunt.max_health * 10.0);
+    assert_eq!(dealt, grunt.max_health * 10.0);
+    assert!(grunt.health < 0.0);
+}
+
+#[test]
+fn a_boss_that_is_already_past_a_change_is_not_healed_by_the_gate_and_just_makes_it() {
+    let units: Vec<Unit> = (0..100).map(|i| unit_on(MIDDLE + Vec2::new(i as f32, 0.0))).collect();
+    let mut enemies = vec![Enemy::boss(&BOSSES[2], 400, 0, MIDDLE + Vec2::new(3000.0, 0.0))];
+    enemies[0].health = enemies[0].max_health * 0.05;
+    let held = enemies[0].health;
+    assert_eq!(enemies[0].take_damage(1.0e9), 0.0);
+    assert_eq!(enemies[0].health, held);
+    let (mut shots, mut fx) = (Vec::new(), Effects::default());
+    boss_act(&mut enemies, &units, MIDDLE, 0.01, &mut shots, &mut fx);
+    let state = enemies[0].boss.as_ref().unwrap();
+    assert_eq!(state.phase, BOSSES[2].phases.len() - 1, "it goes straight to the last phase it is in");
+}
+
+#[test]
+fn the_lord_of_a_citadel_that_is_hurt_while_it_waits_still_changes_but_attacks_no_one() {
+    let units: Vec<Unit> = (0..100).map(|i| unit_on(MIDDLE + Vec2::new(i as f32, 0.0))).collect();
+    let mut lord = Enemy::boss(&FINAL_BOSS, 5000, 0, MIDDLE + Vec2::new(3000.0, 0.0));
+    lord.site = Some(7);
+    lord.chasing = false;
+    let mut enemies = vec![lord];
+    let blow = enemies[0].max_health * 10.0;
+    enemies[0].take_damage(blow);
+    assert!(enemies[0].health > 0.0, "held at the next phase");
+    let (mut shots, mut fx) = (Vec::new(), Effects::default());
+    for _ in 0..((PHASE_SHIFT_SECONDS + 20.0) * 100.0) as usize {
+        boss_act(&mut enemies, &units, MIDDLE, 0.01, &mut shots, &mut fx);
+    }
+    assert_eq!(enemies[0].boss.as_ref().unwrap().phase, 1);
+    assert_eq!(enemies[0].boss.as_ref().unwrap().shifting, 0.0, "the pause ran out while it waited");
+    assert_eq!(fx.hazards.len(), 1, "only the pulse of the phase, none of its attacks");
+    assert!(shots.is_empty() && enemies.len() == 1);
+}
+
+#[test]
+fn a_boss_is_made_rounds_further_on_by_a_harder_difficulty() {
+    for def in BOSSES.iter() {
+        let made = |tier: u32| Enemy::boss(def, 800, tier, MIDDLE);
+        let mut hardened = made(1);
+        hardened.harden(2);
+        let later = made(3);
+        assert!((hardened.max_health / later.max_health - 1.0).abs() < 1e-4, "{}", def.name);
+        assert!((hardened.health / later.health - 1.0).abs() < 1e-4);
+        assert!((hardened.attack / later.attack - 1.0).abs() < 1e-4);
+        assert!((hardened.speed / later.speed - 1.0).abs() < 1e-4);
+        assert!((hardened.max_shield - later.max_shield).abs() <= later.max_shield * 1e-4);
+        let state = hardened.boss.as_ref().unwrap();
+        assert_eq!((state.tier, state.family_max), (3, hardened.max_health));
+    }
+    //something that is not a boss is left alone
+    let mut grunt = Enemy::new(MIDDLE, kind_named("Grunt"), 1.0);
+    let before = (grunt.max_health, grunt.attack);
+    grunt.harden(3);
+    assert_eq!((grunt.max_health, grunt.attack), before);
+}

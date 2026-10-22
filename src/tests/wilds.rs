@@ -2,6 +2,7 @@
 //and fights whatever they meet, to see whether a big army wins or is worn away. the table is only run by hand:
 //cargo test --release how_the_army_fares_in_the_wilds -- --ignored --nocapture
 
+use super::boss_fights::late_run_upgrades;
 use super::*;
 use std::time::Instant;
 
@@ -22,6 +23,11 @@ pub(super) struct Wander {
 //an army of `army` units wanders for `seconds` of game time. it is settled round the player first, then the player goes in a big
 //slow circle, so there are always new enemies ahead. `pressure` is how big an army the enemies are made for, as a share of the army
 pub(super) fn wander(army: usize, formation: Formation, seconds: f32, pressure: f32, cap: usize, seed: u64) -> Wander {
+    wander_with(Upgrades::default(), army, formation, seconds, pressure, cap, seed)
+}
+
+//the same for an army with relics
+pub(super) fn wander_with(upgrades: Upgrades, army: usize, formation: Formation, seconds: f32, pressure: f32, cap: usize, seed: u64) -> Wander {
     rand::srand(seed);
     let walls = Walls::default();
     let mut player = Vec2::splat(WORLD_SIZE / 2.0);
@@ -37,7 +43,7 @@ pub(super) fn wander(army: usize, formation: Formation, seconds: f32, pressure: 
     let mut hazards: Vec<Hazard> = Vec::new();
     let squads = Squads::new();
     let mut fx = Effects::default();
-    let mut upgrades = Upgrades::default();
+    let mut upgrades = upgrades;
     upgrades.army_limit = cap;
     let dead = |units: &[Unit]| units.iter().filter(|unit| unit.health <= 0.0).count();
     let mut routes = Routes::new(player, &walls);
@@ -153,5 +159,33 @@ fn wilds_formations() -> Vec<Formation> {
     match std::env::var("WILDS_FORMATIONS") {
         Ok(list) => list.split(',').filter_map(|name| Formation::from_name(name.trim())).collect(),
         Err(_) => FORMATIONS.to_vec(),
+    }
+}
+
+//a late run (the relics of one, and 35 bosses slain) against each difficulty. WILDS_ARMIES picks the armies
+#[test]
+#[ignore]
+fn the_wilds_for_a_late_run() {
+    let armies: Vec<usize> = std::env::var("WILDS_ARMIES").map(|list| list.split(',').filter_map(|n| n.trim().parse().ok()).collect()).unwrap_or_else(|_| vec![5000, 20000]);
+    for army in armies {
+        for difficulty in DIFFICULTIES {
+            let mut upgrades = late_run_upgrades();
+            upgrades.foe_answer = difficulty.relic_answer();
+            let share = (1.0 + ENEMY_ROUND_GROWTH * 35.0) * difficulty.pressure();
+            let run = wander_with(upgrades.clone(), army, Formation::Ring, 60.0, share, 50000, 31);
+            println!(
+                "{army:6} units {:<7} (enemies for an army x{share:>5.1}, damage x{:>5.1}): {:+6.1}%, lost {:6} = touch {:6} + shots {:5} + blasts {:5}, {:4} enemies destroyed, {:5} picked up, lowest {}",
+                difficulty.name(),
+                upgrades.hit(),
+                (run.end as f32 / run.start as f32 - 1.0) * 100.0,
+                run.lost,
+                run.lost_to_touch,
+                run.lost_to_shots,
+                run.lost_to_blasts,
+                run.destroyed,
+                run.picked_up,
+                run.lowest
+            );
+        }
     }
 }

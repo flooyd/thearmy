@@ -324,6 +324,24 @@ impl Enemy {
     }
 }
 
+impl Enemy {
+    //a boss as it should be for a harder difficulty: `rounds` further on than it was made for (tougher, quicker and harder hitting,
+    //as each time round the bosses are). only for one that has just come, as it goes back to its full health
+    pub(crate) fn harden(&mut self, rounds: u32) {
+        let Some(tier) = self.boss.as_ref().map(|state| state.tier) else {
+            return;
+        };
+        let round = |tier: u32, per_round: f32| 1.0 + per_round * tier as f32;
+        let tougher = round(tier + rounds, BOSS_TIER_HEALTH) / round(tier, BOSS_TIER_HEALTH);
+        self.empower_by(tougher, round(tier + rounds, BOSS_TIER_ATTACK) / round(tier, BOSS_TIER_ATTACK), 1.0);
+        self.speed *= tier_pace(tier + rounds) / tier_pace(tier);
+        if let Some(state) = self.boss.as_mut() {
+            state.tier += rounds;
+            state.family_max = self.max_health;
+        }
+    }
+}
+
 //how much quicker a boss is for the number of times round the bosses have been, and no more than BOSS_TIER_PACE_MAX
 pub(crate) fn tier_pace(tier: u32) -> f32 {
     1.0 + (BOSS_TIER_PACE * tier as f32).min(BOSS_TIER_PACE_MAX)
@@ -501,11 +519,6 @@ pub(crate) fn boss_act(enemies: &mut Vec<Enemy>, units: &[Unit], player: Vec2, d
             state.facing = state.facing.rotate(Vec2::from_angle(turn)).normalize_or_zero();
         }
         state.anchor_left = (state.anchor_left - dt).max(0.0);
-        //the lord of a citadel waits in it for someone to come
-        if enemy.site.is_some() && !enemy.chasing {
-            enemy.boss = Some(state);
-            continue;
-        }
         if state.shifting > 0.0 {
             state.shifting = (state.shifting - dt).max(0.0);
             enemy.boss = Some(state);
@@ -531,6 +544,12 @@ pub(crate) fn boss_act(enemies: &mut Vec<Enemy>, units: &[Unit], player: Vec2, d
             fx.announce(format!("{}: LAST STAND!", def.name), RED);
             fx.add_shake(0.5);
             fx.cue(Cue::PhaseShift);
+        }
+        //the lord of a citadel waits in it for someone to come. if it is hurt before then it still changes as it should, as it
+        //can't be hurt past that, but it uses none of its attacks
+        if enemy.site.is_some() && !enemy.chasing {
+            enemy.boss = Some(state);
+            continue;
         }
         let rate = if state.last_stand { 1.6 } else { 1.0 };
         let mut due = None;

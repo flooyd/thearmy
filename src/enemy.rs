@@ -344,14 +344,43 @@ impl Enemy {
             return 0.0;
         }
         self.shield_idle = 0.0;
-        let taken = damage;
+        let mut taken = 0.0;
         if self.shield > 0.0 {
             let soaked = damage.min(self.shield);
             self.shield -= soaked;
             damage -= soaked;
+            taken = soaked;
         }
-        self.health -= damage;
+        //a boss stops at the health of a change it has yet to make, however hard it is hit: the change is made a moment later,
+        //and what it was held from is not damage done
+        let held = self.boss_gate().min(self.health);
+        if self.health - damage < held {
+            taken += self.health - held;
+            self.health = held;
+        } else {
+            taken += damage;
+            self.health -= damage;
+        }
         taken
+    }
+
+    //the least health a boss can be brought to for now: the health at which it makes its next change (enter a phase, split in two,
+    //make its last stand), a little below the share that sets the change off, so that it does. nothing for one with none left to make
+    pub(crate) fn boss_gate(&self) -> f32 {
+        let Some(state) = self.boss.as_ref() else {
+            return f32::NEG_INFINITY;
+        };
+        let mut next = state.def.phases.get(state.phase + 1..).unwrap_or_default().iter().map(|phase| phase.below).fold(0.0f32, f32::max);
+        if state.def.splits && (state.generation as usize) < SPLIT_AT.len() {
+            next = next.max(SPLIT_AT[state.generation as usize]);
+        }
+        if !state.last_stand {
+            next = next.max(LAST_STAND_AT);
+        }
+        if next <= 0.0 {
+            return f32::NEG_INFINITY;
+        }
+        self.max_health * next * BOSS_GATE_MARGIN
     }
 
     //whether a Freezing relic can hold it: not a boss, and not a nest that never moves

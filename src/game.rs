@@ -89,6 +89,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         start.unwrap_or_else(new_run);
     //the most units the army can have is the player's to choose, in the settings, so it is theirs and not the run's
     upgrades.army_limit = settings.army_limit;
+    upgrades.foe_answer = settings.difficulty.relic_answer();
     let (mut x, mut y) = (start_at.x, start_at.y);
     let speed = 800.0; //pixels per second
     let mut frame_time = 1.0 / 60.0; //smoothed so the number on the HUD can be read
@@ -135,6 +136,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
 
     loop {
         upgrades.army_limit = settings.army_limit;
+        upgrades.foe_answer = settings.difficulty.relic_answer();
         let real_dt = get_frame_time().min(MAX_FRAME_TIME);
         frame_time += (get_frame_time() - frame_time) * 0.05;
         //the game is saved when the window is closed, when the player asks (F5), and by itself now and then and each time a
@@ -375,6 +377,11 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             }
             let news = update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, player, dt, boss_busy, upgrades.unit_cap(), run.citadels as u32, &mut fx);
             walls_changed |= news.walls_changed;
+            if news.citadel_woke {
+                if let Some(lord) = enemies.iter_mut().find(|enemy| enemy.boss.is_some() && enemy.site.is_some()) {
+                    lord.harden(settings.difficulty.boss_rounds());
+                }
+            }
             run.nests += news.nests;
             run.villages += news.villages;
             if news.citadel {
@@ -449,6 +456,9 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                     fx.cue(Cue::Warning);
                 }
                 Some(Beat::Arrived(name)) => {
+                    if let Some(boss) = enemies.iter_mut().find(|enemy| director.boss == Some(enemy.id)) {
+                        boss.harden(settings.difficulty.boss_rounds());
+                    }
                     fx.announce(name.to_uppercase(), Color::new(1.0, 0.3, 0.25, 1.0));
                     fx.add_shake(0.6);
                     fx.add_punch(0.6);

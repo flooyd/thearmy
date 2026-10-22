@@ -23,7 +23,7 @@ pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut V
         } else {
             touching.iter().map(|&i| units[i].might).sum()
         };
-        let dealt = enemy.take_damage(strength * UNIT_DAMAGE * upgrades.damage * dt);
+        let dealt = enemy.take_damage(strength * UNIT_DAMAGE * upgrades.hit() * dt);
         enemy.hurt += dealt;
         //a Freezing relic: an enemy being fought now and then freezes solid
         enemy.frozen = (enemy.frozen - dt).max(0.0);

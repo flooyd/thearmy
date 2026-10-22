@@ -208,13 +208,14 @@ pub(crate) struct Upgrades {
     pub(crate) martyr: f32,    //of the damage a unit does to the enemy it dies in
     pub(crate) freeze: f32,   //chance a second, for an enemy being fought, of freezing solid
     pub(crate) army_limit: usize, //the most units the army can have. not a relic: it is the player's setting, which the game copies in
+    pub(crate) foe_answer: f32,    //the power of `damage` that the enemies make up for, from the difficulty chosen (the game copies it in too): 0 for none
     pub(crate) extra_boost: f32,   //the most the army's size can speed everyone up is this many times normal higher than MAX_SPEED_MULTIPLIER
     pub(crate) taken: Vec<Relic>,
 }
 
 impl Default for Upgrades {
     fn default() -> Upgrades {
-        Upgrades { damage: 1.0, toughness: 1.0, healing: 1.0, speed: 1.0, pickup: 1.0, bounty: 1.0, masonry: 1.0, archery: 1.0, quarry: 1.0, thorns: 0.0, bloodlust: 0.0, guard: 0.0, salvo: 0.0, martyr: 0.0, freeze: 0.0, army_limit: DEFAULT_ARMY_LIMIT, extra_boost: 0.0, taken: Vec::new() }
+        Upgrades { damage: 1.0, toughness: 1.0, healing: 1.0, speed: 1.0, pickup: 1.0, bounty: 1.0, masonry: 1.0, archery: 1.0, quarry: 1.0, thorns: 0.0, bloodlust: 0.0, guard: 0.0, salvo: 0.0, martyr: 0.0, freeze: 0.0, army_limit: DEFAULT_ARMY_LIMIT, foe_answer: 0.0, extra_boost: 0.0, taken: Vec::new() }
     }
 }
 
@@ -252,6 +253,12 @@ impl Upgrades {
 
     pub(crate) fn count(&self, relic: Relic) -> usize {
         self.taken.iter().filter(|&&taken| taken == relic).count()
+    }
+
+    //how many times the damage a unit starts with it does to an enemy: what the relics add, less what the difficulty has the enemies
+    //shrug off of it (the harder ones make up for a power of it, so the more relics the more they answer, though never all of it)
+    pub(crate) fn hit(&self) -> f32 {
+        self.damage / self.damage.max(1.0).powf(self.foe_answer)
     }
 
     //the most units the army can have

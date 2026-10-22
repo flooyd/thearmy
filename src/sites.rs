@@ -223,6 +223,7 @@ pub(crate) struct SiteNews {
     pub(crate) barracks_champions: usize, //...and how many sent a champion (who is put in `fx.recruits`)
     pub(crate) citadel: bool,       //the citadel's lord fell
     pub(crate) citadel_rearmed: bool, //and is back: the citadel has waited out CITADEL_RESPAWN_SECONDS
+    pub(crate) citadel_woke: bool,  //the citadel's lord has just been put there, for main to make as hard as the difficulty says
     pub(crate) walls_changed: bool, //walls went up or came down
 }
 
@@ -253,6 +254,7 @@ pub(crate) fn update_sites(
                 if distance <= AWAKEN_TILES * TILE_SIZE && ready {
                     awaken(site, enemies, walls, army, citadels, fx);
                     news.walls_changed |= !site.tiles.is_empty();
+                    news.citadel_woke |= site.kind == SiteKind::Citadel;
                 }
             }
             SiteState::Awake => {

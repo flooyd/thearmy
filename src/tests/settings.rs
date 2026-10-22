@@ -50,6 +50,43 @@ fn the_harder_difficulties_make_enemies_for_a_bigger_army() {
 }
 
 #[test]
+fn the_harder_difficulties_have_bosses_further_on_and_answer_the_relics_that_add_damage() {
+    let rounds: Vec<u32> = DIFFICULTIES.iter().map(|difficulty| difficulty.boss_rounds()).collect();
+    assert!(rounds.windows(2).all(|pair| pair[0] <= pair[1]) && rounds[0] == 0 && rounds[3] > rounds[2] && rounds[2] > 0);
+    let answers: Vec<f32> = DIFFICULTIES.iter().map(|difficulty| difficulty.relic_answer()).collect();
+    assert_eq!((answers[0], answers[1]), (0.0, 0.0), "the easier ones leave the relics alone");
+    assert!(answers[2] > 0.0 && answers[3] > answers[2] && answers[3] < 1.0, "never all of what they add, or they would be worth nothing");
+}
+
+#[test]
+fn enemies_shrug_off_a_share_of_the_damage_the_relics_add_and_the_relics_still_always_help() {
+    let mut upgrades = Upgrades::default();
+    assert_eq!(upgrades.hit(), 1.0);
+    for _ in 0..8 {
+        upgrades.take(Relic::Whetstone);
+    }
+    upgrades.take(Relic::GlassCannon);
+    assert_eq!(upgrades.hit(), upgrades.damage, "nothing is answered by default");
+    let mut last = f32::MAX;
+    for difficulty in DIFFICULTIES {
+        upgrades.foe_answer = difficulty.relic_answer();
+        let hit = upgrades.hit();
+        assert!(hit <= last && hit > 1.0, "{}: {hit}", difficulty.name());
+        last = hit;
+        //one more relic is always worth something
+        let mut more = upgrades.clone();
+        more.take(Relic::Whetstone);
+        assert!(more.hit() > hit, "{}", difficulty.name());
+    }
+    //an army with no damage relics is not weakened by it, and neither is one whose damage is somehow less than it starts with
+    let mut plain = Upgrades::default();
+    plain.foe_answer = 1.0;
+    assert_eq!(plain.hit(), 1.0);
+    plain.damage = 0.5;
+    assert_eq!(plain.hit(), 0.5);
+}
+
+#[test]
 fn the_colours_are_the_usual_ones_until_they_are_changed() {
     assert!(!colourblind());
     assert_eq!(pickup_color(), GREEN);
