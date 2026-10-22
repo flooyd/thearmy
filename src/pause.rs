@@ -1,0 +1,454 @@
+//! the pause menu (Esc): resume, save, load, the settings, the controls and the ways out. the world stands still while it is up
+
+use crate::prelude::*;
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum Page {
+    Main,
+    Settings,
+    Controls,
+}
+
+//everything a row of the menu can do
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum Act {
+    Resume,
+    Save,
+    Load,
+    OpenSettings,
+    OpenControls,
+    Title,
+    Quit,
+    Back,
+    Master,
+    Effects,
+    Music,
+    Shake,
+    Fullscreen,
+    Colours,
+    Hints,
+    Difficulty,
+    Formation,
+}
+
+//what the game is to do about what the player did in the menu
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum PauseEvent {
+    Nothing,
+    Resume,
+    Save,
+    Load,
+    Title,
+    Quit,
+    Changed, //a setting was changed
+}
+
+//how a row looks and what is on it
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) enum Look {
+    Button,
+    Slider(f32),
+    Toggle(bool),
+    Choice(String),
+}
+
+//the rows on a page, top to bottom
+pub(crate) fn page_rows(page: Page) -> &'static [Act] {
+    match page {
+        Page::Main => &[Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
+        Page::Settings => &[Act::Master, Act::Effects, Act::Music, Act::Shake, Act::Fullscreen, Act::Colours, Act::Hints, Act::Difficulty, Act::Formation, Act::Back],
+        Page::Controls => &[Act::Back],
+    }
+}
+
+//the words on a row and what sort of row it is
+pub(crate) fn describe(act: Act, settings: &Settings) -> (&'static str, Look) {
+    match act {
+        Act::Resume => ("Resume", Look::Button),
+        Act::Save => ("Save game", Look::Button),
+        Act::Load => ("Load game", Look::Button),
+        Act::OpenSettings => ("Settings", Look::Button),
+        Act::OpenControls => ("Controls", Look::Button),
+        Act::Title => ("Save and go to the title screen", Look::Button),
+        Act::Quit => ("Save and quit", Look::Button),
+        Act::Back => ("Back", Look::Button),
+        Act::Master => ("Volume", Look::Slider(settings.master)),
+        Act::Effects => ("Sound effects", Look::Slider(settings.effects)),
+        Act::Music => ("Music", Look::Slider(settings.music)),
+        Act::Shake => ("Screen shake", Look::Slider(settings.shake)),
+        Act::Fullscreen => ("Fullscreen", Look::Toggle(settings.fullscreen)),
+        Act::Colours => ("Colour-blind colours", Look::Toggle(settings.colourblind)),
+        Act::Hints => ("Hints", Look::Toggle(settings.hints)),
+        Act::Difficulty => ("Enemy difficulty", Look::Choice(settings.difficulty.name().to_owned())),
+        Act::Formation => ("Army formation", Look::Choice(settings.formation.name().to_owned())),
+    }
+}
+
+//a line that says more about the row the player is on
+pub(crate) fn explain(act: Act, settings: &Settings) -> &'static str {
+    match act {
+        Act::Resume => "back to the game",
+        Act::Save => "the one save: F5 does the same",
+        Act::Load => "go back to the save: F9 does the same",
+        Act::Title | Act::Quit => "the run is kept, and carried on from the title screen next time",
+        Act::Shake => "how far the screen shakes and the camera jumps in for big moments",
+        Act::Fullscreen => "F11 does the same",
+        Act::Colours => "blue and orange where the game uses green and red",
+        Act::Hints => "tips at the start of a run",
+        Act::Difficulty => settings.difficulty.blurb(),
+        Act::Formation => settings.formation.blurb(),
+        _ => "",
+    }
+}
+
+//change a setting by a step in a direction (-1 or 1): sliders move, toggles flip, choices go to the next. returns whether
+//anything changed
+pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32) -> bool {
+    let before = settings.clone();
+    let slide = |level: &mut f32| *level = ((*level * 20.0).round() / 20.0 + 0.05 * direction as f32).clamp(0.0, 1.0);
+    match act {
+        Act::Master => slide(&mut settings.master),
+        Act::Effects => slide(&mut settings.effects),
+        Act::Music => slide(&mut settings.music),
+        Act::Shake => slide(&mut settings.shake),
+        Act::Fullscreen => settings.fullscreen = !settings.fullscreen,
+        Act::Colours => settings.colourblind = !settings.colourblind,
+        Act::Hints => settings.hints = !settings.hints,
+        Act::Difficulty => {
+            let at = DIFFICULTIES.iter().position(|&difficulty| difficulty == settings.difficulty).unwrap_or(1) as i32;
+            settings.difficulty = DIFFICULTIES[(at + direction.signum()).rem_euclid(DIFFICULTIES.len() as i32) as usize];
+        }
+        Act::Formation => {
+            let at = FORMATIONS.iter().position(|&formation| formation == settings.formation).unwrap_or(0) as i32;
+            settings.formation = FORMATIONS[(at + direction.signum()).rem_euclid(FORMATIONS.len() as i32) as usize];
+        }
+        _ => {}
+    }
+    *settings != before
+}
+
+//set a slider to a level (0 to 1)
+pub(crate) fn set_level(settings: &mut Settings, act: Act, level: f32) -> bool {
+    let before = settings.clone();
+    let level = ((level.clamp(0.0, 1.0) * 20.0).round() / 20.0).clamp(0.0, 1.0);
+    match act {
+        Act::Master => settings.master = level,
+        Act::Effects => settings.effects = level,
+        Act::Music => settings.music = level,
+        Act::Shake => settings.shake = level,
+        _ => {}
+    }
+    *settings != before
+}
+
+//where the menu is on a screen, as the panel and a rectangle for each of `count` rows
+pub(crate) struct MenuLayout {
+    pub(crate) panel: Rect,
+    pub(crate) rows: Vec<Rect>,
+    pub(crate) row_height: f32,
+}
+
+pub(crate) fn layout(page: Page, count: usize, screen: Vec2) -> MenuLayout {
+    let width = (screen.x * 0.92).min(560.0);
+    let row_height = (screen.y * 0.056).clamp(32.0, 46.0);
+    let extra = if page == Page::Controls { CONTROLS.len().div_ceil(2) as f32 * 28.0 + 20.0 } else { 0.0 };
+    let height = 78.0 + extra + row_height * count as f32 + 56.0;
+    let panel = Rect::new((screen.x - width) / 2.0, ((screen.y - height) / 2.0).max(8.0), width, height);
+    let first = panel.y + 74.0 + extra;
+    let rows = (0..count).map(|i| Rect::new(panel.x + 16.0, first + row_height * i as f32, width - 32.0, row_height - 4.0)).collect();
+    MenuLayout { panel, rows, row_height }
+}
+
+//where the bar of a slider is in its row
+pub(crate) fn slider_bar(row: Rect) -> Rect {
+    Rect::new(row.x + row.w * 0.5, row.y + row.h / 2.0 - 4.0, row.w * 0.5 - 90.0, 8.0)
+}
+
+//the keys the game uses, for the controls page
+pub(crate) const CONTROLS: [(&str, &str); 18] = [
+    ("W A S D", "move"),
+    ("mouse wheel", "zoom"),
+    ("click an enemy", "send a squad"),
+    ("R", "recall the squads"),
+    ("F", "change the formation"),
+    ("click, drag", "build walls"),
+    ("right click", "delete a wall"),
+    ("1 - 5", "what to build"),
+    ("G", "man a tower"),
+    ("Tab", "minimap: near or world"),
+    ("M", "mute"),
+    ("N", "music on or off"),
+    ("F5", "save"),
+    ("F9", "load"),
+    ("F11", "fullscreen"),
+    ("Space", "skip a boss's entrance"),
+    ("1 2 3", "choose a relic"),
+    ("Esc", "this menu"),
+];
+
+//what the player did this frame that the menu cares about
+#[derive(Clone, Copy, Default, Debug)]
+pub(crate) struct MenuInput {
+    pub(crate) up: bool,
+    pub(crate) down: bool,
+    pub(crate) left: bool,
+    pub(crate) right: bool,
+    pub(crate) enter: bool,
+    pub(crate) back: bool,
+    pub(crate) click: bool, //the left button went down
+    pub(crate) held: bool,  //and is down
+    pub(crate) mouse: Vec2,
+    pub(crate) moved: bool, //the mouse moved, which makes the row under it the one chosen
+}
+
+impl MenuInput {
+    pub(crate) fn read(last_mouse: &mut Vec2) -> MenuInput {
+        let mouse = Vec2::from(mouse_position());
+        let moved = mouse.distance(*last_mouse) > 0.5;
+        *last_mouse = mouse;
+        MenuInput {
+            up: is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::W),
+            down: is_key_pressed(KeyCode::Down) || is_key_pressed(KeyCode::S),
+            left: is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::A),
+            right: is_key_pressed(KeyCode::Right) || is_key_pressed(KeyCode::D),
+            enter: is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) || is_key_pressed(KeyCode::Space),
+            back: is_key_pressed(KeyCode::Escape),
+            click: is_mouse_button_pressed(MouseButton::Left),
+            held: is_mouse_button_down(MouseButton::Left),
+            mouse,
+            moved,
+        }
+    }
+}
+
+pub(crate) struct Pause {
+    pub(crate) page: Page,
+    pub(crate) selected: usize,
+    pub(crate) age: f32,   //seconds it has been open
+    dragging: Option<Act>, //the slider the mouse has hold of
+    pub(crate) last_mouse: Vec2,
+    pub(crate) saved: Option<SaveInfo>, //what the save that Load goes back to says about itself, if there is one
+    notice: Option<(String, Color, f32)>, //what the last thing done came to, in the colour it is shown in, and how many seconds are left to show it
+}
+
+impl Pause {
+    pub(crate) fn new(saved: Option<SaveInfo>, mouse: Vec2) -> Pause {
+        Pause { page: Page::Main, selected: 0, age: 0.0, dragging: None, last_mouse: mouse, saved, notice: None }
+    }
+
+    //say something in the menu itself, where the banner would be in the way
+    pub(crate) fn tell(&mut self, text: &str, color: Color) {
+        self.notice = Some((text.to_owned(), color, MENU_NOTICE_SECONDS));
+    }
+
+    //what the menu is saying about what was just done, if anything
+    #[cfg(test)]
+    pub(crate) fn notice(&self) -> Option<&str> {
+        self.notice.as_ref().map(|(text, _, _)| text.as_str())
+    }
+
+    fn go_to(&mut self, page: Page) {
+        self.page = page;
+        self.selected = 0;
+    }
+
+    //one frame of the menu: move about it, change what is on a row, or leave
+    pub(crate) fn update(&mut self, settings: &mut Settings, input: &MenuInput, screen: Vec2, dt: f32) -> PauseEvent {
+        self.age += dt.min(0.1);
+        if let Some(notice) = &mut self.notice {
+            notice.2 -= dt;
+        }
+        if self.notice.as_ref().is_some_and(|notice| notice.2 <= 0.0) {
+            self.notice = None;
+        }
+        let acts = page_rows(self.page);
+        let frame = layout(self.page, acts.len(), screen);
+        //the mouse chooses the row it is over, but never over a key pressed in the same frame: a mouse resting on one row that
+        //jolts a little must not take the key's choice away
+        let keyed = input.up || input.down || input.left || input.right || input.enter;
+        if input.moved && !keyed {
+            if let Some(i) = frame.rows.iter().position(|row| row.contains(input.mouse)) {
+                self.selected = i;
+            }
+        }
+        if input.up {
+            self.selected = (self.selected + acts.len() - 1) % acts.len();
+        }
+        if input.down {
+            self.selected = (self.selected + 1) % acts.len();
+        }
+        self.selected = self.selected.min(acts.len() - 1);
+        if input.back {
+            return match self.page {
+                Page::Main => PauseEvent::Resume,
+                _ => {
+                    self.go_to(Page::Main);
+                    PauseEvent::Nothing
+                }
+            };
+        }
+        //a slider being dragged follows the mouse until the button is let go
+        if let Some(act) = self.dragging {
+            if !input.held {
+                self.dragging = None;
+            } else if let Some(i) = acts.iter().position(|&other| other == act) {
+                let bar = slider_bar(frame.rows[i]);
+                return if set_level(settings, act, (input.mouse.x - bar.x) / bar.w) { PauseEvent::Changed } else { PauseEvent::Nothing };
+            }
+        }
+        let clicked = input.click.then(|| frame.rows.iter().position(|row| row.contains(input.mouse))).flatten();
+        if let Some(i) = clicked {
+            self.selected = i;
+        }
+        let act = acts[self.selected];
+        let (_, face) = describe(act, settings);
+        //left and right change a row's value, enter or a click does what the row says
+        let direction = input.right as i32 - input.left as i32;
+        if direction != 0 {
+            return if nudge(settings, act, direction) { PauseEvent::Changed } else { PauseEvent::Nothing };
+        }
+        if !(input.enter || clicked.is_some()) {
+            return PauseEvent::Nothing;
+        }
+        if let (Look::Slider(_), Some(i)) = (&face, clicked) {
+            self.dragging = Some(act);
+            let bar = slider_bar(frame.rows[i]);
+            return if set_level(settings, act, (input.mouse.x - bar.x) / bar.w) { PauseEvent::Changed } else { PauseEvent::Nothing };
+        }
+        match act {
+            Act::Resume => PauseEvent::Resume,
+            Act::Save => PauseEvent::Save,
+            Act::Load if self.saved.is_some() => PauseEvent::Load,
+            Act::Load => PauseEvent::Nothing,
+            Act::OpenSettings => {
+                self.go_to(Page::Settings);
+                PauseEvent::Nothing
+            }
+            Act::OpenControls => {
+                self.go_to(Page::Controls);
+                PauseEvent::Nothing
+            }
+            Act::Title => PauseEvent::Title,
+            Act::Quit => PauseEvent::Quit,
+            Act::Back => {
+                self.go_to(Page::Main);
+                PauseEvent::Nothing
+            }
+            _ => {
+                if nudge(settings, act, 1) { PauseEvent::Changed } else { PauseEvent::Nothing }
+            }
+        }
+    }
+
+    //the menu over a darkened game. `now` is the time in seconds since 1970
+    pub(crate) fn draw(&self, settings: &Settings, now: f64) {
+        let saved = self.saved;
+        let screen = Vec2::new(screen_width(), screen_height());
+        draw_rectangle(0.0, 0.0, screen.x, screen.y, Color::new(0.0, 0.01, 0.03, 0.62 * (self.age / 0.12).min(1.0)));
+        let acts = page_rows(self.page);
+        let frame = layout(self.page, acts.len(), screen);
+        let p = frame.panel;
+        panel(p.x, p.y, p.w, p.h);
+        let title = match self.page {
+            Page::Main => "PAUSED",
+            Page::Settings => "SETTINGS",
+            Page::Controls => "CONTROLS",
+        };
+        draw_label_centered(title, p.x + p.w / 2.0, p.y + 50.0, 34.0, INK, Face::Header);
+        draw_line(p.x + p.w / 2.0 - 60.0, p.y + 60.0, p.x + p.w / 2.0 + 60.0, p.y + 60.0, 2.0, CYAN);
+        if self.page == Page::Controls {
+            let column = (p.w - 40.0) / 2.0;
+            for (i, (key, what)) in CONTROLS.iter().enumerate() {
+                let (cx, cy) = (p.x + 20.0 + column * (i % 2) as f32, p.y + 84.0 + 28.0 * (i / 2) as f32);
+                let wide = draw_key(key, cx, cy + 14.0, 15.0);
+                draw_label(what, cx + wide + 8.0, cy + 14.0, 16.0, MUTED, Face::Body);
+            }
+        }
+        for (i, (&act, row)) in acts.iter().zip(&frame.rows).enumerate() {
+            let chosen = i == self.selected;
+            let (label, face) = describe(act, settings);
+            let disabled = act == Act::Load && saved.is_none();
+            draw_rectangle(row.x, row.y, row.w, row.h, if chosen { Color::new(CYAN.r, CYAN.g, CYAN.b, 0.16) } else { Color::new(1.0, 1.0, 1.0, 0.03) });
+            if chosen {
+                draw_rectangle(row.x, row.y, 4.0, row.h, CYAN);
+                draw_rectangle_lines(row.x, row.y, row.w, row.h, 1.5, Color::new(CYAN.r, CYAN.g, CYAN.b, 0.7));
+            }
+            let size = (frame.row_height * 0.46).round();
+            let baseline = row.y + row.h / 2.0 + size * 0.35;
+            let color = if disabled { Color::new(MUTED.r, MUTED.g, MUTED.b, 0.5) } else if chosen { INK } else { MUTED };
+            draw_label(label, row.x + 18.0, baseline, size, color, Face::Bold);
+            match face {
+                Look::Button => {
+                    if act == Act::Load {
+                        let note = match saved {
+                            Some(info) => format!("saved {} ago, army of {}", ago(now - info.saved_at), grouped(info.army)),
+                            None => "no save yet".to_owned(),
+                        };
+                        draw_label_right(&note, row.x + row.w - 14.0, baseline, size * 0.78, MUTED, Face::Body);
+                    }
+                }
+                Look::Slider(level) => {
+                    let bar = slider_bar(*row);
+                    draw_rectangle(bar.x, bar.y, bar.w, bar.h, Color::new(0.0, 0.0, 0.0, 0.55));
+                    draw_rectangle(bar.x, bar.y, bar.w * level, bar.h, CYAN);
+                    draw_circle(bar.x + bar.w * level, bar.y + bar.h / 2.0, 8.0, if chosen { WHITE } else { INK });
+                    draw_label_right(&format!("{:.0}%", level * 100.0), row.x + row.w - 12.0, baseline, size * 0.9, INK, Face::Bold);
+                }
+                Look::Toggle(on) => {
+                    draw_label_right(if on { "ON" } else { "OFF" }, row.x + row.w - 14.0, baseline, size, if on { CYAN } else { MUTED }, Face::Bold);
+                }
+                Look::Choice(value) => {
+                    draw_label_right(&format!("<  {value}  >"), row.x + row.w - 14.0, baseline, size, CYAN, Face::Bold);
+                }
+            }
+        }
+        let (note, tint) = match &self.notice {
+            Some((text, color, _)) => (text.as_str(), *color),
+            None => (acts.get(self.selected).map_or("", |&act| explain(act, settings)), MUTED),
+        };
+        draw_label_centered(note, p.x + p.w / 2.0, p.y + p.h - 34.0, 16.0, tint, Face::Body);
+        draw_label_centered("up and down choose   left and right change   enter selects   esc goes back", p.x + p.w / 2.0, p.y + p.h - 12.0, 13.0, Color::new(MUTED.r, MUTED.g, MUTED.b, 0.6), Face::Body);
+    }
+}
+
+//a time that has gone by, in the biggest unit that fits
+pub(crate) fn ago(seconds: f64) -> String {
+    let seconds = seconds.max(0.0);
+    if seconds < 90.0 {
+        format!("{:.0}s", seconds)
+    } else if seconds < 5400.0 {
+        format!("{:.0} min", seconds / 60.0)
+    } else if seconds < 129_600.0 {
+        format!("{:.0} h", seconds / 3600.0)
+    } else {
+        format!("{:.0} days", seconds / 86400.0)
+    }
+}
+
+//a few tips in the first minute of a new run, which fade away. `age` is how many seconds the run has gone on
+pub(crate) fn draw_hints(age: f32) {
+    let shown = HINT_SECONDS;
+    if age >= shown {
+        return;
+    }
+    let fade = ((shown - age) / 2.0).clamp(0.0, 1.0) * (age / 0.8).clamp(0.0, 1.0);
+    let lines = [
+        ("WASD", "move and your army follows"),
+        ("click an enemy", "to send a squad at it"),
+        ("F", "changes the shape the army stands in"),
+        ("Esc", "pauses, saves and has the settings"),
+    ];
+    let size = 17.0;
+    //the explanations line up in a column after the widest key
+    let keys = lines.iter().map(|(key, _)| text_width(key, size, Face::Bold)).fold(0.0, f32::max);
+    let width = keys + 12.0 + lines.iter().map(|(_, what)| text_width(what, size, Face::Body)).fold(0.0, f32::max) + 28.0;
+    let height = 20.0 + 26.0 * lines.len() as f32;
+    let (x, y) = ((screen_width() - width) / 2.0, screen_height() - height - 86.0 - BUILD_BAR_HEIGHT);
+    draw_rectangle(x, y, width, height, Color::new(PANEL.r, PANEL.g, PANEL.b, PANEL.a * fade));
+    draw_rectangle_lines(x, y, width, height, 1.5, Color::new(CYAN.r, CYAN.g, CYAN.b, 0.5 * fade));
+    for (i, (key, what)) in lines.iter().enumerate() {
+        let baseline = y + 28.0 + 26.0 * i as f32;
+        draw_label(key, x + 14.0, baseline, size, Color::new(CYAN.r, CYAN.g, CYAN.b, fade), Face::Bold);
+        draw_label(what, x + 14.0 + keys + 12.0, baseline, size, Color::new(INK.r, INK.g, INK.b, fade), Face::Body);
+    }
+}

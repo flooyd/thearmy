@@ -1,0 +1,102 @@
+# Builds The Army for Windows and Linux. Push a tag like v0.1.0 and the two downloads are attached to a GitHub release;
+# "Run workflow" on the Actions page builds them without a release, as files on that run.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux is built on an older Ubuntu on purpose: a program built against an older glibc runs on newer systems
+        # (like CachyOS) but not the other way round. If GitHub retires this runner, ubuntu-latest works too.
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install the libraries the game is built against (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxi-dev libgl1-mesa-dev pkg-config
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/TheArmy | Out-Null
+          Copy-Item target/release/mygame.exe dist/TheArmy/TheArmy.exe
+          $notes = @(
+            'The Army',
+            '',
+            'Double-click TheArmy.exe. Esc opens the menu in the game, F11 toggles fullscreen.',
+            '',
+            'Windows may say "Windows protected your PC" because the program is not signed. Click "More info", then "Run anyway".',
+            'If you would rather not see that, right-click the zip you downloaded, choose Properties, tick Unblock, and extract it after that.',
+            '',
+            'Saves and settings are in %APPDATA%\TheArmy.'
+          )
+          Set-Content -Path dist/TheArmy/README.txt -Value $notes
+          Compress-Archive -Path dist/TheArmy -DestinationPath TheArmy-windows-x86_64.zip
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist/TheArmy
+          cp target/release/mygame dist/TheArmy/TheArmy
+          chmod +x dist/TheArmy/TheArmy
+          printf '%s\n' \
+            'The Army' \
+            '' \
+            'Run ./TheArmy from a terminal or your file manager. Esc opens the menu in the game, F11 toggles fullscreen.' \
+            '' \
+            'It needs the usual desktop libraries: ALSA (sound), X11 and OpenGL. On Arch and CachyOS:' \
+            '  sudo pacman -S --needed alsa-lib libx11 libxi mesa' \
+            '' \
+            'Saves and settings are in ~/.local/share/TheArmy.' \
+            > dist/TheArmy/README.txt
+          tar -C dist -czf TheArmy-linux-x86_64.tar.gz TheArmy
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TheArmy-${{ runner.os }}
+          path: |
+            TheArmy-windows-x86_64.zip
+            TheArmy-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "The Army $GITHUB_REF_NAME" --generate-notes

@@ -1,0 +1,278 @@
+//! what enemies do each frame: patrol, chase, charge, heal, summon and lob shells
+
+use crate::prelude::*;
+
+//random points to patrol between, all inside the ENEMY_PATROL_TILES square around where the enemy started
+pub(crate) fn patrol_route(start: Vec2, size: f32) -> Vec<Vec2> {
+    let half_area = ENEMY_PATROL_TILES * TILE_SIZE / 2.0;
+    let edge = size / 2.0;
+    let count = rand::gen_range(ENEMY_ROUTE_MIN_POINTS, ENEMY_ROUTE_MAX_POINTS + 1);
+    (0..count)
+        .map(|_| {
+            //the world's edge cuts the area short when the enemy started near it
+            let x = rand::gen_range(start.x - half_area, start.x + half_area).clamp(edge, WORLD_SIZE - edge);
+            let y = rand::gen_range(start.y - half_area, start.y + half_area).clamp(edge, WORLD_SIZE - edge);
+            Vec2::new(x, y)
+        })
+        .collect()
+}
+
+pub(crate) const HEALER_STAY: f32 = 150.0; //pixels, a healer goes to the nearest enemy that is not one and stays this close to it
+
+//walk every enemy along its route, at its own speed times the multiplier the army's size gives. one that has noticed the
+//player (they came within its aggro distance) runs at them instead, faster, until they get too far away. a charger stops and
+//shows where it will dash instead, a healer goes to the nearest other enemy, and anything in the middle of a dash or a cast
+//carries on with that. none of them can walk through the player's walls: the ones that chase follow the route the field
+//gives them round the walls, and chew through the ones that are in the way, and the others slide along a wall until they
+//give up on the waypoint they were heading for
+pub(crate) fn patrol_enemies(enemies: &mut [Enemy], player: Vec2, dt: f32, speed_multiplier: f32, walls: &Walls, field: &FlowField, fx: &mut Effects) {
+    //a healer goes to the others, so where they are is needed while one of them is borrowed
+    let others: Vec<Vec2> = if enemies.iter().any(|enemy| enemy.behavior == Behavior::Healer) {
+        enemies.iter().filter(|enemy| enemy.behavior != Behavior::Healer).map(|enemy| enemy.position).collect()
+    } else {
+        Vec::new()
+    };
+    let no_route = FlowField::new();
+    for enemy in enemies {
+        enemy.pressing = None;
+        //a nest stays where it is
+        if enemy.behavior == Behavior::Nest {
+            continue;
+        }
+        if enemy.carry_on(dt, speed_multiplier, walls, fx) {
+            continue;
+        }
+        if enemy.behavior == Behavior::Charger {
+            let to_player = player - enemy.position;
+            if to_player.length() <= enemy.aggro {
+                enemy.mode = Mode::Windup { dir: to_player.normalize_or_zero(), left: CHARGE_WINDUP };
+                fx.popup(enemy.position, enemy.size / 2.0, 0.0, "!".to_owned(), RED);
+                fx.cue_at(Cue::Alert, enemy.position);
+                continue;
+            }
+        } else if enemy.aggro > 0.0 {
+            let distance = player.distance(enemy.position);
+            if !enemy.chasing && distance <= enemy.aggro {
+                enemy.chasing = true;
+                fx.popup(enemy.position, enemy.size / 2.0, 0.0, "!".to_owned(), RED);
+                fx.cue_at(Cue::Alert, enemy.position);
+            } else if enemy.chasing && distance > enemy.aggro * CHASE_LEASH {
+                enemy.chasing = false;
+            }
+        }
+        if enemy.chasing {
+            let speed = enemy.speed * CHASE_SPEED * speed_multiplier * enemy.slow;
+            //a boss that keeps its distance holds its ground inside its barriers, and otherwise stays out of the player's reach
+            let (keeps_away, anchored) = enemy.boss.as_ref().map_or((0.0, false), |state| (state.def.keeps_away, state.anchor_left > 0.0));
+            if anchored {
+                continue;
+            }
+            if keeps_away > 0.0 {
+                if player.distance(enemy.position) < keeps_away * 0.8 {
+                    let goal = enemy.position + (enemy.position - player).normalize_or_zero() * 600.0;
+                    walk(enemy, goal, 0.0, speed, dt, false, walls, &no_route);
+                } else {
+                    walk(enemy, player, keeps_away, speed, dt, true, walls, field);
+                }
+                continue;
+            }
+            //one that shoots or lobs shells (only a horde sends them running) stops at a distance and fires from there
+            let stop = if enemy.range > 0.0 && matches!(enemy.behavior, Behavior::Shooter | Behavior::Mortar) { enemy.range * CHASE_STANDOFF } else { CHASE_STOP };
+            walk(enemy, player, stop, speed, dt, true, walls, field);
+            continue;
+        }
+        if enemy.behavior == Behavior::Healer {
+            let position = enemy.position;
+            let nearest = others.iter().copied().min_by(|a, b| a.distance_squared(position).total_cmp(&b.distance_squared(position)));
+            if let Some(nearest) = nearest {
+                let speed = enemy.speed * CHASE_SPEED * speed_multiplier * enemy.slow;
+                walk(enemy, nearest, HEALER_STAY, speed, dt, false, walls, &no_route);
+                continue;
+            }
+        }
+        let target = enemy.route[enemy.heading_for];
+        let speed = enemy.speed * speed_multiplier * enemy.slow;
+        walk(enemy, target, 0.0, speed, dt, false, walls, &no_route);
+        //arrived, or held up by a wall for too long to be going to get there
+        if enemy.position.distance(target) < 1.0 || enemy.stuck > ROUTE_GIVE_UP {
+            enemy.heading_for = (enemy.heading_for + 1) % enemy.route.len();
+            enemy.stuck = 0.0;
+        }
+    }
+}
+
+//one step of an enemy towards a goal, stopping `stop` short of it, at a speed in pixels a second. it works out where to head
+//every STEERING_INTERVAL, or when it gets where it was heading
+pub(crate) fn walk(enemy: &mut Enemy, goal: Vec2, stop: f32, speed: f32, dt: f32, chew: bool, walls: &Walls, field: &FlowField) {
+    let distance = enemy.position.distance(goal);
+    if distance <= stop {
+        enemy.stuck = 0.0;
+        return;
+    }
+    let step_length = speed * dt;
+    enemy.steer_in -= dt;
+    let arrived = matches!(enemy.steer, Steer::Point(point) if enemy.position.distance(point) <= step_length);
+    if enemy.steer_in <= 0.0 || arrived {
+        //a square gets through gaps its circle fits, and it can't be steered by a circle bigger than the gap it is for
+        let clearance = (enemy.wall_radius() - 1.0).max(4.0);
+        enemy.steer = steer_along(enemy.position, goal, clearance, Mover::Enemy, walls, field);
+        enemy.steer_in = STEERING_INTERVAL;
+    }
+    let (target, reach) = match enemy.steer {
+        Steer::Player => (goal, distance - stop),
+        Steer::Point(point) => (point, enemy.position.distance(point)),
+    };
+    let direction = (target - enemy.position).normalize_or_zero();
+    enemy.advance(direction * step_length.min(reach.max(0.0)), dt, chew, walls);
+}
+
+//enemies held up by the player's walls wear them down, by their attack a second (a dash hits harder), and giants crush
+//every wall they are standing on. the damage goes to `fx` for update_walls to apply
+pub(crate) fn chew_walls(enemies: &[Enemy], walls: &Walls, dt: f32, fx: &mut Effects) {
+    for enemy in enemies {
+        if let Some(tile) = enemy.pressing {
+            if walls.get(&tile).is_some_and(|wall| wall.side == Side::Friendly) {
+                fx.wall_hits.push((tile, enemy.attack_now() * ENEMY_CHEW_SHARE * dt));
+            }
+        }
+        if enemy.size / 2.0 > ENEMY_WALL_RADIUS_MAX && (enemy.chasing || enemy.boss.is_some()) {
+            let (col, row) = tile_of(enemy.position.x, enemy.position.y);
+            let body = Rect::new(enemy.position.x - enemy.size / 2.0, enemy.position.y - enemy.size / 2.0, enemy.size, enemy.size);
+            for wall_col in (col - CRUSH_TILES)..=(col + CRUSH_TILES) {
+                for wall_row in (row - CRUSH_TILES)..=(row + CRUSH_TILES) {
+                    if let Some(wall) = walls.get(&(wall_col, wall_row)).filter(|wall| wall.blocks(Mover::Enemy) && wall.side == Side::Friendly) {
+                        if wall.rect().overlaps(&body) {
+                            fx.wall_hits.push(((wall_col, wall_row), enemy.attack_now() * ENEMY_CRUSH_SHARE * dt));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+//the things enemies do on a timer: shields grow back, a bomber's fuse burns down, a healer mends the enemies near it, a
+//summoner calls up imps while the player is close, a mortar lobs a shell at the army
+pub(crate) fn enemy_abilities(enemies: &mut Vec<Enemy>, units: &[Unit], player: Vec2, dt: f32, fx: &mut Effects) {
+    let army = units.len();
+    let mut owned: HashMap<u32, usize> = HashMap::new();
+    for owner in enemies.iter().filter_map(|enemy| enemy.owner) {
+        *owned.entry(owner).or_default() += 1;
+    }
+    let mut born: Vec<Enemy> = Vec::new();
+    let mut pulses: Vec<Vec2> = Vec::new();
+    for enemy in enemies.iter_mut() {
+        enemy.flash = (enemy.flash + dt).min(10.0);
+        if enemy.max_shield > 0.0 {
+            enemy.shield_idle += dt;
+            if enemy.shield_idle >= SHIELD_REGEN_DELAY && enemy.shield < enemy.max_shield {
+                enemy.shield = (enemy.shield + enemy.max_shield * SHIELD_REGEN_RATE * dt).min(enemy.max_shield);
+            }
+        }
+        match enemy.behavior {
+            Behavior::Bomber => {
+                if let Mode::Fuse { left } = enemy.mode {
+                    if left - dt > 0.0 {
+                        enemy.mode = Mode::Fuse { left: left - dt };
+                    } else {
+                        //it goes off, and is gone
+                        let radius = BLAST_RADIUS * blast_scale(enemy.scale) + enemy.size / 2.0;
+                        fx.hazards.push(Hazard::new(enemy.position, radius, 0.0, UNIT_HEALTH, victims_of(army, 0.007), enemy.color, Cue::Explosion).vs_walls(enemy.scale));
+                        enemy.health = 0.0;
+                        enemy.blew_up = true;
+                    }
+                }
+            }
+            Behavior::Healer => {
+                enemy.timer -= dt;
+                if enemy.timer <= 0.0 {
+                    enemy.timer = HEAL_INTERVAL;
+                    enemy.flash = 0.0;
+                    pulses.push(enemy.position);
+                }
+            }
+            Behavior::Summoner => {
+                enemy.timer -= dt;
+                if enemy.timer <= 0.0 {
+                    if player.distance(enemy.position) > SUMMON_RANGE_TILES * TILE_SIZE + enemy.size / 2.0 {
+                        //nobody to call them for, look again soon
+                        enemy.timer = 0.5;
+                        continue;
+                    }
+                    enemy.timer = SUMMON_INTERVAL * rand::gen_range(0.85, 1.15);
+                    let alive = owned.get(&enemy.id).copied().unwrap_or(0);
+                    let count = SUMMON_COUNT.min(MAX_MINIONS.saturating_sub(alive));
+                    for _ in 0..count {
+                        let around = enemy.position + Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * (enemy.size / 2.0 + 20.0);
+                        born.push(Enemy::minion(around, kind_named("Imp"), enemy.scale, enemy.id));
+                    }
+                    if count > 0 {
+                        enemy.flash = 0.0;
+                        fx.burst(enemy.position, enemy.color, 14, 220.0);
+                        fx.cue_at(Cue::Summon, enemy.position);
+                    }
+                }
+            }
+            Behavior::Mortar => {
+                enemy.timer -= dt;
+                if enemy.timer <= 0.0 {
+                    //the first unit in range, from a random place in the list so it isn't always the same one
+                    let start = if units.is_empty() { 0 } else { rand::gen_range(0, units.len()) };
+                    let target = (0..units.len())
+                        .map(|k| &units[(start + k) % units.len()])
+                        .map(|unit| Vec2::new(unit.x, unit.y))
+                        .find(|at| at.distance(enemy.position) <= enemy.range);
+                    let Some(target) = target else {
+                        enemy.timer = 0.4;
+                        continue;
+                    };
+                    enemy.timer = MORTAR_INTERVAL * rand::gen_range(0.8, 1.2);
+                    enemy.flash = 0.0;
+                    let radius = BLAST_RADIUS * blast_scale(enemy.scale);
+                    fx.hazards.push(Hazard::new(target, radius, SHELL_WARN, UNIT_HEALTH, victims_of(army, 0.01), enemy.color, Cue::Explosion).vs_walls(enemy.scale));
+                    fx.cue_at(Cue::Shoot, enemy.position);
+                }
+            }
+            Behavior::Nest => {
+                enemy.timer -= dt;
+                if enemy.timer <= 0.0 {
+                    let Some(def) = nest_named(enemy.name) else {
+                        enemy.timer = 5.0;
+                        continue;
+                    };
+                    if player.distance(enemy.position) > NEST_ACTIVE_TILES * TILE_SIZE {
+                        enemy.timer = 0.5;
+                        continue;
+                    }
+                    enemy.timer = def.every * rand::gen_range(0.85, 1.15);
+                    let alive = owned.get(&enemy.id).copied().unwrap_or(0);
+                    let cap = (def.cap + army / 40).min(NEST_MAX_BROOD);
+                    let count = (def.brood + army / 100).min(cap.saturating_sub(alive));
+                    for _ in 0..count {
+                        let around = enemy.position + Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * (enemy.size / 2.0 + 24.0);
+                        born.push(Enemy::minion(around, kind_named(def.child), enemy.scale, enemy.id));
+                    }
+                    if count > 0 {
+                        enemy.flash = 0.0;
+                        fx.burst(enemy.position, enemy.color, 10, 200.0);
+                        fx.cue_at(Cue::Summon, enemy.position);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    for at in pulses {
+        let mut healed = 0;
+        for enemy in enemies.iter_mut().filter(|enemy| enemy.boss.is_none() && enemy.health > 0.0 && enemy.health < enemy.max_health && enemy.position.distance(at) <= HEAL_RANGE) {
+            enemy.health = (enemy.health + enemy.max_health * HEAL_SHARE).min(enemy.max_health);
+            fx.burst(enemy.position, GREEN, 4, 120.0);
+            healed += 1;
+        }
+        if healed > 0 {
+            fx.cue_at(Cue::Heal, at);
+        }
+    }
+    enemies.extend(born);
+}
+
