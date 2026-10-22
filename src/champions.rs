@@ -326,7 +326,7 @@ fn strike(enemy: &mut Enemy, damage: f32) {
 }
 
 fn in_reach(enemy: &Enemy, from: Vec2, reach: f32) -> bool {
-    enemy.health > 0.0 && enemy.position.distance(from) <= reach + enemy.size / 2.0
+    enemy.health > 0.0 && !enemy.lurking() && enemy.position.distance(from) <= reach + enemy.size / 2.0
 }
 
 //a streak of light between two points

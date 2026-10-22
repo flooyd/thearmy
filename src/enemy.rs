@@ -44,6 +44,7 @@ pub(crate) enum Behavior {
     Summoner, //calls up imps while the player is near
     Mortar,   //lobs shells that land a moment later
     Nest,     //stays where it is and sends out more of its own, until it is destroyed
+    Ambusher, //lies hidden where it is until the player comes close, then springs
 }
 
 //what makes an elite different from the rest of its kind
@@ -54,6 +55,7 @@ pub(crate) enum Modifier {
     Armored,  //shrugs off half the damage
     Volatile, //goes off when it is destroyed
     Frenzied, //hits twice as hard, and runs faster
+    Captain,  //boss sized, leads one side of a pincer horde. not one of MODIFIERS: no ordinary enemy is ever made one
 }
 
 pub(crate) const MODIFIERS: [Modifier; 4] = [Modifier::Swift, Modifier::Armored, Modifier::Volatile, Modifier::Frenzied];
@@ -66,6 +68,7 @@ impl Modifier {
             Modifier::Armored => "Armored",
             Modifier::Volatile => "Volatile",
             Modifier::Frenzied => "Frenzied",
+            Modifier::Captain => "Captain",
         }
     }
 
@@ -76,6 +79,7 @@ impl Modifier {
             Modifier::Armored => Color::new(0.75, 0.78, 0.85, 1.0),
             Modifier::Volatile => Color::new(1.0, 0.55, 0.1, 1.0),
             Modifier::Frenzied => Color::new(1.0, 0.25, 0.3, 1.0),
+            Modifier::Captain => Color::new(1.0, 0.8, 0.2, 1.0),
         }
     }
 }
@@ -89,6 +93,7 @@ pub(crate) enum Mode {
     Recover { left: f32 },           //winded after a dash
     Fuse { left: f32 },              //a bomber that has touched the army, about to go off
     Cast { left: f32 },              //a boss rearing up for an attack, or between phases
+    Lurk,                            //an ambusher lying hidden where it is, until the player comes close or a unit finds it
 }
 
 //a kind of enemy. the numbers are for an army too small for enemies to be scaled up
@@ -108,43 +113,52 @@ pub(crate) struct EnemyKind {
     pub(crate) behavior: Behavior,
     pub(crate) shield: f32, //a shield this many times its health that soaks up damage first, and grows back when it is left alone
     pub(crate) pack: usize, //how many turn up together, 0 for one on its own
+    pub(crate) shot: ShotKind, //what a shooter fires
 }
 
-pub(crate) static ENEMY_KINDS: [EnemyKind; 19] = [
+pub(crate) static ENEMY_KINDS: [EnemyKind; 23] = [
     //the ordinary one
-    EnemyKind { name: "Grunt", color: RED, size: 44.0, health: 100.0, babies: 1.0, min_speed: 60.0, max_speed: 120.0, weight: 6.0, from_army: 0, attack: 25.0, aggro_tiles: 7.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Grunt", color: RED, size: 44.0, health: 100.0, babies: 1.0, min_speed: 60.0, max_speed: 120.0, weight: 6.0, from_army: 0, attack: 25.0, aggro_tiles: 7.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //small, fast and frail
-    EnemyKind { name: "Scout", color: YELLOW, size: 30.0, health: 50.0, babies: 1.0, min_speed: 160.0, max_speed: 240.0, weight: 3.0, from_army: 0, attack: 12.0, aggro_tiles: 10.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Scout", color: YELLOW, size: 30.0, health: 50.0, babies: 1.0, min_speed: 160.0, max_speed: 240.0, weight: 3.0, from_army: 0, attack: 12.0, aggro_tiles: 10.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //slow and tough, worth several babies
-    EnemyKind { name: "Brute", color: Color::new(0.65, 0.25, 0.95, 1.0), size: 72.0, health: 450.0, babies: 4.0, min_speed: 40.0, max_speed: 80.0, weight: 3.0, from_army: 6, attack: 60.0, aggro_tiles: 6.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
-    EnemyKind { name: "Titan", color: Color::new(0.95, 0.5, 0.1, 1.0), size: 130.0, health: 2000.0, babies: 15.0, min_speed: 25.0, max_speed: 50.0, weight: 2.0, from_army: 25, attack: 160.0, aggro_tiles: 5.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
-    EnemyKind { name: "Colossus", color: Color::new(0.95, 0.2, 0.6, 1.0), size: 220.0, health: 9000.0, babies: 60.0, min_speed: 15.0, max_speed: 30.0, weight: 1.0, from_army: 100, attack: 420.0, aggro_tiles: 8.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Brute", color: Color::new(0.65, 0.25, 0.95, 1.0), size: 72.0, health: 450.0, babies: 4.0, min_speed: 40.0, max_speed: 80.0, weight: 3.0, from_army: 6, attack: 60.0, aggro_tiles: 6.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    EnemyKind { name: "Titan", color: Color::new(0.95, 0.5, 0.1, 1.0), size: 130.0, health: 2000.0, babies: 15.0, min_speed: 25.0, max_speed: 50.0, weight: 2.0, from_army: 25, attack: 160.0, aggro_tiles: 5.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    EnemyKind { name: "Colossus", color: Color::new(0.95, 0.2, 0.6, 1.0), size: 220.0, health: 9000.0, babies: 60.0, min_speed: 15.0, max_speed: 30.0, weight: 1.0, from_army: 100, attack: 420.0, aggro_tiles: 8.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //never runs at anyone, but shoots volleys at the units from a distance, shots that walls stop
-    EnemyKind { name: "Spitter", color: Color::new(0.62, 0.42, 0.25, 1.0), size: 56.0, health: 150.0, babies: 2.0, min_speed: 50.0, max_speed: 90.0, weight: 3.0, from_army: 15, attack: 10.0, aggro_tiles: 0.0, range: 640.0, behavior: Behavior::Shooter, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Spitter", color: Color::new(0.62, 0.42, 0.25, 1.0), size: 56.0, health: 150.0, babies: 2.0, min_speed: 50.0, max_speed: 90.0, weight: 3.0, from_army: 15, attack: 10.0, aggro_tiles: 0.0, range: 640.0, behavior: Behavior::Shooter, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //tiny, quick and everywhere at once: they come in packs, and a pack in a crowd is a lot of small bites
-    EnemyKind { name: "Swarmer", color: Color::new(0.6, 0.9, 0.2, 1.0), size: 20.0, health: 20.0, babies: 0.5, min_speed: 170.0, max_speed: 260.0, weight: 2.0, from_army: 0, attack: 6.0, aggro_tiles: 12.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 10 },
+    EnemyKind { name: "Swarmer", color: Color::new(0.6, 0.9, 0.2, 1.0), size: 20.0, health: 20.0, babies: 0.5, min_speed: 170.0, max_speed: 260.0, weight: 2.0, from_army: 0, attack: 6.0, aggro_tiles: 12.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 10, shot: ShotKind::Plain },
     //hides behind a shield that has to be worn down first, and that grows back if the units let up
-    EnemyKind { name: "Bulwark", color: Color::new(0.3, 0.55, 0.8, 1.0), size: 78.0, health: 260.0, babies: 4.0, min_speed: 35.0, max_speed: 65.0, weight: 2.0, from_army: 12, attack: 40.0, aggro_tiles: 5.0, range: 0.0, behavior: Behavior::Walker, shield: 1.6, pack: 0 },
+    EnemyKind { name: "Bulwark", color: Color::new(0.3, 0.55, 0.8, 1.0), size: 78.0, health: 260.0, babies: 4.0, min_speed: 35.0, max_speed: 65.0, weight: 2.0, from_army: 12, attack: 40.0, aggro_tiles: 5.0, range: 0.0, behavior: Behavior::Walker, shield: 1.6, pack: 0, shot: ShotKind::Plain },
     //destroyed, it breaks into three smaller ones that run at the player
-    EnemyKind { name: "Splitter", color: Color::new(0.1, 0.75, 0.6, 1.0), size: 66.0, health: 220.0, babies: 2.0, min_speed: 50.0, max_speed: 90.0, weight: 2.0, from_army: 8, attack: 30.0, aggro_tiles: 7.0, range: 0.0, behavior: Behavior::Splitter, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Splitter", color: Color::new(0.1, 0.75, 0.6, 1.0), size: 66.0, health: 220.0, babies: 2.0, min_speed: 50.0, max_speed: 90.0, weight: 2.0, from_army: 8, attack: 30.0, aggro_tiles: 7.0, range: 0.0, behavior: Behavior::Splitter, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //stands still and shows where it is going, then dashes that way and hits much harder for a moment
-    EnemyKind { name: "Charger", color: Color::new(0.6, 0.18, 0.12, 1.0), size: 62.0, health: 320.0, babies: 5.0, min_speed: 40.0, max_speed: 70.0, weight: 3.0, from_army: 20, attack: 80.0, aggro_tiles: 12.0, range: 0.0, behavior: Behavior::Charger, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Charger", color: Color::new(0.6, 0.18, 0.12, 1.0), size: 62.0, health: 320.0, babies: 5.0, min_speed: 40.0, max_speed: 70.0, weight: 3.0, from_army: 20, attack: 80.0, aggro_tiles: 12.0, range: 0.0, behavior: Behavior::Charger, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //runs at the army and blows up, taking some of it with it
-    EnemyKind { name: "Bomber", color: Color::new(0.4, 0.4, 0.46, 1.0), size: 34.0, health: 70.0, babies: 1.0, min_speed: 150.0, max_speed: 220.0, weight: 3.0, from_army: 30, attack: 5.0, aggro_tiles: 16.0, range: 0.0, behavior: Behavior::Bomber, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Bomber", color: Color::new(0.4, 0.4, 0.46, 1.0), size: 34.0, health: 70.0, babies: 1.0, min_speed: 150.0, max_speed: 220.0, weight: 3.0, from_army: 30, attack: 5.0, aggro_tiles: 16.0, range: 0.0, behavior: Behavior::Bomber, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //mends the enemies round it. only found with a warband, never on its own
-    EnemyKind { name: "Healer", color: Color::new(0.6, 1.0, 0.7, 1.0), size: 40.0, health: 140.0, babies: 3.0, min_speed: 45.0, max_speed: 75.0, weight: 0.0, from_army: 25, attack: 4.0, aggro_tiles: 0.0, range: 0.0, behavior: Behavior::Healer, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Healer", color: Color::new(0.6, 1.0, 0.7, 1.0), size: 40.0, health: 140.0, babies: 3.0, min_speed: 45.0, max_speed: 75.0, weight: 0.0, from_army: 25, attack: 4.0, aggro_tiles: 0.0, range: 0.0, behavior: Behavior::Healer, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //calls up imps while the player is near, and they die with it
-    EnemyKind { name: "Summoner", color: Color::new(0.35, 0.25, 0.75, 1.0), size: 54.0, health: 200.0, babies: 4.0, min_speed: 35.0, max_speed: 60.0, weight: 2.0, from_army: 40, attack: 15.0, aggro_tiles: 0.0, range: 0.0, behavior: Behavior::Summoner, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Summoner", color: Color::new(0.35, 0.25, 0.75, 1.0), size: 54.0, health: 200.0, babies: 4.0, min_speed: 35.0, max_speed: 60.0, weight: 2.0, from_army: 40, attack: 15.0, aggro_tiles: 0.0, range: 0.0, behavior: Behavior::Summoner, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //lobs shells at the units from far away, that land a moment later and hurt everything round where they land
-    EnemyKind { name: "Mortar", color: Color::new(0.55, 0.6, 0.2, 1.0), size: 58.0, health: 180.0, babies: 3.0, min_speed: 30.0, max_speed: 55.0, weight: 2.0, from_army: 50, attack: 10.0, aggro_tiles: 0.0, range: 900.0, behavior: Behavior::Mortar, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Mortar", color: Color::new(0.55, 0.6, 0.2, 1.0), size: 58.0, health: 180.0, babies: 3.0, min_speed: 30.0, max_speed: 55.0, weight: 2.0, from_army: 50, attack: 10.0, aggro_tiles: 0.0, range: 900.0, behavior: Behavior::Mortar, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    //fires one fast bolt that goes straight through the units in its way, a lane to keep out of
+    EnemyKind { name: "Lancer", color: Color::new(0.85, 0.92, 1.0, 1.0), size: 52.0, health: 170.0, babies: 3.0, min_speed: 45.0, max_speed: 80.0, weight: 2.0, from_army: 55, attack: 10.0, aggro_tiles: 0.0, range: 880.0, behavior: Behavior::Shooter, shield: 0.0, pack: 0, shot: ShotKind::Piercing },
+    //lobs slow grenades that go off where they land and hurt everything round them
+    EnemyKind { name: "Grenadier", color: Color::new(0.9, 0.55, 0.1, 1.0), size: 60.0, health: 200.0, babies: 3.0, min_speed: 40.0, max_speed: 70.0, weight: 2.0, from_army: 45, attack: 10.0, aggro_tiles: 0.0, range: 700.0, behavior: Behavior::Shooter, shield: 0.0, pack: 0, shot: ShotKind::Splash },
+    //its orbs bend towards the nearest unit as they fly, so running does not shake them off
+    EnemyKind { name: "Seeker", color: Color::new(0.92, 0.3, 0.72, 1.0), size: 36.0, health: 90.0, babies: 2.0, min_speed: 70.0, max_speed: 110.0, weight: 2.0, from_army: 70, attack: 8.0, aggro_tiles: 0.0, range: 620.0, behavior: Behavior::Shooter, shield: 0.0, pack: 0, shot: ShotKind::Homing },
+    //lies hidden until the player comes close, then springs on them with a rush, together with the rest of its pack
+    EnemyKind { name: "Ambusher", color: Color::new(0.36, 0.26, 0.46, 1.0), size: 40.0, health: 150.0, babies: 4.0, min_speed: 120.0, max_speed: 190.0, weight: 2.0, from_army: 30, attack: 36.0, aggro_tiles: 14.0, range: 0.0, behavior: Behavior::Ambusher, shield: 0.0, pack: 3, shot: ShotKind::Plain },
     //what the others make, never found by themselves
-    EnemyKind { name: "Imp", color: Color::new(0.8, 0.3, 0.9, 1.0), size: 22.0, health: 30.0, babies: 0.0, min_speed: 150.0, max_speed: 230.0, weight: 0.0, from_army: 0, attack: 8.0, aggro_tiles: 20.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
-    EnemyKind { name: "Splitling", color: Color::new(0.35, 0.9, 0.75, 1.0), size: 34.0, health: 60.0, babies: 1.0, min_speed: 90.0, max_speed: 150.0, weight: 0.0, from_army: 0, attack: 18.0, aggro_tiles: 12.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
-    EnemyKind { name: "Drone", color: Color::new(0.5, 0.8, 1.0, 1.0), size: 28.0, health: 60.0, babies: 0.0, min_speed: 60.0, max_speed: 100.0, weight: 0.0, from_army: 0, attack: 6.0, aggro_tiles: 0.0, range: 520.0, behavior: Behavior::Shooter, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Imp", color: Color::new(0.8, 0.3, 0.9, 1.0), size: 22.0, health: 30.0, babies: 0.0, min_speed: 150.0, max_speed: 230.0, weight: 0.0, from_army: 0, attack: 8.0, aggro_tiles: 20.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    EnemyKind { name: "Splitling", color: Color::new(0.35, 0.9, 0.75, 1.0), size: 34.0, health: 60.0, babies: 1.0, min_speed: 90.0, max_speed: 150.0, weight: 0.0, from_army: 0, attack: 18.0, aggro_tiles: 12.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    EnemyKind { name: "Drone", color: Color::new(0.5, 0.8, 1.0, 1.0), size: 28.0, health: 60.0, babies: 0.0, min_speed: 60.0, max_speed: 100.0, weight: 0.0, from_army: 0, attack: 6.0, aggro_tiles: 0.0, range: 520.0, behavior: Behavior::Shooter, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //what a frozen enemy breaks into when it is destroyed
-    EnemyKind { name: "Shard", color: Color::new(0.75, 0.93, 1.0, 1.0), size: 26.0, health: 45.0, babies: 0.5, min_speed: 110.0, max_speed: 190.0, weight: 0.0, from_army: 0, attack: 14.0, aggro_tiles: 14.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Shard", color: Color::new(0.75, 0.93, 1.0, 1.0), size: 26.0, health: 45.0, babies: 0.5, min_speed: 110.0, max_speed: 190.0, weight: 0.0, from_army: 0, attack: 14.0, aggro_tiles: 14.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //what a lair is built round: it never moves, and is only ever put in the world by a site
-    EnemyKind { name: "Nest", color: Color::new(0.8, 0.25, 0.3, 1.0), size: 96.0, health: 700.0, babies: 12.0, min_speed: 0.0, max_speed: 0.0, weight: 0.0, from_army: 0, attack: 30.0, aggro_tiles: 0.0, range: 0.0, behavior: Behavior::Nest, shield: 0.0, pack: 0 },
+    EnemyKind { name: "Nest", color: Color::new(0.8, 0.25, 0.3, 1.0), size: 96.0, health: 700.0, babies: 12.0, min_speed: 0.0, max_speed: 0.0, weight: 0.0, from_army: 0, attack: 30.0, aggro_tiles: 0.0, range: 0.0, behavior: Behavior::Nest, shield: 0.0, pack: 0, shot: ShotKind::Plain },
 ];
 
 //the kind with this name
@@ -212,6 +226,10 @@ pub(crate) struct Enemy {
     pub(crate) pressing: Option<(i32, i32)>, //the wall it is pushing against and chewing at
     pub(crate) slow: f32,          //the share of its speed it keeps, tar takes some away
     pub(crate) frozen: f32,        //seconds it is held solid for, by a Freezing relic: it can't move, attack or shoot, and shatters if it is destroyed
+    pub(crate) provoked: f32,      //seconds it is still fighting back at the units that hurt it, not kept in a save
+    pub(crate) grudge: Vec2,       //where those units were, which it goes to and fights them at
+    pub(crate) rout: f32,          //seconds it is still running from the army, after its captain fell: it does nothing else. not kept in a save
+    pub(crate) rallied: bool,      //a living captain is rallying it: it is faster and hits harder. worked out every frame, not kept in a save
 }
 
 impl Enemy {
@@ -262,7 +280,7 @@ impl Enemy {
             shield: health * kind.shield,
             max_shield: health * kind.shield,
             shield_idle: 0.0,
-            mode: Mode::Roam,
+            mode: if kind.behavior == Behavior::Ambusher { Mode::Lurk } else { Mode::Roam },
             timer: rand::gen_range(0.3, 1.5),
             flash: 10.0,
             blew_up: false,
@@ -274,6 +292,10 @@ impl Enemy {
             pressing: None,
             slow: 1.0,
             frozen: 0.0,
+            provoked: 0.0,
+            grudge: Vec2::ZERO,
+            rout: 0.0,
+            rallied: false,
         }
     }
 
@@ -323,7 +345,7 @@ impl Enemy {
         self.shield = self.max_shield;
         self.babies = (self.babies as f32 * 2.5).round() as usize;
         match modifier {
-            Modifier::None | Modifier::Volatile => {}
+            Modifier::None | Modifier::Volatile | Modifier::Captain => {}
             Modifier::Swift => self.speed *= 1.7,
             Modifier::Armored => self.armor = 0.5,
             Modifier::Frenzied => {
@@ -333,10 +355,29 @@ impl Enemy {
         }
     }
 
+    //make it the captain of a horde made for an army this big: as big as a boss is for it, much tougher, harder hitting and worth a lot,
+    //and never left behind by the crowd it leads
+    pub(crate) fn make_captain(&mut self, army: usize) {
+        self.modifier = Modifier::Captain;
+        self.size = CAPTAIN_SIZE_BASE + CAPTAIN_SIZE_GROWTH * (army.max(1) as f32).sqrt();
+        self.max_health *= CAPTAIN_HEALTH;
+        self.health = self.max_health;
+        self.max_shield *= CAPTAIN_HEALTH;
+        self.shield = self.max_shield;
+        self.attack *= CAPTAIN_ATTACK;
+        self.babies = (self.babies as f32 * CAPTAIN_BABIES).round() as usize;
+        self.armor = self.armor.max(CAPTAIN_ARMOR);
+        self.speed = self.speed.max(CAPTAIN_MIN_SPEED);
+    }
+
+    pub(crate) fn is_captain(&self) -> bool {
+        self.modifier == Modifier::Captain
+    }
+
     //take damage: armor shrugs off a share of it, a shield soaks up the rest before health is touched, and a boss between
     //phases takes none. returns how much it took
     pub(crate) fn take_damage(&mut self, damage: f32) -> f32 {
-        if self.boss.as_ref().is_some_and(|boss| boss.shifting > 0.0) {
+        if self.boss.as_ref().is_some_and(|boss| boss.shifting > 0.0) || self.lurking() {
             return 0.0;
         }
         let mut damage = damage * (1.0 - self.armor);
@@ -383,9 +424,43 @@ impl Enemy {
         self.max_health * next * BOSS_GATE_MARGIN
     }
 
+    //whether it is an ambusher still lying in wait: it can't be seen, clicked, hurt or frozen, and does nothing until it springs
+    pub(crate) fn lurking(&self) -> bool {
+        self.mode == Mode::Lurk
+    }
+
+    //an ambusher springs: it is out in the open, after the player, and its first rush at them hits as hard as a dash
+    pub(crate) fn spring(&mut self, toward: Vec2, fx: &mut Effects) {
+        if !self.lurking() {
+            return;
+        }
+        let dir = (toward - self.position).normalize_or_zero();
+        self.mode = Mode::Dash { dir: if dir == Vec2::ZERO { Vec2::X } else { dir }, left: AMBUSH_LUNGE_TIME };
+        self.chasing = true;
+        self.flash = 0.0;
+        fx.popup(self.position, self.size / 2.0, 0.0, "AMBUSH!".to_owned(), danger_color(1.0));
+        fx.burst(self.position, self.color, 10, 240.0);
+        fx.cue_at(Cue::Alert, self.position);
+    }
+
+    //hurt by units: it is provoked, and fights them where they are for a while. returns whether this is the first it has heard of
+    //them (it was not provoked already), which is when it calls the enemies near it too
+    pub(crate) fn provoke(&mut self, at: Vec2) -> bool {
+        let fresh = self.provoked <= 0.0;
+        self.provoked = RETALIATE_SECONDS;
+        self.grudge = at;
+        fresh
+    }
+
+    //whether it can be provoked: the ones that move and have a mind of their own, not a boss (it is after the army anyway), a nest
+    //or something that is held frozen or lying in wait
+    pub(crate) fn can_be_provoked(&self) -> bool {
+        self.boss.is_none() && self.behavior != Behavior::Nest && !self.lurking() && self.frozen <= 0.0
+    }
+
     //whether a Freezing relic can hold it: not a boss, and not a nest that never moves
     pub(crate) fn can_freeze(&self) -> bool {
-        self.boss.is_none() && self.behavior != Behavior::Nest
+        self.boss.is_none() && self.behavior != Behavior::Nest && !self.lurking()
     }
 
     //whether it breaks into shards when it is destroyed: it is frozen, and was not itself made by another enemy or broken off one
@@ -393,15 +468,40 @@ impl Enemy {
         self.frozen > 0.0 && self.can_freeze() && !self.is_minion() && self.name != "Shard"
     }
 
-    //damage per second to the units it touches: a dash hits much harder, and a frozen one does none
+    //damage per second to the units it touches: a dash hits much harder, a rallied one hits harder, and a frozen or routed one does none
     pub(crate) fn attack_now(&self) -> f32 {
-        if self.frozen > 0.0 {
+        if self.frozen > 0.0 || self.routed() {
             return 0.0;
         }
+        let attack = if self.rallied { self.attack * RALLY_ATTACK } else { self.attack };
         match self.mode {
-            Mode::Dash { .. } => self.attack * CHARGE_DAMAGE,
-            _ => self.attack,
+            Mode::Dash { .. } => attack * CHARGE_DAMAGE,
+            _ => attack,
         }
+    }
+
+    //how much of its speed it is going at: tar slows it, and a captain's rally quickens it
+    pub(crate) fn pace(&self) -> f32 {
+        self.slow * if self.rallied { RALLY_SPEED } else { 1.0 }
+    }
+
+    //whether it is running from the army, its captain having fallen
+    pub(crate) fn routed(&self) -> bool {
+        self.rout > 0.0
+    }
+
+    //its captain has fallen: it runs from the army for a while. a dash or a wind up it was in the middle of comes to nothing
+    pub(crate) fn break_and_run(&mut self) {
+        self.rout = ROUT_SECONDS;
+        self.rallied = false;
+        if matches!(self.mode, Mode::Windup { .. } | Mode::Dash { .. } | Mode::Recover { .. } | Mode::Cast { .. }) {
+            self.mode = Mode::Roam;
+        }
+    }
+
+    //whether it is awake and a danger to be near, which is what keeps a chest from being held: not one that is hiding, held solid or running away
+    pub(crate) fn contests(&self) -> bool {
+        self.health > 0.0 && !self.lurking() && self.frozen <= 0.0 && !self.routed()
     }
 
     //show the damage it has taken and the units it has killed since it last did as numbers floating up from it
@@ -516,7 +616,7 @@ impl Enemy {
             Mode::Recover { left } => self.mode = if left - dt > 0.0 { Mode::Recover { left: left - dt } } else { Mode::Roam },
             Mode::Cast { left } => self.mode = if left - dt > 0.0 { Mode::Cast { left: left - dt } } else { Mode::Roam },
             //a bomber stands still while its fuse burns, enemy_abilities counts it down
-            Mode::Fuse { .. } => {}
+            Mode::Fuse { .. } | Mode::Lurk => {}
         }
         true
     }
@@ -562,6 +662,13 @@ pub(crate) fn draw_enemies(enemies: &[Enemy], squads: &Squads, time: f32, speed_
     for enemy in enemies {
         let half = enemy.size / 2.0;
         let (x, y) = (enemy.position.x - half, enemy.position.y - half);
+        if enemy.lurking() {
+            //nothing to see but a patch of disturbed ground, for whoever looks
+            let pulse = 0.65 + 0.35 * (time * 2.0 + enemy.position.x * 0.013).sin();
+            draw_circle(enemy.position.x, enemy.position.y, half * 1.3, Color::new(0.04, 0.02, 0.07, AMBUSH_TELL * pulse));
+            draw_circle_lines(enemy.position.x, enemy.position.y, half * 1.3, 2.0, Color::new(0.55, 0.4, 0.7, AMBUSH_TELL * 0.8 * pulse));
+            continue;
+        }
         if let Mode::Windup { dir, left } = enemy.mode {
             let urgency = (1.0 - left / CHARGE_WINDUP).clamp(0.0, 1.0);
             let end = enemy.position + dir * CHARGE_SPEED * speed_multiplier * CHARGE_TIME;
@@ -578,6 +685,18 @@ pub(crate) fn draw_enemies(enemies: &[Enemy], squads: &Squads, time: f32, speed_
         if enemy.boss.as_ref().is_some_and(|boss| boss.shifting > 0.0) && (time * 30.0).sin() > 0.0 {
             color = lighten(color, 0.7);
         }
+        //a captain's rally reaches this far, drawn under it so the crowd can be seen to be inside it
+        if enemy.is_captain() {
+            let reach = RALLY_TILES * TILE_SIZE + half;
+            let pulse = 0.5 + 0.5 * (time * 2.5).sin();
+            let gold = enemy.modifier.color();
+            draw_circle(enemy.position.x, enemy.position.y, reach, Color::new(gold.r, gold.g, gold.b, 0.03 + 0.02 * pulse));
+            draw_circle_lines(enemy.position.x, enemy.position.y, reach, 3.0, Color::new(gold.r, gold.g, gold.b, 0.18 + 0.14 * pulse));
+        }
+        //running from the army: washed out
+        if enemy.routed() {
+            color = lighten(color, 0.55);
+        }
         draw_rectangle(x, y, enemy.size, enemy.size, color);
         if enemy.frozen > 0.0 {
             //frosted over: a white edge and a glint across it
@@ -589,16 +708,44 @@ pub(crate) fn draw_enemies(enemies: &[Enemy], squads: &Squads, time: f32, speed_
             let width = (enemy.size * 0.05).clamp(3.0, 14.0);
             draw_rectangle_lines(x + width * 0.5, y + width * 0.5, enemy.size - width, enemy.size - width, width, Color::new(0.8, 0.82, 0.9, 0.9));
         }
-        if enemy.chasing && enemy.boss.is_none() {
+        if enemy.routed() {
+            //running away: a white outline in place of the red one
+            let width = (enemy.size * 0.03).clamp(2.0, 12.0);
+            draw_rectangle_lines(x, y, enemy.size, enemy.size, width, WHITE);
+        } else if enemy.chasing && enemy.boss.is_none() {
             //running at the player: a red outline, thinner than the squad's
             let width = (enemy.size * 0.03).clamp(2.0, 12.0);
             draw_rectangle_lines(x, y, enemy.size, enemy.size, width, RED);
+        }
+        if enemy.rallied {
+            //rallied by a captain: a gold edge inside the red one
+            let width = (enemy.size * 0.025).clamp(2.0, 10.0);
+            let gold = Modifier::Captain.color();
+            let inset = (enemy.size * 0.03).clamp(2.0, 12.0) + width * 0.5;
+            draw_rectangle_lines(x + inset, y + inset, enemy.size - inset * 2.0, enemy.size - inset * 2.0, width, Color::new(gold.r, gold.g, gold.b, 0.95));
+        }
+        if enemy.provoked > 0.0 && !enemy.chasing && enemy.boss.is_none() {
+            //fighting back at the units that hurt it: an orange outline, and the shorter it has left the fainter
+            let width = (enemy.size * 0.03).clamp(2.0, 12.0);
+            let fade = (enemy.provoked / RETALIATE_SECONDS).clamp(0.2, 1.0);
+            draw_rectangle_lines(x, y, enemy.size, enemy.size, width, Color::new(1.0, 0.62, 0.15, 0.9 * fade));
         }
         if enemy.modifier != Modifier::None {
             let width = (enemy.size * 0.04).clamp(3.0, 14.0);
             let pulse = 0.7 + 0.3 * (time * 6.0).sin();
             let mark = enemy.modifier.color();
             draw_rectangle_lines(x - width, y - width, enemy.size + width * 2.0, enemy.size + width * 2.0, width, Color::new(mark.r, mark.g, mark.b, pulse));
+        }
+        if enemy.is_captain() {
+            //a crown of three points on its top edge, so it can be told from far off in a crowd
+            let crown = enemy.modifier.color();
+            let spike = enemy.size * 0.09;
+            for k in 0..3 {
+                let base = x + enemy.size * (0.2 + 0.3 * k as f32);
+                let tip = if k == 1 { 2.4 } else { 1.7 };
+                draw_triangle(Vec2::new(base - spike, y), Vec2::new(base + spike, y), Vec2::new(base, y - spike * tip), BLACK);
+                draw_triangle(Vec2::new(base - spike * 0.8, y), Vec2::new(base + spike * 0.8, y), Vec2::new(base, y - spike * (tip - 0.3)), crown);
+            }
         }
         if enemy.shield > 0.0 {
             let share = (enemy.shield / enemy.max_shield.max(1.0)).clamp(0.0, 1.0);
@@ -624,6 +771,15 @@ pub(crate) fn draw_enemies(enemies: &[Enemy], squads: &Squads, time: f32, speed_
             let width = (enemy.size * 0.02).clamp(6.0, 30.0);
             let aura = if state.last_stand { RED } else { enemy.color };
             draw_rectangle_lines(x - width, y - width, enemy.size + width * 2.0, enemy.size + width * 2.0, width, Color::new(aura.r, aura.g, aura.b, 0.3 + 0.35 * pulse));
+            //a ring round it that fills in the colour of the circle it will put down next, and flashes when that is close
+            if let Some(next) = state.next_circle() {
+                let tint = next.circle.color();
+                let radius = enemy.size * 0.5 * std::f32::consts::SQRT_2 + width * 3.0 + 14.0;
+                let thickness = (enemy.size * 0.025).clamp(4.0, 20.0);
+                let soon = if next.seconds <= 1.5 { 0.5 + 0.5 * (time * 14.0).sin() } else { 0.0 };
+                draw_circle_lines(enemy.position.x, enemy.position.y, radius, thickness * 0.5, Color::new(tint.r, tint.g, tint.b, 0.2));
+                draw_sweep(enemy.position, radius, -std::f32::consts::FRAC_PI_2, std::f32::consts::TAU * next.share, thickness, Color::new(tint.r, tint.g, tint.b, 0.75 + 0.25 * soon));
+            }
             //an armoured front is a bright arc on the side it is facing
             if state.def.flank {
                 let radius = enemy.size * 0.62;
@@ -661,3 +817,13 @@ pub(crate) fn draw_enemies(enemies: &[Enemy], squads: &Squads, time: f32, speed_
     }
 }
 
+
+//an arc of a circle: from `start` radians round by `sweep` radians, drawn as short lines
+pub(crate) fn draw_sweep(center: Vec2, radius: f32, start: f32, sweep: f32, thickness: f32, color: Color) {
+    let steps = ((sweep.abs() * radius / 24.0).ceil() as usize).clamp(2, 160);
+    let point = |k: usize| center + Vec2::from_angle(start + sweep * k as f32 / steps as f32) * radius;
+    for k in 0..steps {
+        let (from, to) = (point(k), point(k + 1));
+        draw_line(from.x, from.y, to.x, to.y, thickness, color);
+    }
+}

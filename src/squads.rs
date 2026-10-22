@@ -13,12 +13,12 @@ pub(crate) struct Squad {
 pub(crate) type Squads = HashMap<u32, Squad>;
 
 //the enemy under a point in the world, if there is one: each counts as bigger all round by the margin, which makes small
-//ones easier to hit. with several, the one whose middle is nearest
+//ones easier to hit. with several, the one whose middle is nearest. an ambusher lying in wait is not there to be found
 pub(crate) fn enemy_at(point: Vec2, enemies: &[Enemy], margin: f32) -> Option<usize> {
     enemies
         .iter()
         .enumerate()
-        .filter(|(_, enemy)| (point - enemy.position).abs().max_element() <= enemy.size / 2.0 + margin)
+        .filter(|(_, enemy)| !enemy.lurking() && (point - enemy.position).abs().max_element() <= enemy.size / 2.0 + margin)
         .min_by(|a, b| a.1.position.distance_squared(point).total_cmp(&b.1.position.distance_squared(point)))
         .map(|(i, _)| i)
 }

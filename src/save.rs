@@ -81,6 +81,11 @@ impl<'a> SaveReader<'a> {
         self.words.clone().next() == Some(label)
     }
 
+    //whether every word has been taken: what is on the end of a file that older saves don't have is there or isn't
+    pub(crate) fn is_done(&self) -> bool {
+        self.words.clone().next().is_none()
+    }
+
     //the next word has to be this one: the sections of the file are labelled so a file that has got out of step is noticed
     pub(crate) fn expect(&mut self, label: &str) -> Result<(), SaveError> {
         let word = self.word()?;
@@ -287,8 +292,8 @@ impl Stored for &'static BossDef {
     }
 }
 
-stored_words!(Behavior { Walker, Shooter, Splitter, Charger, Bomber, Healer, Summoner, Mortar, Nest });
-stored_words!(Modifier { None, Swift, Armored, Volatile, Frenzied });
+stored_words!(Behavior { Walker, Shooter, Splitter, Charger, Bomber, Healer, Summoner, Mortar, Nest, Ambusher });
+stored_words!(Modifier { None, Swift, Armored, Volatile, Frenzied, Captain });
 stored_words!(WallKind { Wall, Gate, Tower, Spikes, Tar, Barrier });
 stored_words!(Side { Friendly, Hostile });
 stored_words!(SiteState { Dormant, Awake, Cleared });
@@ -335,6 +340,7 @@ impl Stored for Mode {
                 w.word("Cast");
                 w.put(&left);
             }
+            Mode::Lurk => w.word("Lurk"),
         }
     }
 
@@ -346,6 +352,7 @@ impl Stored for Mode {
             "Recover" => Ok(Mode::Recover { left: r.get()? }),
             "Fuse" => Ok(Mode::Fuse { left: r.get()? }),
             "Cast" => Ok(Mode::Cast { left: r.get()? }),
+            "Lurk" => Ok(Mode::Lurk),
             other => Err(SaveError(format!("{other:?} is not a mode"))),
         }
     }
@@ -436,10 +443,48 @@ impl Stored for &'static HordeDef {
         horde_named(&name).ok_or_else(|| SaveError(format!("{name:?} is not a horde")))
     }
 }
-stored_fields!(Coming { def, at, left });
 stored_fields!(Fight { def, total, lost, worth, last_at });
-stored_fields!(Chest { at, tier, points, left });
-stored_fields!(Hordes { next_in, coming, fight, chests });
+stored_fields!(Chest { at, tier, points, left }; held: 0.0, contested: false, stalled: false);
+
+//a horde coming from two sides: the second side's place is not with the rest, which older saves (they have only hordes with one
+//side) have no word for, so it comes after everything else, and they don't have it
+impl Stored for Coming {
+    fn store(&self, w: &mut SaveWriter) {
+        self.def.store(w);
+        self.at.store(w);
+        self.left.store(w);
+        w.end_line();
+    }
+
+    fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
+        Ok(Coming { def: r.get()?, at: r.get()?, left: r.get()?, other: None })
+    }
+}
+
+//(the second side of the horde that is coming, if it has one, is the last thing in the file, since nothing else follows the hordes:
+//a save from before that ends after the chests)
+impl Stored for Hordes {
+    fn store(&self, w: &mut SaveWriter) {
+        self.next_in.store(w);
+        self.coming.store(w);
+        self.fight.store(w);
+        self.chests.store(w);
+        w.end_line();
+        self.coming.and_then(|coming| coming.other).store(w);
+        w.end_line();
+    }
+
+    fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
+        let mut hordes = Hordes { next_in: r.get()?, coming: r.get()?, fight: r.get()?, chests: r.get()? };
+        if !r.is_done() {
+            let other: Option<Vec2> = r.get()?;
+            if let Some(coming) = hordes.coming.as_mut() {
+                coming.other = other;
+            }
+        }
+        Ok(hordes)
+    }
+}
 
 //(how many times the citadel has fallen is on the end, which a save from before it came back has not got: the next word in
 //one of those is the label of the section after)
@@ -469,7 +514,7 @@ stored_fields!(
         id, name, position, size, color, max_health, health, babies, speed, route, heading_for, attack, aggro, chasing, range, volley, shot_in,
         hurt, killed, popup_in, behavior, modifier, scale, owner, armor, shield, max_shield, shield_idle, mode, timer, flash, blew_up, boss,
         site, steer, steer_in, stuck, pressing, slow
-    } ; frozen: 0.0 //(a freeze lasts a moment, so it is not kept)
+    } ; frozen: 0.0, provoked: 0.0, grudge: Vec2::ZERO, rout: 0.0, rallied: false //(a freeze lasts a moment, and so do a grudge and a rout, and the rally is worked out again at once, so they are not kept)
 );
 
 //the walls are kept in order of their squares, so the same walls make the same file

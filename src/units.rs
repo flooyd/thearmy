@@ -457,11 +457,14 @@ pub(crate) struct Baby {
 }
 
 //babies the player is within range of grow into units, once they have been there a moment and while the army is smaller than
-//`cap`
+//`cap`. one that has waited BABY_LIFE seconds is gone, whether or not there was room for it
 pub(crate) fn grow_babies(babies: &mut Vec<Baby>, units: &mut Vec<Unit>, player_x: f32, player_y: f32, dt: f32, range: f32, cap: usize, fx: &mut Effects) {
     let player = Vec2::new(player_x, player_y);
     babies.retain_mut(|baby| {
         baby.age += dt;
+        if baby.age >= BABY_LIFE {
+            return false;
+        }
         if baby.age < BABY_PICKUP_DELAY || baby.position.distance(player) > range || units.len() >= cap {
             return true;
         }
@@ -477,13 +480,29 @@ pub(crate) fn grow_babies(babies: &mut Vec<Baby>, units: &mut Vec<Unit>, player_
 //enemy that dropped them, so they can be seen. only the ones in view (with a ring's width to spare) are made into discs
 pub(crate) fn baby_discs(babies: &[Baby], view: Rect) -> Vec<Disc> {
     let mut discs = Vec::new();
-    let color = pickup_color();
+    let pickup = pickup_color();
     for baby in babies.iter().filter(|baby| view.contains(baby.position)) {
         //pops out from nothing when it drops
         let grown = (baby.age / 0.15).min(1.0);
+        let color = Color { a: pickup.a * baby_blink(baby.age), ..pickup };
         discs.push(Disc::new(baby.position.x, baby.position.y, BABY_RADIUS * grown, color));
         discs.push(Disc::ring(baby.position.x, baby.position.y, (BABY_RADIUS + 4.0) * grown, 2.0, color));
     }
     discs
+}
+
+//how much of its colour a baby shows: all of it, until the last BABY_BLINK_SECONDS of its life, when it flickers between
+//full and faint, quicker and fainter as the time runs out
+pub(crate) fn baby_blink(age: f32) -> f32 {
+    let left = BABY_LIFE - age;
+    if left >= BABY_BLINK_SECONDS {
+        return 1.0;
+    }
+    let closing = (1.0 - left / BABY_BLINK_SECONDS).clamp(0.0, 1.0);
+    //the blinks a second climb from 1.5 to 5 over the time, so the phase is that rate added up
+    let blinking = closing * BABY_BLINK_SECONDS;
+    let phase = 1.5 * blinking + 0.5 * (3.5 / BABY_BLINK_SECONDS) * blinking * blinking;
+    let beat = (phase * std::f32::consts::TAU).cos() * 0.5 + 0.5;
+    1.0 - (1.0 - beat) * (0.5 + 0.4 * closing)
 }
 

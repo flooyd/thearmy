@@ -17,6 +17,13 @@ pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut V
             let unit = &units[i];
             unit.health > 0.0 && unit.garrison.is_none() && enemy.overlaps_circle(unit.x, unit.y, unit.radius())
         });
+        //an ambusher that a unit stumbles on springs on it, and is not fought until it has
+        if enemy.lurking() {
+            if let Some(&first) = touching.first() {
+                enemy.spring(Vec2::new(units[first].x, units[first].y), fx);
+            }
+            continue;
+        }
         //a champion counts as many units, and a boss with an armoured front takes little from the units in front of it
         let strength: f32 = if enemy.boss.as_ref().is_some_and(|state| state.def.flank) {
             touching.iter().map(|&i| flank_factor(enemy, Vec2::new(units[i].x, units[i].y)) * units[i].might).sum()
@@ -25,6 +32,13 @@ pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut V
         };
         let dealt = enemy.take_damage(strength * UNIT_DAMAGE * upgrades.hit() * dt);
         enemy.hurt += dealt;
+        //hurt by units, it fights back at where they are, and the enemies near it come at them too
+        if dealt > 0.0 && !touching.is_empty() && enemy.can_be_provoked() {
+            let nearest = touching.iter().take(8).fold(Vec2::ZERO, |sum, &i| sum + Vec2::new(units[i].x, units[i].y)) / touching.len().min(8) as f32;
+            if enemy.provoke(nearest) {
+                fx.alarms.push((enemy.position, nearest));
+            }
+        }
         //a Freezing relic: an enemy being fought now and then freezes solid
         enemy.frozen = (enemy.frozen - dt).max(0.0);
         if upgrades.freeze > 0.0 && enemy.frozen <= 0.0 && enemy.can_freeze() && !touching.is_empty() && rand::gen_range(0.0, 1.0) < upgrades.freeze_chance(dt) {
@@ -82,12 +96,16 @@ pub(crate) fn resolve_deaths(enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, a
     let mut destroyed = 0;
     let mut gone: Vec<u32> = Vec::new();
     let mut born: Vec<Enemy> = Vec::new();
+    let mut captains: Vec<(Vec2, f32, Color)> = Vec::new(); //where the captains that fell were, how far their rally reached, and their colour
     enemies.retain_mut(|enemy| {
         if enemy.health > 0.0 {
             return true;
         }
         enemy.show_numbers(fx);
         gone.push(enemy.id);
+        if enemy.is_captain() {
+            captains.push((enemy.position, rally_reach(enemy), enemy.modifier.color()));
+        }
         if enemy.blew_up {
             fx.burst(enemy.position, enemy.color, 14, 260.0);
             return false;
@@ -141,6 +159,18 @@ pub(crate) fn resolve_deaths(enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, a
         });
     }
     enemies.extend(born);
+    //the crowd a captain was rallying breaks when it falls
+    for (at, reach, color) in captains {
+        let routed = rout_followers(enemies, at, reach);
+        fx.ring(at, reach, color);
+        fx.add_punch(0.3);
+        if routed > 0 {
+            fx.popup(at, reach * 0.1, 0.0, "ROUTED!".to_owned(), color);
+            fx.announce(format!("CAPTAIN FALLEN: {routed} ROUTED"), color);
+        } else {
+            fx.popup(at, reach * 0.1, 0.0, "CAPTAIN FALLEN".to_owned(), color);
+        }
+    }
     destroyed
 }
 
@@ -158,7 +188,16 @@ fn break_off(enemy: &Enemy, kind: &'static EnemyKind, count: usize, army: usize,
     }
 }
 
-//something an enemy that shoots has fired, which flies straight until it hits a unit or a wall, or gives up
+//what a shot does when it reaches a unit
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum ShotKind {
+    Plain,    //hurts the first unit it reaches and is used up
+    Piercing, //goes through the units in its way, hurting each, until it has been through as many as it can
+    Splash,   //goes off where it lands (or on the first unit it reaches), hurting the units round that place
+    Homing,   //bends towards the nearest unit as it flies, and flies for longer
+}
+
+//something an enemy that shoots has fired, which flies until it hits a unit or a wall, or gives up
 pub(crate) struct Shot {
     pub(crate) position: Vec2,
     pub(crate) velocity: Vec2, //pixels per second
@@ -166,22 +205,45 @@ pub(crate) struct Shot {
     pub(crate) damage: f32,
     pub(crate) radius: f32,
     pub(crate) color: Color,
+    pub(crate) kind: ShotKind,
+    pub(crate) life: f32,         //seconds it flies for, a splash shot goes off when it is up
+    pub(crate) pierce: usize,     //units a piercing shot can still go through
+    pub(crate) struck: Vec<usize>, //the ones it has gone through, so it does not hurt one twice
+    pub(crate) splash: f32,       //pixels a splash shot reaches where it goes off
+    pub(crate) victims: usize,    //and the most units it hurts
 }
 
 impl Shot {
     pub(crate) fn new(position: Vec2, velocity: Vec2) -> Shot {
-        Shot { position, velocity, age: 0.0, damage: SHOT_DAMAGE, radius: SHOT_RADIUS, color: ORANGE }
+        Shot { position, velocity, age: 0.0, damage: SHOT_DAMAGE, radius: SHOT_RADIUS, color: ORANGE, kind: ShotKind::Plain, life: SHOT_LIFE, pierce: 0, struck: Vec::new(), splash: 0.0, victims: 0 }
     }
 
     //the bigger, harder hitting kind a boss fires
     pub(crate) fn heavy(position: Vec2, velocity: Vec2, color: Color) -> Shot {
-        Shot { position, velocity, age: 0.0, damage: SHOT_DAMAGE * 1.2, radius: SHOT_RADIUS * 1.6, color }
+        Shot { damage: SHOT_DAMAGE * 1.2, radius: SHOT_RADIUS * 1.6, color, ..Shot::new(position, velocity) }
+    }
+
+    //a bolt that goes through up to `pierce` units, hurting each
+    pub(crate) fn lance(position: Vec2, velocity: Vec2, pierce: usize, color: Color) -> Shot {
+        Shot { damage: SHOT_DAMAGE * LANCE_DAMAGE, radius: SHOT_RADIUS * 0.85, color, kind: ShotKind::Piercing, pierce: pierce.max(1), ..Shot::new(position, velocity) }
+    }
+
+    //a grenade that goes off `life` seconds from now, or sooner on a unit, hurting up to `victims` units within `splash` pixels
+    pub(crate) fn grenade(position: Vec2, velocity: Vec2, life: f32, splash: f32, victims: usize, color: Color) -> Shot {
+        Shot { damage: SHOT_DAMAGE * GRENADE_DAMAGE, radius: SHOT_RADIUS * 1.5, color, kind: ShotKind::Splash, life, splash, victims, ..Shot::new(position, velocity) }
+    }
+
+    //an orb that bends towards the nearest unit
+    pub(crate) fn seeker(position: Vec2, velocity: Vec2, color: Color) -> Shot {
+        Shot { damage: SHOT_DAMAGE * SEEKER_DAMAGE, radius: SHOT_RADIUS * 1.1, color, kind: ShotKind::Homing, life: SEEKER_LIFE, ..Shot::new(position, velocity) }
     }
 }
 
-//an enemy that shoots fires a volley at the nearest unit within its range whenever it is ready
+//an enemy that shoots fires at the nearest unit within its range whenever it is ready: a volley of ordinary shots, a bolt that goes through
+//the units in its way, grenades that go off where they land, or orbs that home in on the army
 pub(crate) fn shoot_enemies(enemies: &mut [Enemy], units: &[Unit], shots: &mut Vec<Shot>, dt: f32, fx: &mut Effects) {
-    for enemy in enemies.iter_mut().filter(|enemy| enemy.behavior == Behavior::Shooter && enemy.range > 0.0 && enemy.frozen <= 0.0) {
+    let army = units.len();
+    for enemy in enemies.iter_mut().filter(|enemy| enemy.behavior == Behavior::Shooter && enemy.range > 0.0 && enemy.frozen <= 0.0 && !enemy.routed()) {
         enemy.shot_in -= dt;
         if enemy.shot_in > 0.0 {
             continue;
@@ -196,32 +258,149 @@ pub(crate) fn shoot_enemies(enemies: &mut [Enemy], units: &[Unit], shots: &mut V
             enemy.shot_in = 0.25;
             continue;
         };
-        enemy.shot_in = SHOT_INTERVAL * rand::gen_range(0.8, 1.2);
         let aim = (target - enemy.position).normalize_or_zero();
-        let first = -(enemy.volley as f32 - 1.0) / 2.0;
-        for k in 0..enemy.volley {
-            let direction = aim.rotate(Vec2::from_angle((first + k as f32) * SHOT_SPREAD));
-            shots.push(Shot::new(enemy.position + direction * enemy.size / 2.0, direction * SHOT_SPEED));
+        let from = |direction: Vec2| enemy.position + direction * enemy.size / 2.0;
+        match kind_named(enemy.name).shot {
+            ShotKind::Plain => {
+                enemy.shot_in = SHOT_INTERVAL * rand::gen_range(0.8, 1.2);
+                let first = -(enemy.volley as f32 - 1.0) / 2.0;
+                for k in 0..enemy.volley {
+                    let direction = aim.rotate(Vec2::from_angle((first + k as f32) * SHOT_SPREAD));
+                    shots.push(Shot::new(from(direction), direction * SHOT_SPEED));
+                }
+            }
+            //a bolt takes longer to ready, and goes through more of a bigger army
+            ShotKind::Piercing => {
+                enemy.shot_in = SHOT_INTERVAL * 1.7 * rand::gen_range(0.8, 1.2);
+                let bolts = (enemy.volley / 3).max(1);
+                let pierce = (LANCE_PIERCE + army / 400).min(LANCE_PIERCE_MAX);
+                let first = -(bolts as f32 - 1.0) / 2.0;
+                for k in 0..bolts {
+                    let direction = aim.rotate(Vec2::from_angle((first + k as f32) * SHOT_SPREAD * 1.5));
+                    shots.push(Shot::lance(from(direction), direction * LANCE_SPEED, pierce, enemy.color));
+                }
+            }
+            //the grenades come down on and round the nearest unit, each going off where it was aimed
+            ShotKind::Splash => {
+                enemy.shot_in = SHOT_INTERVAL * 1.8 * rand::gen_range(0.8, 1.2);
+                let grenades = (enemy.volley / 3).max(1);
+                let splash = GRENADE_RADIUS * blast_scale(enemy.scale);
+                let victims = victims_of(army, GRENADE_VICTIMS);
+                for k in 0..grenades {
+                    let scatter = if k == 0 { Vec2::ZERO } else { Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * rand::gen_range(0.0, splash * 1.5) };
+                    let goal = target + scatter;
+                    let direction = (goal - enemy.position).normalize_or_zero();
+                    let flight = (goal.distance(enemy.position) - enemy.size / 2.0).max(0.0) / GRENADE_SPEED;
+                    shots.push(Shot::grenade(from(direction), direction * GRENADE_SPEED, flight, splash, victims, enemy.color));
+                }
+            }
+            ShotKind::Homing => {
+                enemy.shot_in = SHOT_INTERVAL * 1.6 * rand::gen_range(0.8, 1.2);
+                let orbs = (enemy.volley / 2).clamp(1, 5);
+                let first = -(orbs as f32 - 1.0) / 2.0;
+                for k in 0..orbs {
+                    let direction = aim.rotate(Vec2::from_angle((first + k as f32) * SHOT_SPREAD * 2.5));
+                    shots.push(Shot::seeker(from(direction), direction * SEEKER_SPEED, enemy.color));
+                }
+            }
         }
         fx.cue_at(Cue::Shoot, enemy.position);
     }
 }
 
-//fly the shots. one that touches a unit hurts it and is used up, and so is one that hits a wall or has flown too long.
+const SHOT_CELL: f32 = 64.0; //units are sorted into squares this big for the shots to look through
+
+//the units, sorted into squares (by their index) for the shots
+fn unit_squares(units: &[Unit]) -> TileMap<Vec<usize>> {
+    let mut grid: TileMap<Vec<usize>> = TileMap::default();
+    for (i, unit) in units.iter().enumerate() {
+        grid.entry(((unit.x / SHOT_CELL) as i32, (unit.y / SHOT_CELL) as i32)).or_default().push(i);
+    }
+    grid
+}
+
+//the living units that are within `reach` of a point, found through the squares they were sorted into
+fn units_near(grid: &TileMap<Vec<usize>>, units: &[Unit], at: Vec2, reach: f32, found: &mut Vec<usize>) {
+    let cells = (reach / SHOT_CELL).ceil() as i32 + 1;
+    let middle = ((at.x / SHOT_CELL) as i32, (at.y / SHOT_CELL) as i32);
+    for cell_x in middle.0 - cells..=middle.0 + cells {
+        for cell_y in middle.1 - cells..=middle.1 + cells {
+            let Some(in_cell) = grid.get(&(cell_x, cell_y)) else {
+                continue;
+            };
+            for &i in in_cell {
+                let unit = &units[i];
+                if unit.health > 0.0 && unit.garrison.is_none() && Vec2::new(unit.x, unit.y).distance(at) <= reach {
+                    found.push(i);
+                }
+            }
+        }
+    }
+}
+
+//a splash shot goes off where it is: up to `victims` of the units within its reach (the closest ones) are hurt, the walls there too,
+//and it leaves a scorch on the ground
+fn detonate(shot: &Shot, grid: &TileMap<Vec<usize>>, units: &mut [Unit], upgrades: &Upgrades, fx: &mut Effects) {
+    let mut near = Vec::new();
+    units_near(grid, units, shot.position, shot.splash, &mut near);
+    if shot.victims > 0 && near.len() > shot.victims {
+        near.select_nth_unstable_by(shot.victims - 1, |&a, &b| {
+            let (a, b) = (Vec2::new(units[a].x, units[a].y), Vec2::new(units[b].x, units[b].y));
+            a.distance_squared(shot.position).total_cmp(&b.distance_squared(shot.position))
+        });
+        near.truncate(shot.victims);
+    }
+    for &i in &near {
+        units[i].hurt(shot.damage * upgrades.toughness);
+    }
+    fx.blasts.push(Blast { position: shot.position, radius: shot.splash, damage: shot.damage * BLAST_WALL_FACTOR });
+    fx.burst(shot.position, shot.color, (shot.splash / 5.0).clamp(10.0, 60.0) as usize, shot.splash * 2.0);
+    fx.ring(shot.position, shot.splash, shot.color);
+    fx.mark(shot.position, shot.splash * 0.7, shot.color, MarkKind::Scorch);
+    fx.add_shake(0.04);
+    fx.cue_at(Cue::Explosion, shot.position);
+}
+
+//where the nearest living unit within `reach` of a point is
+fn nearest_unit(grid: &TileMap<Vec<usize>>, units: &[Unit], at: Vec2, reach: f32) -> Option<Vec2> {
+    let mut near = Vec::new();
+    units_near(grid, units, at, reach, &mut near);
+    near.into_iter().map(|i| Vec2::new(units[i].x, units[i].y)).min_by(|a, b| a.distance_squared(at).total_cmp(&b.distance_squared(at)))
+}
+
+//turn a velocity towards a point by at most `turn` radians, keeping its speed
+fn bend_towards(velocity: Vec2, from: Vec2, to: Vec2, turn: f32) -> Vec2 {
+    let wanted = (to - from).normalize_or_zero();
+    let heading = velocity.normalize_or_zero();
+    if wanted == Vec2::ZERO || heading == Vec2::ZERO {
+        return velocity;
+    }
+    let angle = heading.perp_dot(wanted).atan2(heading.dot(wanted)).clamp(-turn, turn);
+    velocity.rotate(Vec2::from_angle(angle))
+}
+
+//fly the shots. an ordinary one that touches a unit hurts it and is used up, and so is one that hits a wall or has flown too long. a
+//piercing one goes through the units it meets, hurting each, until it has been through as many as it can. a splash one goes off on the
+//first unit it meets, or where it was aimed, and hurts the units round that. a homing one bends towards the nearest unit as it flies.
 //the units are sorted into a grid first, there can be a lot of shots and a lot of units
 pub(crate) fn update_shots(shots: &mut Vec<Shot>, units: &mut [Unit], walls: &Walls, dt: f32, upgrades: &Upgrades, fx: &mut Effects) {
     if shots.is_empty() {
         return;
     }
-    const CELL: f32 = 64.0;
-    let mut grid: TileMap<Vec<usize>> = TileMap::default();
-    for (i, unit) in units.iter().enumerate() {
-        grid.entry(((unit.x / CELL) as i32, (unit.y / CELL) as i32)).or_default().push(i);
-    }
+    let grid = unit_squares(units);
     shots.retain_mut(|shot| {
         shot.age += dt;
-        if shot.age > SHOT_LIFE {
+        if shot.age > shot.life {
+            //a grenade that has flown as far as it was aimed goes off, any other shot is just gone
+            if shot.kind == ShotKind::Splash {
+                detonate(shot, &grid, units, upgrades, fx);
+            }
             return false;
+        }
+        if shot.kind == ShotKind::Homing {
+            if let Some(target) = nearest_unit(&grid, units, shot.position, SEEKER_REACH) {
+                shot.velocity = bend_towards(shot.velocity, shot.position, target, SEEKER_TURN * dt);
+            }
         }
         let reach = RADIUS + shot.radius;
         //a shot goes a little at a time so it can't jump over a unit or a wall
@@ -234,11 +413,15 @@ pub(crate) fn update_shots(shots: &mut Vec<Shot>, units: &mut [Unit], walls: &Wa
             }
             //the player's walls stop a shot and take its damage, a lair's let it through
             if walls.get(&(col, row)).is_some_and(|wall| wall.stops_shots()) {
-                fx.wall_hits.push(((col, row), shot.damage * SHOT_WALL_SHARE));
-                fx.burst(shot.position, shot.color, 5, 120.0);
+                if shot.kind == ShotKind::Splash {
+                    detonate(shot, &grid, units, upgrades, fx);
+                } else {
+                    fx.wall_hits.push(((col, row), shot.damage * SHOT_WALL_SHARE));
+                    fx.burst(shot.position, shot.color, 5, 120.0);
+                }
                 return false;
             }
-            let cell = ((shot.position.x / CELL) as i32, (shot.position.y / CELL) as i32);
+            let cell = ((shot.position.x / SHOT_CELL) as i32, (shot.position.y / SHOT_CELL) as i32);
             for cell_x in cell.0 - 1..=cell.0 + 1 {
                 for cell_y in cell.1 - 1..=cell.1 + 1 {
                     let Some(in_cell) = grid.get(&(cell_x, cell_y)) else {
@@ -246,10 +429,31 @@ pub(crate) fn update_shots(shots: &mut Vec<Shot>, units: &mut [Unit], walls: &Wa
                     };
                     for &i in in_cell {
                         let unit = &mut units[i];
-                        if unit.health > 0.0 && unit.garrison.is_none() && Vec2::new(unit.x, unit.y).distance(shot.position) < reach {
-                            unit.hurt(shot.damage * upgrades.toughness);
-                            fx.burst(shot.position, shot.color, 6, 160.0);
-                            return false;
+                        if unit.health <= 0.0 || unit.garrison.is_some() || Vec2::new(unit.x, unit.y).distance(shot.position) >= reach {
+                            continue;
+                        }
+                        match shot.kind {
+                            ShotKind::Splash => {
+                                detonate(shot, &grid, units, upgrades, fx);
+                                return false;
+                            }
+                            ShotKind::Piercing => {
+                                if shot.struck.contains(&i) {
+                                    continue;
+                                }
+                                unit.hurt(shot.damage * upgrades.toughness);
+                                fx.burst(shot.position, shot.color, 4, 140.0);
+                                shot.struck.push(i);
+                                shot.pierce = shot.pierce.saturating_sub(1);
+                                if shot.pierce == 0 {
+                                    return false;
+                                }
+                            }
+                            ShotKind::Plain | ShotKind::Homing => {
+                                unit.hurt(shot.damage * upgrades.toughness);
+                                fx.burst(shot.position, shot.color, 6, 160.0);
+                                return false;
+                            }
                         }
                     }
                 }
@@ -259,11 +463,45 @@ pub(crate) fn update_shots(shots: &mut Vec<Shot>, units: &mut [Unit], walls: &Wa
     });
 }
 
-//a shot is a small bright circle with a glow round it
+//an ordinary shot is a small bright circle with a glow round it. a piercing one is a streak, a grenade a big slow ball with a ring on the
+//ground where it will land, and a homing one an orb with a tail
 pub(crate) fn draw_shots(shots: &[Shot]) {
+    let time = get_time() as f32;
     for shot in shots {
-        draw_circle(shot.position.x, shot.position.y, shot.radius * 2.2, Color::new(shot.color.r, shot.color.g * 0.8, shot.color.b, 0.25));
-        draw_circle(shot.position.x, shot.position.y, shot.radius, shot.color);
+        let (x, y) = (shot.position.x, shot.position.y);
+        let glow = Color::new(shot.color.r, shot.color.g * 0.8, shot.color.b, 0.25);
+        match shot.kind {
+            ShotKind::Plain => {
+                draw_circle(x, y, shot.radius * 2.2, glow);
+                draw_circle(x, y, shot.radius, shot.color);
+            }
+            ShotKind::Piercing => {
+                let along = shot.velocity.normalize_or_zero();
+                let tail = Vec2::new(x, y) - along * shot.radius * 9.0;
+                draw_line(tail.x, tail.y, x, y, shot.radius * 2.6, glow);
+                draw_line(tail.x, tail.y, x, y, shot.radius * 1.1, lighten(shot.color, 0.6));
+                draw_circle(x, y, shot.radius, WHITE);
+            }
+            ShotKind::Splash => {
+                //where it will land, so the army can be somewhere else
+                let landing = Vec2::new(x, y) + shot.velocity * (shot.life - shot.age).max(0.0);
+                let pulse = 0.5 + 0.5 * (time * 10.0).sin();
+                draw_circle(landing.x, landing.y, shot.splash, Color::new(shot.color.r, shot.color.g, shot.color.b, 0.07 + 0.05 * pulse));
+                draw_circle_lines(landing.x, landing.y, shot.splash, 2.5, danger_color(0.4 + 0.4 * pulse));
+                draw_circle(x, y, shot.radius * 1.8, glow);
+                draw_circle(x, y, shot.radius, shot.color);
+                draw_circle_lines(x, y, shot.radius, 2.0, WHITE);
+            }
+            ShotKind::Homing => {
+                let along = shot.velocity.normalize_or_zero();
+                let tail = Vec2::new(x, y) - along * shot.radius * 5.0;
+                let pulse = 0.7 + 0.3 * (time * 14.0 + x * 0.05).sin();
+                draw_line(tail.x, tail.y, x, y, shot.radius * 1.4, glow);
+                draw_circle(x, y, shot.radius * 2.0 * pulse, glow);
+                draw_circle(x, y, shot.radius, shot.color);
+                draw_circle(x, y, shot.radius * 0.45, WHITE);
+            }
+        }
     }
 }
 
@@ -285,11 +523,12 @@ pub(crate) struct Hazard {
     pub(crate) color: Color,
     pub(crate) boom: Cue,         //the sound it makes when it goes off
     pub(crate) wall_damage: f32,  //to each of the player's walls in it when it goes off
+    pub(crate) circle: Option<BossCircle>, //which of a boss's circles it is, if it is one, which sets its colour
 }
 
 impl Hazard {
     pub(crate) fn new(position: Vec2, radius: f32, warn: f32, damage: f32, victims: usize, color: Color, boom: Cue) -> Hazard {
-        Hazard { position, radius, armed: true, warn, warn_total: warn.max(0.001), damage, victims, linger: 0.0, burn: 0.0, flash: 0.0, color, boom, wall_damage: damage * BLAST_WALL_FACTOR }
+        Hazard { position, radius, armed: true, warn, warn_total: warn.max(0.001), damage, victims, linger: 0.0, burn: 0.0, flash: 0.0, color, boom, wall_damage: damage * BLAST_WALL_FACTOR, circle: None }
     }
 
     //it hurts walls this many times as much as usual: a bigger enemy's blast breaks a wall that was built for a bigger army
@@ -302,6 +541,12 @@ impl Hazard {
     pub(crate) fn burning(mut self, seconds: f32, per_second: f32) -> Hazard {
         self.linger = seconds;
         self.burn = per_second;
+        self
+    }
+
+    //it is one of a boss's circles, drawn and named as that kind
+    pub(crate) fn circle(mut self, circle: BossCircle) -> Hazard {
+        self.circle = Some(circle);
         self
     }
 }
@@ -374,9 +619,18 @@ pub(crate) fn draw_hazards(hazards: &[Hazard], time: f32) {
         if hazard.armed {
             let filled = 1.0 - (hazard.warn / hazard.warn_total).clamp(0.0, 1.0);
             let pulse = 0.5 + 0.5 * (time * 12.0).sin();
-            draw_poly(x, y, sides, radius, 0.0, Color::new(color.r, color.g, color.b, 0.10 + 0.06 * pulse));
-            draw_poly(x, y, sides, radius * filled, 0.0, Color::new(color.r, color.g, color.b, 0.22));
-            draw_poly_lines(x, y, sides, radius, 0.0, (radius * 0.02).clamp(3.0, 10.0), danger_color(0.55 + 0.45 * pulse));
+            //one of a boss's circles is drawn in the colour of its kind, and the rest are red
+            let edge = match hazard.circle {
+                Some(circle) => {
+                    let tint = circle.color();
+                    Color::new(tint.r, tint.g, tint.b, 0.55 + 0.45 * pulse)
+                }
+                None => danger_color(0.55 + 0.45 * pulse),
+            };
+            let fill = hazard.circle.map_or(color, BossCircle::color);
+            draw_poly(x, y, sides, radius, 0.0, Color::new(fill.r, fill.g, fill.b, 0.10 + 0.06 * pulse));
+            draw_poly(x, y, sides, radius * filled, 0.0, Color::new(fill.r, fill.g, fill.b, 0.22));
+            draw_poly_lines(x, y, sides, radius, 0.0, (radius * 0.02).clamp(3.0, 10.0), edge);
             continue;
         }
         if hazard.flash > 0.0 {

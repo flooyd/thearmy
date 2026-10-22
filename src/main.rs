@@ -39,6 +39,7 @@ mod pathing;
 mod polish;
 mod relics;
 mod save;
+mod score;
 mod settings;
 mod screens;
 mod sites;
@@ -100,7 +101,14 @@ async fn main() {
             Ending::Fallen(run) => {
                 //a run that is over can't be gone back to, only the quick save the player made themselves
                 saves.delete(Slot::Auto);
-                show_defeat(&run).await;
+                //the run goes on the list of the best, if it is good enough
+                let mut scores = saves.load_high_scores();
+                let record = Record::of(&run, settings.difficulty);
+                let place = scores.add(record.clone());
+                if place.is_some() {
+                    saves.save_high_scores(&scores);
+                }
+                show_defeat(&run, &record, place, &scores).await;
             }
             Ending::Reload(snapshot) => {
                 start = Some(snapshot);

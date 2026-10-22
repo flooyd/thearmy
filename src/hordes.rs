@@ -18,29 +18,38 @@ pub(crate) struct HordeDef {
     pub(crate) from_army: usize,                     //it only comes once the army is this big
     pub(crate) modifier: Modifier,                   //every one of them is an elite of this kind, unless it is None
     pub(crate) prize: u32,                           //the tier of the chest it leaves when it is broken: 1 bronze, 2 silver, 3 gold
+    pub(crate) captain: Option<&'static str>,        //the kind of enemy that leads it, as a captain. one that has a captain comes from two sides, a captain at the head of each
 }
 
-pub(crate) static HORDES: [HordeDef; 11] = [
-    HordeDef { name: "Swarm Tide", kinds: &[("Swarmer", 0.7), ("Scout", 0.3)], base: 24, per_units: 70, most: 80, from_army: 0, modifier: Modifier::None, prize: 1 },
-    HordeDef { name: "Raiding Party", kinds: &[("Grunt", 0.5), ("Scout", 0.3), ("Splitter", 0.2)], base: 12, per_units: 150, most: 40, from_army: 20, modifier: Modifier::None, prize: 1 },
-    HordeDef { name: "Bomber Run", kinds: &[("Bomber", 0.65), ("Scout", 0.35)], base: 8, per_units: 250, most: 22, from_army: 40, modifier: Modifier::None, prize: 2 },
+pub(crate) static HORDES: [HordeDef; 13] = [
+    HordeDef { name: "Swarm Tide", kinds: &[("Swarmer", 0.7), ("Scout", 0.3)], base: 24, per_units: 70, most: 80, from_army: 0, modifier: Modifier::None, prize: 1, captain: None },
+    HordeDef { name: "Raiding Party", kinds: &[("Grunt", 0.5), ("Scout", 0.3), ("Splitter", 0.2)], base: 12, per_units: 150, most: 40, from_army: 20, modifier: Modifier::None, prize: 1, captain: None },
+    HordeDef { name: "Bomber Run", kinds: &[("Bomber", 0.65), ("Scout", 0.35)], base: 8, per_units: 250, most: 22, from_army: 40, modifier: Modifier::None, prize: 2, captain: None },
     //all splitters: every one that falls is three more
-    HordeDef { name: "Fission Mob", kinds: &[("Splitter", 1.0)], base: 6, per_units: 300, most: 24, from_army: 40, modifier: Modifier::None, prize: 1 },
+    HordeDef { name: "Fission Mob", kinds: &[("Splitter", 1.0)], base: 6, per_units: 300, most: 24, from_army: 40, modifier: Modifier::None, prize: 1, captain: None },
     //shooters that stop at a distance and fire, behind a line of shielded ones
-    HordeDef { name: "Firing Line", kinds: &[("Spitter", 0.6), ("Mortar", 0.15), ("Bulwark", 0.25)], base: 6, per_units: 400, most: 16, from_army: 60, modifier: Modifier::None, prize: 2 },
-    HordeDef { name: "Blood Frenzy", kinds: &[("Grunt", 0.5), ("Scout", 0.5)], base: 10, per_units: 200, most: 36, from_army: 60, modifier: Modifier::Frenzied, prize: 2 },
-    HordeDef { name: "Wildfire", kinds: &[("Grunt", 0.55), ("Bomber", 0.45)], base: 8, per_units: 300, most: 26, from_army: 80, modifier: Modifier::Volatile, prize: 2 },
-    HordeDef { name: "Iron Column", kinds: &[("Brute", 0.4), ("Bulwark", 0.3), ("Charger", 0.3)], base: 8, per_units: 500, most: 24, from_army: 80, modifier: Modifier::None, prize: 2 },
+    HordeDef { name: "Firing Line", kinds: &[("Spitter", 0.6), ("Mortar", 0.15), ("Bulwark", 0.25)], base: 6, per_units: 400, most: 16, from_army: 60, modifier: Modifier::None, prize: 2, captain: None },
+    HordeDef { name: "Blood Frenzy", kinds: &[("Grunt", 0.5), ("Scout", 0.5)], base: 10, per_units: 200, most: 36, from_army: 60, modifier: Modifier::Frenzied, prize: 2, captain: None },
+    HordeDef { name: "Wildfire", kinds: &[("Grunt", 0.55), ("Bomber", 0.45)], base: 8, per_units: 300, most: 26, from_army: 80, modifier: Modifier::Volatile, prize: 2, captain: None },
+    HordeDef { name: "Iron Column", kinds: &[("Brute", 0.4), ("Bulwark", 0.3), ("Charger", 0.3)], base: 8, per_units: 500, most: 24, from_army: 80, modifier: Modifier::None, prize: 2, captain: None },
     //nearly all chargers, closing in and then dashing one after another
-    HordeDef { name: "Stampede", kinds: &[("Charger", 0.85), ("Brute", 0.15)], base: 5, per_units: 600, most: 14, from_army: 100, modifier: Modifier::None, prize: 2 },
-    HordeDef { name: "Titan March", kinds: &[("Titan", 0.6), ("Brute", 0.4)], base: 3, per_units: 2000, most: 9, from_army: 250, modifier: Modifier::None, prize: 3 },
-    HordeDef { name: "Armoured Host", kinds: &[("Brute", 0.5), ("Bulwark", 0.3), ("Titan", 0.2)], base: 6, per_units: 700, most: 20, from_army: 400, modifier: Modifier::Armored, prize: 3 },
+    HordeDef { name: "Stampede", kinds: &[("Charger", 0.85), ("Brute", 0.15)], base: 5, per_units: 600, most: 14, from_army: 100, modifier: Modifier::None, prize: 2, captain: None },
+    HordeDef { name: "Titan March", kinds: &[("Titan", 0.6), ("Brute", 0.4)], base: 3, per_units: 2000, most: 9, from_army: 250, modifier: Modifier::None, prize: 3, captain: None },
+    HordeDef { name: "Armoured Host", kinds: &[("Brute", 0.5), ("Bulwark", 0.3), ("Titan", 0.2)], base: 6, per_units: 700, most: 20, from_army: 400, modifier: Modifier::Armored, prize: 3, captain: None },
+    //two crowds, one from each side of the army, each behind a captain as big as a boss: break both to open the chest
+    HordeDef { name: "Flanking Raid", kinds: &[("Grunt", 0.4), ("Scout", 0.25), ("Charger", 0.2), ("Spitter", 0.15)], base: 10, per_units: 150, most: 36, from_army: 100, modifier: Modifier::None, prize: 2, captain: Some("Titan") },
+    HordeDef { name: "Pincer Host", kinds: &[("Brute", 0.35), ("Bulwark", 0.25), ("Charger", 0.15), ("Spitter", 0.15), ("Mortar", 0.1)], base: 12, per_units: 400, most: 40, from_army: 250, modifier: Modifier::None, prize: 3, captain: Some("Titan") },
 ];
 
 impl HordeDef {
-    //how many enemies there are in it for an army this big
+    //how many enemies there are in it for an army this big, not counting the captains
     pub(crate) fn count(&self, army: usize) -> usize {
         (self.base + army / self.per_units.max(1)).min(self.most)
+    }
+
+    //how many sides it comes from: a captain leads each
+    pub(crate) fn sides(&self) -> usize {
+        if self.captain.is_some() { 2 } else { 1 }
     }
 }
 
@@ -54,6 +63,7 @@ pub(crate) struct Coming {
     pub(crate) def: &'static HordeDef,
     pub(crate) at: Vec2,
     pub(crate) left: f32,
+    pub(crate) other: Option<Vec2>, //where the second side comes from, for a horde that comes from two
 }
 
 //a horde that is here and being fought, kept so the chest can be given when it is broken
@@ -68,7 +78,7 @@ pub(crate) struct Fight {
 
 //what the hordes did in a frame, for the game to announce
 pub(crate) enum HordeBeat {
-    Warned { name: &'static str, from: &'static str },
+    Warned { name: &'static str, from: String },
     Arrived { name: &'static str, count: usize },
     Broken { name: &'static str, tier: u32 },
 }
@@ -94,23 +104,77 @@ pub(crate) fn random_horde(army: usize) -> &'static HordeDef {
     open[rand::gen_range(0, open.len())]
 }
 
+//whether a horde can appear at a place: it is in the world and not too near the edge of it
+fn room_for_horde(at: Vec2) -> bool {
+    let edge = HORDE_EDGE_TILES * TILE_SIZE;
+    at.x > edge && at.y > edge && at.x < WORLD_SIZE - edge && at.y < WORLD_SIZE - edge
+}
+
 //where a horde appears: HORDE_DISTANCE_TILES from the player in a random direction, as long as that is in the world
 pub(crate) fn horde_spot(player: Vec2) -> Option<Vec2> {
     for _ in 0..30 {
         let direction = Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU));
         let at = player + direction * HORDE_DISTANCE_TILES * TILE_SIZE;
-        let edge = HORDE_EDGE_TILES * TILE_SIZE;
-        if at.x > edge && at.y > edge && at.x < WORLD_SIZE - edge && at.y < WORLD_SIZE - edge {
+        if room_for_horde(at) {
             return Some(at);
         }
     }
     None
 }
 
+//where the two sides of a pincer appear: both HORDE_DISTANCE_TILES from the player, the second more or less straight across from the
+//first, as long as both are in the world
+pub(crate) fn horde_spots(player: Vec2) -> Option<(Vec2, Vec2)> {
+    for _ in 0..60 {
+        let angle = rand::gen_range(0.0, std::f32::consts::TAU);
+        let across = angle + std::f32::consts::PI + rand::gen_range(-PINCER_SKEW, PINCER_SKEW);
+        let first = player + Vec2::from_angle(angle) * HORDE_DISTANCE_TILES * TILE_SIZE;
+        let second = player + Vec2::from_angle(across) * HORDE_DISTANCE_TILES * TILE_SIZE;
+        if room_for_horde(first) && room_for_horde(second) {
+            return Some((first, second));
+        }
+    }
+    None
+}
+
 //the enemies of a horde, as made for an army (`pressure` is the size of army they are made for), crowded about a point and all
-//running at the player. each is no one's: it is no part of the wild enemies that are kept up
+//running at the player. each is no one's: it is no part of the wild enemies that are kept up. this is one side of it: a horde with a
+//captain also has the captains and the other side, which `make_pincer` makes
 pub(crate) fn make_horde(def: &'static HordeDef, at: Vec2, army: usize, pressure: usize) -> Vec<Enemy> {
+    make_side(def, at, def.count(army), pressure, 0.0)
+}
+
+//both sides of a horde that has a captain: the enemies shared between two crowds, and a captain, as big as a boss, at the head of each. the
+//crowds start round their captains, and not inside them where they could not be seen
+pub(crate) fn make_pincer(def: &'static HordeDef, first: Vec2, second: Vec2, army: usize, pressure: usize) -> Vec<Enemy> {
+    let captains: Vec<Enemy> = def
+        .captain
+        .into_iter()
+        .flat_map(|name| {
+            [first, second].map(|at| {
+                let mut captain = enemy_for(at, kind_named(name), pressure);
+                captain.make_captain(pressure);
+                join_horde(&mut captain);
+                captain
+            })
+        })
+        .collect();
+    let clear = captains.first().map_or(0.0, |captain| captain.size / 2.0);
     let count = def.count(army);
+    let mut horde = make_side(def, first, count.div_ceil(2), pressure, clear);
+    horde.extend(make_side(def, second, count / 2, pressure, clear));
+    horde.extend(captains);
+    horde
+}
+
+//where the other side of a pincer comes from when it is not known: straight across the player from the first, in the world
+fn across(player: Vec2, at: Vec2) -> Vec2 {
+    let edge = HORDE_EDGE_TILES * TILE_SIZE;
+    (player * 2.0 - at).clamp(Vec2::splat(edge), Vec2::splat(WORLD_SIZE - edge))
+}
+
+//`count` enemies of a horde, crowded about a point, none nearer to it than `clear` pixels
+fn make_side(def: &'static HordeDef, at: Vec2, count: usize, pressure: usize, clear: f32) -> Vec<Enemy> {
     let total: f32 = def.kinds.iter().map(|(_, share)| share).sum();
     let spread = HORDE_SPREAD + (count as f32).sqrt() * HORDE_SPREAD_PER_ROOT;
     let mut horde = Vec::with_capacity(count);
@@ -125,7 +189,7 @@ pub(crate) fn make_horde(def: &'static HordeDef, at: Vec2, army: usize, pressure
             pick -= share;
         }
         let kind = kind_named(name);
-        let place = at + Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * spread * rand::gen_range(0.0, 1.0f32).sqrt();
+        let place = at + Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * (clear + spread * rand::gen_range(0.0, 1.0f32).sqrt());
         let mut enemy = enemy_for(place, kind, pressure);
         if def.modifier != Modifier::None {
             enemy.make_elite(def.modifier);
@@ -192,7 +256,10 @@ impl Hordes {
             let coming = *coming;
             self.coming = None;
             self.next_in = rand::gen_range(HORDE_GAP_SECONDS.0, HORDE_GAP_SECONDS.1);
-            let horde = make_horde(coming.def, coming.at, army, pressure);
+            let horde = match coming.def.captain {
+                Some(_) => make_pincer(coming.def, coming.at, coming.other.unwrap_or_else(|| across(player, coming.at)), army, pressure),
+                None => make_horde(coming.def, coming.at, army, pressure),
+            };
             let count = horde.len();
             let worth: f32 = horde.iter().map(kill_points).sum();
             enemies.extend(horde);
@@ -216,13 +283,26 @@ impl Hordes {
         if self.next_in > 0.0 {
             return None;
         }
-        let Some(at) = horde_spot(player) else {
+        let Some(mut at) = horde_spot(player) else {
             self.next_in = 3.0;
             return None;
         };
         let def = random_horde(army);
-        self.coming = Some(Coming { def, at, left: HORDE_WARNING_SECONDS });
-        Some(HordeBeat::Warned { name: def.name, from: compass(at - player) })
+        //one with a captain comes from two sides, which have to fit in the world together
+        let mut other = None;
+        if def.sides() == 2 {
+            let Some((first, second)) = horde_spots(player) else {
+                self.next_in = 3.0;
+                return None;
+            };
+            (at, other) = (first, Some(second));
+        }
+        self.coming = Some(Coming { def, at, left: HORDE_WARNING_SECONDS, other });
+        let from = match other {
+            Some(second) => format!("{} AND THE {}", compass(at - player), compass(second - player)),
+            None => compass(at - player).to_owned(),
+        };
+        Some(HordeBeat::Warned { name: def.name, from })
     }
 
     //where to point the player at: the place a horde is about to come from, or the middle of the one that is coming, if it is still far
@@ -239,16 +319,38 @@ impl Hordes {
         (middle.distance(player) > near).then_some(middle)
     }
 
+    //every place to point the player at: both sides of a horde that is still coming, otherwise the one `heading` gives
+    pub(crate) fn headings(&self, enemies: &[Enemy], player: Vec2) -> Vec<Vec2> {
+        match &self.coming {
+            Some(coming) => [Some(coming.at), coming.other].into_iter().flatten().collect(),
+            None => self.heading(enemies, player).into_iter().collect(),
+        }
+    }
+
     //the line for the HUD: the horde that is coming or being fought, or the chest it left, if there is one of those
     pub(crate) fn status(&self, enemies: &[Enemy]) -> Option<(String, Color)> {
         if let Some(fight) = &self.fight {
             let alive = enemies.iter().filter(|enemy| in_a_horde(enemy)).count();
             if alive > 0 {
-                return Some((format!("HORDE: {} ({alive} left)", fight.def.name), HORDE_COLOR));
+                let captains = enemies.iter().filter(|enemy| in_a_horde(enemy) && enemy.is_captain()).count();
+                let led = match captains {
+                    0 => String::new(),
+                    1 => ", 1 captain".to_owned(),
+                    many => format!(", {many} captains"),
+                };
+                return Some((format!("HORDE: {} ({alive} left{led})", fight.def.name), HORDE_COLOR));
             }
         }
         if let Some(coming) = &self.coming {
             return Some((format!("HORDE: {} in {}s", coming.def.name, coming.left.ceil() as i32), HORDE_COLOR));
+        }
+        //a chest that is being held and is contested says so, over the others: it is what needs doing
+        if let Some(stalled) = self.chests.iter().find(|chest| chest.stalled) {
+            return Some((format!("{} CHEST: CONTESTED, CLEAR THE ENEMIES AROUND IT", stalled.name()), danger_color(1.0)));
+        }
+        //a chest that is being held says so, over the others
+        if let Some(held) =self.chests.iter().filter(|chest| chest.held > 0.0).max_by(|a, b| a.held.total_cmp(&b.held)) {
+            return Some((format!("{} CHEST: HOLD IT {}s", held.name(), (held.hold() - held.held).ceil().max(1.0) as i32), held.color()));
         }
         let soonest = self.chests.iter().min_by(|a, b| a.left.total_cmp(&b.left))?;
         Some((format!("{} CHEST: {}s left", soonest.name(), soonest.left.ceil() as i32), soonest.color()))
@@ -265,6 +367,14 @@ pub(crate) fn draw_horde_ping(map: &Minimap, at: Vec2, time: f32) {
     }
     draw_circle(point.x, point.y, 4.5, Color::new(1.0, 0.55, 0.1, 1.0));
     draw_circle_lines(point.x, point.y, 4.5, 1.5, WHITE);
+}
+
+//an arrow at the edge of the screen to each captain that is off it
+pub(crate) fn draw_captain_arrows(enemies: &[Enemy], camera: Vec2, zoom: f32) {
+    for captain in enemies.iter().filter(|enemy| enemy.is_captain()) {
+        let label = format!("CAPTAIN {}", (captain.position.distance(camera) / TILE_SIZE) as i32);
+        draw_edge_arrow(captain.position, camera, zoom, captain.modifier.color(), &label);
+    }
 }
 
 //an arrow at the edge of the screen pointing at where the horde is or will be, with how many grid squares away that is
@@ -287,7 +397,15 @@ pub(crate) fn draw_edge_arrow(at: Vec2, player: Vec2, zoom: f32, color: Color, l
     let margin = 46.0;
     let direction = offset.normalize_or_zero();
     let along = ((half.x - margin) / direction.x.abs().max(0.0001)).min((half.y - margin) / direction.y.abs().max(0.0001));
-    let spot = half + direction * along;
+    let mut spot = half + direction * along;
+    //one that would land on the panel with the army in it slides along the edge, to the nearer side of it
+    if spot.x < HUD_PANEL_RIGHT && spot.y < HUD_PANEL_BOTTOM {
+        if HUD_PANEL_RIGHT - spot.x < HUD_PANEL_BOTTOM - spot.y {
+            spot.x = HUD_PANEL_RIGHT + 20.0;
+        } else {
+            spot.y = HUD_PANEL_BOTTOM + 20.0;
+        }
+    }
     let side = direction.perp();
     let pulse = 0.65 + 0.35 * (get_time() as f32 * 7.0).sin();
     let pulsing = Color::new(color.r, color.g, color.b, pulse);

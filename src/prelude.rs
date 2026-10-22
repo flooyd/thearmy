@@ -28,6 +28,7 @@ pub(crate) use crate::pathing::*;
 pub(crate) use crate::polish::*;
 pub(crate) use crate::relics::*;
 pub(crate) use crate::save::*;
+pub(crate) use crate::score::*;
 pub(crate) use crate::screens::*;
 pub(crate) use crate::settings::*;
 pub(crate) use crate::sites::*;

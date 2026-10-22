@@ -28,7 +28,7 @@ fn the_kind_table_is_sane() {
         assert_eq!(kind.range > 0.0, matches!(kind.behavior, Behavior::Shooter | Behavior::Mortar), "{}", kind.name);
         assert!(std::ptr::eq(kind_named(kind.name), kind));
         if kind.pack > 0 {
-            assert_eq!(kind.behavior, Behavior::Walker, "{}", kind.name);
+            assert!(matches!(kind.behavior, Behavior::Walker | Behavior::Ambusher), "{}", kind.name);
         }
         if kind.behavior == Behavior::Charger {
             assert!(kind.aggro_tiles > 0.0, "a charger charges when it notices");
@@ -38,7 +38,7 @@ fn the_kind_table_is_sane() {
     for name in ["Healer", "Imp", "Splitling", "Drone", "Nest"] {
         assert_eq!(kind_named(name).weight, 0.0, "{name}");
     }
-    for behavior in [Behavior::Walker, Behavior::Shooter, Behavior::Splitter, Behavior::Charger, Behavior::Bomber, Behavior::Healer, Behavior::Summoner, Behavior::Mortar] {
+    for behavior in [Behavior::Walker, Behavior::Shooter, Behavior::Splitter, Behavior::Charger, Behavior::Bomber, Behavior::Healer, Behavior::Summoner, Behavior::Mortar, Behavior::Ambusher] {
         assert!(ENEMY_KINDS.iter().any(|kind| kind.behavior == behavior), "no kind does {behavior:?}");
     }
     //the first six are as they always were, in the same order
@@ -138,7 +138,7 @@ fn an_elite_is_bigger_tougher_and_worth_more_and_each_modifier_does_its_own_thin
             Modifier::Swift => assert!(elite.speed > speed * 1.5),
             Modifier::Armored => assert!(elite.armor >= 0.5),
             Modifier::Frenzied => assert!(elite.attack > attack * 1.9 && elite.speed > speed),
-            Modifier::Volatile | Modifier::None => {}
+            Modifier::Volatile | Modifier::None | Modifier::Captain => {}
         }
         assert!(elite.title().starts_with(modifier.label()) && elite.title().ends_with("Brute"));
         assert_ne!(modifier.color(), Modifier::None.color());
@@ -566,9 +566,9 @@ fn packs_and_warbands_move_together_and_a_warband_has_a_healer() {
         let route = group[0].route.clone();
         assert!(group.iter().all(|enemy| enemy.route == route), "a group shares a route");
         assert!(group.iter().all(|enemy| enemy.position.distance(group[0].position) <= 2.0 * PACK_SPREAD + 1.0));
-        if group.iter().all(|enemy| enemy.name == "Swarmer") {
+        if group.iter().all(|enemy| enemy.name == group[0].name) {
             packs += 1;
-            assert!(group.len() >= kind_named("Swarmer").pack);
+            assert!(group.len() >= kind_named(group[0].name).pack);
         } else {
             warbands += 1;
             assert!(group.iter().any(|enemy| enemy.name == "Healer"), "a warband has a healer");

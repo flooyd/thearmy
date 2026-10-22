@@ -463,6 +463,10 @@ pub(super) fn lost_destroying(kind: &EnemyKind, army: usize) -> (usize, usize, u
     let mut enemy = Enemy::new(at, kind, army_scale(army));
     enemy.position = at;
     enemy.speed = 0.0;
+    //(an ambusher that is found has sprung already)
+    if enemy.lurking() {
+        enemy.mode = Mode::Roam;
+    }
     let wanted = squad_size(&enemy);
     let squad = wanted.min(army);
     let mut units = units_inside(&enemy, squad);

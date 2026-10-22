@@ -55,6 +55,16 @@ impl Difficulty {
         }
     }
 
+    //what a run played on it is worth next to one on Normal, in score
+    pub(crate) fn score_factor(self) -> f32 {
+        match self {
+            Difficulty::Easy => 0.6,
+            Difficulty::Normal => 1.0,
+            Difficulty::Hard => 1.6,
+            Difficulty::Brutal => 2.4,
+        }
+    }
+
     pub(crate) fn blurb(self) -> &'static str {
         match self {
             Difficulty::Easy => "enemies are made for an army 30% smaller",
@@ -64,7 +74,7 @@ impl Difficulty {
         }
     }
 
-    fn from_name(name: &str) -> Option<Difficulty> {
+    pub(crate) fn from_name(name: &str) -> Option<Difficulty> {
         DIFFICULTIES.into_iter().find(|difficulty| difficulty.name() == name)
     }
 }

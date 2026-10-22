@@ -320,6 +320,10 @@ impl Enemy {
             pressing: None,
             slow: 1.0,
             frozen: 0.0,
+            provoked: 0.0,
+            grudge: Vec2::ZERO,
+            rout: 0.0,
+            rallied: false,
         }
     }
 }
@@ -375,7 +379,7 @@ pub(crate) fn enter_phase(enemy: &mut Enemy, state: &mut BossState, phase: usize
     }
     enemy.mode = Mode::Cast { left: PHASE_SHIFT_SECONDS };
     //the pulse goes off as the pause ends, so the army has the pause to get away
-    fx.hazards.push(blast(enemy.position, enemy.size * 0.5 + 260.0, PHASE_SHIFT_SECONDS, 1.0, 0.4, army, state.tier, enemy.color, Cue::Slam).vs_walls(enemy.scale));
+    fx.hazards.push(blast(enemy.position, enemy.size * 0.5 + 260.0, PHASE_SHIFT_SECONDS, 1.0, 0.4, army, state.tier, enemy.color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Shift));
     fx.announce(format!("{}: {}", def.name, next.name.to_uppercase()), enemy.color);
     fx.add_shake(0.6);
     fx.cue(Cue::PhaseShift);
@@ -401,14 +405,14 @@ pub(crate) fn cast_pattern(enemy: &mut Enemy, state: &mut BossState, pattern: Pa
         Pattern::Slam => {
             let radius = enemy.size * 0.75 + 140.0;
             let warn = blast_warn(BOSS_WARN_SLAM, radius);
-            fx.hazards.push(blast(enemy.position, radius, warn, 1.0, 0.4, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale));
+            fx.hazards.push(blast(enemy.position, radius, warn, 1.0, 0.4, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Slam));
             enemy.mode = Mode::Cast { left: warn + 0.5 };
             fx.cue(Cue::Warning);
         }
         Pattern::Meteors => {
             let count = 5 + 2 * tier + (army / 400).min(6);
             for k in 0..count {
-                fx.hazards.push(blast(in_army(120.0), 90.0 + root * 2.0, BOSS_WARN_METEOR + 0.2 * k as f32, 1.0, 0.04, army, state.tier, color, Cue::Explosion).vs_walls(enemy.scale));
+                fx.hazards.push(blast(in_army(120.0), 90.0 + root * 2.0, BOSS_WARN_METEOR + 0.2 * k as f32, 1.0, 0.04, army, state.tier, color, Cue::Explosion).vs_walls(enemy.scale).circle(BossCircle::Meteor));
             }
             enemy.mode = Mode::Cast { left: 0.6 };
             fx.cue(Cue::Warning);
@@ -416,7 +420,7 @@ pub(crate) fn cast_pattern(enemy: &mut Enemy, state: &mut BossState, pattern: Pa
         Pattern::Nova => {
             let radius = 650.0 + enemy.size * 0.6;
             let warn = blast_warn(BOSS_WARN_NOVA, radius);
-            fx.hazards.push(blast(enemy.position, radius, warn, 1.0, 0.55, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale));
+            fx.hazards.push(blast(enemy.position, radius, warn, 1.0, 0.55, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Nova));
             enemy.mode = Mode::Cast { left: warn + 0.4 };
             fx.cue(Cue::Warning);
         }
@@ -459,7 +463,7 @@ pub(crate) fn cast_pattern(enemy: &mut Enemy, state: &mut BossState, pattern: Pa
             let warn = BOSS_WARN_PULL;
             let reach = 1000.0 + enemy.size;
             fx.pulls.push(Pull { position: enemy.position, radius: reach, left: warn, total: warn });
-            fx.hazards.push(blast(enemy.position, enemy.size * 0.5 + 200.0, warn, 1.2, 0.45, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale));
+            fx.hazards.push(blast(enemy.position, enemy.size * 0.5 + 200.0, warn, 1.2, 0.45, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Pull));
             enemy.mode = Mode::Cast { left: warn + 0.4 };
             fx.cue_at(Cue::Pull, enemy.position);
         }
@@ -586,6 +590,104 @@ pub(crate) fn is_blast(pattern: Pattern) -> bool {
     matches!(pattern, Pattern::Slam | Pattern::Meteors | Pattern::Nova | Pattern::Pull)
 }
 
+//the kinds of circle a boss puts on the ground that kill what they land on. each has a colour of its own, so the army can tell at a
+//glance which one it is looking at and what to do about it
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum BossCircle {
+    Slam,   //round the boss, where it stands
+    Meteor, //small ones on the army, one after another
+    Nova,   //a huge one round the boss
+    Pull,   //the well that drags the army in, and goes off where it ends up
+    Shift,  //the pulse as a boss changes phase
+    Split,  //the pulse as a boss tears in two
+}
+
+#[cfg(test)]
+pub(crate) const CIRCLES: [BossCircle; 6] = [BossCircle::Slam, BossCircle::Meteor, BossCircle::Nova, BossCircle::Pull, BossCircle::Shift, BossCircle::Split];
+
+impl BossCircle {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            BossCircle::Slam => "SLAM",
+            BossCircle::Meteor => "METEORS",
+            BossCircle::Nova => "NOVA",
+            BossCircle::Pull => "GRAVITY WELL",
+            BossCircle::Shift => "PHASE PULSE",
+            BossCircle::Split => "SPLIT PULSE",
+        }
+    }
+
+    pub(crate) fn color(self) -> Color {
+        match self {
+            BossCircle::Slam => Color::new(1.0, 0.42, 0.12, 1.0),   //orange
+            BossCircle::Meteor => Color::new(1.0, 0.86, 0.2, 1.0),  //gold
+            BossCircle::Nova => Color::new(0.82, 0.38, 1.0, 1.0),   //violet
+            BossCircle::Pull => Color::new(0.4, 0.58, 1.0, 1.0),    //blue
+            BossCircle::Shift => Color::new(0.25, 1.0, 0.8, 1.0),   //teal
+            BossCircle::Split => Color::new(1.0, 0.5, 0.78, 1.0),   //pink
+        }
+    }
+
+    //the colour it is drawn in, as a word
+    pub(crate) fn colour_name(self) -> &'static str {
+        match self {
+            BossCircle::Slam => "ORANGE",
+            BossCircle::Meteor => "GOLD",
+            BossCircle::Nova => "VIOLET",
+            BossCircle::Pull => "BLUE",
+            BossCircle::Shift => "TEAL",
+            BossCircle::Split => "PINK",
+        }
+    }
+
+    //what to do about it, in a few words
+    pub(crate) fn advice(self) -> &'static str {
+        match self {
+            BossCircle::Slam | BossCircle::Shift | BossCircle::Split => "walk clear of the boss",
+            BossCircle::Meteor => "keep moving",
+            BossCircle::Nova => "run out of the huge circle",
+            BossCircle::Pull => "run from the well",
+        }
+    }
+}
+
+//the circle an attack puts on the ground, if it puts one
+pub(crate) fn circle_of(pattern: Pattern) -> Option<BossCircle> {
+    match pattern {
+        Pattern::Slam => Some(BossCircle::Slam),
+        Pattern::Meteors => Some(BossCircle::Meteor),
+        Pattern::Nova => Some(BossCircle::Nova),
+        Pattern::Pull => Some(BossCircle::Pull),
+        _ => None,
+    }
+}
+
+//the circle a boss will put down next
+pub(crate) struct NextCircle {
+    pub(crate) circle: BossCircle,
+    pub(crate) seconds: f32, //until it can, a boss that is busy with something else puts it down as soon as it is done
+    pub(crate) share: f32,   //0 just after the last one, 1 when it is due
+}
+
+impl BossState {
+    //the circle that is due next, which one it is and how soon, from the timers of the attacks of this phase. none while it is between
+    //phases, or if the phase has none
+    pub(crate) fn next_circle(&self) -> Option<NextCircle> {
+        if self.shifting > 0.0 {
+            return None;
+        }
+        let rate = if self.last_stand { 1.6 } else { 1.0 };
+        let whole = |every: f32| (every * 0.92f32.powi(self.tier as i32)).max(BOSS_BLAST_HOLD) / rate;
+        self.def.phases[self.phase]
+            .casts
+            .iter()
+            .zip(&self.timers)
+            .filter_map(|(cast, &timer)| circle_of(cast.pattern).map(|circle| (circle, (timer / rate).max(0.0), whole(cast.every))))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(circle, seconds, whole)| NextCircle { circle, seconds, share: (1.0 - seconds / whole.max(seconds).max(0.001)).clamp(0.0, 1.0) })
+    }
+}
+
 //the share of its health a boss that splits is at when it does, for the first time and the second
 pub(crate) const SPLIT_AT: [f32; 2] = [0.55, 0.3];
 
@@ -617,7 +719,7 @@ pub(crate) fn split_in_two(enemy: &mut Enemy, state: &mut BossState, army: usize
     enemy.position = (middle + apart).clamp(edge, Vec2::splat(WORLD_SIZE) - edge);
     twin.position = (middle - apart).clamp(edge, Vec2::splat(WORLD_SIZE) - edge);
     //a pulse that clears the army from between them
-    fx.hazards.push(blast(middle, enemy.size * 0.8 + 160.0, SPLIT_PAUSE, 1.0, 0.3, army, state.tier, enemy.color, Cue::Slam).vs_walls(enemy.scale));
+    fx.hazards.push(blast(middle, enemy.size * 0.8 + 160.0, SPLIT_PAUSE, 1.0, 0.3, army, state.tier, enemy.color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Split));
     fx.announce(format!("{} DIVIDES", state.def.name.to_uppercase()), enemy.color);
     fx.burst(middle, enemy.color, 60, 340.0);
     fx.add_shake(0.5);

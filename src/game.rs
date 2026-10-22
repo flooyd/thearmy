@@ -124,6 +124,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
     let mut beat = 0.0; //1 as the heart beats, fading
     let mut pause: Option<Pause> = None; //the menu, while it is up
     let mut hordes = saved_hordes;
+    let best = saves.load_high_scores().best(); //the score to beat
     let mut facing = Vec2::new(0.0, -1.0); //the way the army's formation is turned
     //the army and the enemies follow routes to the player that are built a bit each frame
     let mut routes = Routes::new(Vec2::new(x, y), &walls);
@@ -342,6 +343,8 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         player_velocity = smoothed_velocity(player_velocity, player_was, player, player_dt);
         facing = turn_to_face(facing, player_velocity, player_dt);
         let drill = Drill { formation: settings.formation, facing };
+        //what the run is worth now, and the best there has been (the best run kept, or this one if it is better already)
+        let score = score_of(&run, settings.difficulty);
         //the enemies are made for an army this big: the player's, with the bosses they have slain and the difficulty chosen
         let pressure = ((enemy_pressure(units.len(), run.bosses) as f32 * settings.difficulty.pressure()) as usize).max(1);
         if !paused {
@@ -358,7 +361,9 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                     fx.cue(Cue::PhaseShift);
                 }
                 Some(HordeBeat::Broken { name, tier }) => {
-                    fx.announce(format!("{} BROKEN: A {} CHEST LIES WHERE IT FELL", name.to_uppercase(), tier_name(tier)), tier_color(tier));
+                    let hold = CHEST_HOLD_SECONDS[(tier.clamp(1, 3) - 1) as usize];
+                    let hold = if hold > 0.0 { format!(": HOLD IT {hold:.0}s") } else { String::new() };
+                    fx.announce(format!("{} BROKEN: A {} CHEST LIES WHERE IT FELL{hold}", name.to_uppercase(), tier_name(tier)), tier_color(tier));
                     fx.cue(Cue::Milestone);
                     fx.add_punch(0.25);
                 }
@@ -366,7 +371,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             }
             //a chest the army has got to is opened (the world stands still for relics, so they wait if a choice is up already)
             if choice.is_none() {
-                for chest in take_reached(&mut hordes.chests, player, &units) {
+                for chest in take_reached(&mut hordes.chests, player, &units, &enemies, dt) {
                     if choice.is_some() {
                         hordes.chests.push(chest);
                     } else if open_chest(&chest, units.len(), upgrades.unit_cap(), &mut babies, &mut fx) {
@@ -414,6 +419,8 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         //health is gone
         terrain_effects(&mut enemies, &walls, dt, &mut fx);
         champion_acts(&mut units, &mut enemies, &mut babies, &perked, upgrades.unit_cap(), dt, &mut fx);
+        spring_ambushes(&mut enemies, player, &mut fx);
+        rally_followers(&mut enemies);
         patrol_enemies(&mut enemies, player, dt, enemy_boost, &walls, &routes.foes, &mut fx);
         chew_walls(&enemies, &walls, dt, &mut fx);
         enemy_abilities(&mut enemies, &units, player, dt, &mut fx);
@@ -428,6 +435,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         update_hazards(&mut hazards, &mut units, &upgrades, dt, &mut fx);
         heal_units(&mut units, dt, &upgrades);
         let destroyed = fight(&mut enemies, &mut units, &mut babies, dt, &perked, &mut fx);
+        call_for_help(&mut enemies, std::mem::take(&mut fx.alarms), &mut fx);
         run.destroyed += destroyed;
         train_champions(&mut units, std::mem::take(&mut fx.xp), &mut fx);
         if let Some((size, name)) = combo.add(destroyed) {
@@ -588,6 +596,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         draw_champions(&units, drawn, drawn_zoom, get_time() as f32);
         draw_shots(&shots);
         draw_discs(Layer::Player, &[Disc::new(x, y, RADIUS, BLUE).edged(UNIT_BORDER)], &camera);
+        draw_chest_holds(&hordes.chests, drawn);
         //the walls go on top of everything in the world, the numbers and the screen over them are for reading
         draw_walls(camera_at.x, camera_at.y, drawn_zoom, hovered, &walls, if paused || entrance { None } else { Some(mason.selected) }, get_time() as f32);
         draw_beams(&fx.beams);
@@ -596,7 +605,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         set_default_camera();
         draw_vignette(in_peril, beat);
         draw_roster(&units, if pause.is_some() { Vec2::splat(-1000.0) } else { Vec2::from(mouse_position()) });
-        draw_hud(x, y, frame_time, units.len(), &run, boost, pickup_range, sounds.muted, sounds.music.on, settings.formation, &director, &sites, upgrades.unit_cap(), hordes.status(&enemies));
+        draw_hud(x, y, frame_time, units.len(), &run, boost, pickup_range, sounds.muted, sounds.music.on, settings.formation, &director, &sites, upgrades.unit_cap(), hordes.status(&enemies), &upgrades.damage_text(), score, best);
         if settings.hints && !paused && run.seconds < HINT_SECONDS {
             draw_hints(run.seconds);
         }
@@ -623,15 +632,18 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         };
         draw_minimap(&map, map_view, player, view, if over_map { under_mouse } else { None }, &units, &enemies, &babies, &squads, &walls, &hazards, &sites, get_time() as f32);
         if let Some(coming) = &hordes.coming {
-            draw_horde_ping(&map, coming.at, get_time() as f32);
+            for at in [Some(coming.at), coming.other].into_iter().flatten() {
+                draw_horde_ping(&map, at, get_time() as f32);
+            }
         }
         draw_chest_marks(&map, &hordes.chests, get_time() as f32);
         if let Some(enemy) = under_mouse.map(|i| &enemies[i]) {
             draw_enemy_tooltip(enemy, units.iter().filter(|unit| unit.target.is_none()).count(), map.rect);
         }
-        if let Some(at) = hordes.heading(&enemies, player) {
+        for at in hordes.headings(&enemies, player) {
             draw_horde_arrow(at, camera_at, camera_zoom, hordes.coming.map(|coming| coming.left));
         }
+        draw_captain_arrows(&enemies, camera_at, camera_zoom);
         draw_chest_arrow(&hordes.chests, player, camera_at, camera_zoom);
         if let Some(boss) = current_boss(&enemies) {
             let alive = enemies.iter().filter(|other| other.boss.as_ref().zip(boss.boss.as_ref()).is_some_and(|(a, b)| a.family == b.family)).count();
@@ -652,7 +664,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             draw_relic_choice(open, &upgrades, rerolls);
         }
         if let Some(age) = victory {
-            draw_victory(age, &run);
+            draw_victory(age, &run, score);
         }
         if fallen_for > 0.0 {
             let fade = (fallen_for / FALL_SECONDS).min(1.0);

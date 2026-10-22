@@ -75,6 +75,7 @@ pub(crate) fn minimap_enemy_at(map: &Minimap, point: Vec2, enemies: &[Enemy]) ->
     enemies
         .iter()
         .enumerate()
+        .filter(|(_, enemy)| !enemy.lurking())
         .map(|(i, enemy)| (i, map.to_screen(enemy.position), map.dot_size(enemy)))
         .filter(|&(_, dot, size)| map.contains(dot) && dot.distance(point) <= size / 2.0 + MINIMAP_CLICK_MARGIN)
         .min_by(|a, b| a.1.distance_squared(point).total_cmp(&b.1.distance_squared(point)))
@@ -159,7 +160,8 @@ pub(crate) fn draw_minimap(
     for (i, enemy) in enemies.iter().enumerate() {
         let point = map.to_screen(enemy.position);
         let size = map.dot_size(enemy);
-        if !on_map(point, size / 2.0) {
+        //(an ambusher lying in wait is not on the map)
+        if enemy.lurking() || !on_map(point, size / 2.0) {
             continue;
         }
         draw_rectangle(point.x - size / 2.0, point.y - size / 2.0, size, size, enemy.color);

@@ -168,6 +168,7 @@ pub(crate) struct Effects {
     pub(crate) recruits: Vec<(Vec2, Odds)>,  //champions won this frame and where, for the game to hand out
     pub(crate) rebirths: Vec<(Vec2, u8, u8)>, //champions (their kind, plus one, and their level) that rose from the dead this frame and where, for their blaze
     pub(crate) xp: f32,                      //what the enemies destroyed this frame teach the champions, which the game hands out
+    pub(crate) alarms: Vec<(Vec2, Vec2)>,    //enemies that were hurt by units for the first time in a while: where each is, and where those units are, for the game to call the enemies near it down on them
 }
 
 impl Effects {

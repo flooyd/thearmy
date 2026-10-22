@@ -38,7 +38,8 @@ pub(crate) fn spawn_group(player_x: f32, player_y: f32, army: usize) -> Vec<Enem
     let scale = army_scale(army);
     let kind = random_kind(army);
     if kind.pack > 0 {
-        let count = (kind.pack + army / 100).min(30);
+        let most = if kind.behavior == Behavior::Ambusher { MAX_AMBUSH_PACK } else { 30 };
+        let count = (kind.pack + army / 100).min(most);
         let middle = spawn_point(player_x, player_y, kind, scale);
         let mut pack: Vec<Enemy> = (0..count)
             .map(|_| enemy_for(middle + Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * rand::gen_range(0.0, PACK_SPREAD), kind, army))
@@ -87,8 +88,19 @@ pub(crate) fn respawn_enemies(enemies: &mut Vec<Enemy>, player_x: f32, player_y:
     let leash = ENEMY_LEASH_TILES * TILE_SIZE;
     enemies.retain(|enemy| !is_wild(enemy) || enemy.position.distance_squared(player) <= leash * leash);
     let mut crowd: Vec<Vec2> = enemies.iter().filter(|enemy| is_wild(enemy)).map(|enemy| enemy.position).collect();
+    //ambushers stay put until the player comes by, so they would pile up if every group that turned up could be one
+    let mut lurkers = enemies.iter().filter(|enemy| enemy.lurking() && is_wild(enemy)).count();
+    let most_lurkers = ENEMY_COUNT / MAX_LURKERS_SHARE;
     while crowd.len() < ENEMY_COUNT {
         let mut group = spawn_group(player_x, player_y, army);
+        for _ in 0..8 {
+            if group[0].lurking() && lurkers + group.len() > most_lurkers {
+                group = spawn_group(player_x, player_y, army);
+            } else {
+                break;
+            }
+        }
+        lurkers += group.iter().filter(|member| member.lurking()).count();
         let reach = group[0].size * 0.6;
         let room = |at: Vec2| crowd.iter().map(|other| other.distance_squared(at)).fold(f32::MAX, f32::min);
         let mut best = group[0].position;

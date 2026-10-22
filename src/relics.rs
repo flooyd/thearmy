@@ -261,6 +261,16 @@ impl Upgrades {
         self.damage / self.damage.max(1.0).powf(self.foe_answer)
     }
 
+    //the damage the relics add, as a number to read: what the units do, and when the enemies make up for some of it, what is left of it
+    //("x9.6 of x39.1"). the first is what an enemy takes, the second what the relics add up to
+    pub(crate) fn damage_text(&self) -> String {
+        if (self.hit() - self.damage).abs() < 0.05 {
+            format!("x{:.1}", self.damage)
+        } else {
+            format!("x{:.1} of x{:.1}", self.hit(), self.damage)
+        }
+    }
+
     //the most units the army can have
     pub(crate) fn unit_cap(&self) -> usize {
         self.army_limit

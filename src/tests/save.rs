@@ -102,7 +102,7 @@ fn busy_world() -> Snapshot {
     //a horde on its way, one being fought, and two chests it left
     world.hordes = Hordes {
         next_in: 33.5,
-        coming: Some(Coming { def: horde_named("Iron Column").unwrap(), at: Vec2::new(7000.5, 8000.25), left: 2.5 }),
+        coming: Some(Coming { def: horde_named("Iron Column").unwrap(), at: Vec2::new(7000.5, 8000.25), left: 2.5, other: None }),
         fight: Some(Fight { def: horde_named("Firing Line").unwrap(), total: 14, lost: 3, worth: 61.5, last_at: Vec2::new(15200.0, 15300.5) }),
         chests: vec![Chest::new(Vec2::new(14800.0, 15000.0), 2, 40.0), Chest { left: 71.25, ..Chest::new(Vec2::new(15900.5, 15100.0), 3, 90.0) }],
     };

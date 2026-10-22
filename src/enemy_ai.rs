@@ -35,12 +35,27 @@ pub(crate) fn patrol_enemies(enemies: &mut [Enemy], player: Vec2, dt: f32, speed
     let no_route = FlowField::new();
     for enemy in enemies {
         enemy.pressing = None;
+        enemy.provoked = (enemy.provoked - dt).max(0.0);
+        if enemy.routed() {
+            enemy.rout = (enemy.rout - dt).max(0.0);
+            //(it looks for its way again as soon as it turns back)
+            if !enemy.routed() {
+                enemy.steer_in = 0.0;
+            }
+        }
         //a frozen one is held where it is
         if enemy.frozen > 0.0 {
             continue;
         }
-        //a nest stays where it is
-        if enemy.behavior == Behavior::Nest {
+        //a nest stays where it is, and so does an ambusher until it springs
+        if enemy.behavior == Behavior::Nest || enemy.lurking() {
+            continue;
+        }
+        //one whose captain has fallen runs from the player, whatever else it was doing
+        if enemy.routed() {
+            let goal = enemy.position + (enemy.position - player).normalize_or_zero() * 600.0;
+            let speed = enemy.speed * CHASE_SPEED * speed_multiplier * enemy.pace() * ROUT_SPEED;
+            walk(enemy, goal, 0.0, speed, dt, false, walls, &no_route);
             continue;
         }
         if enemy.carry_on(dt, speed_multiplier, walls, fx) {
@@ -64,8 +79,17 @@ pub(crate) fn patrol_enemies(enemies: &mut [Enemy], player: Vec2, dt: f32, speed
                 enemy.chasing = false;
             }
         }
+        //one that units have hurt fights them where they are instead of walking off along its route. the ones that call up help
+        //(summoners) or mend (healers) stay where they are
+        if enemy.provoked > 0.0 && !enemy.chasing && enemy.can_be_provoked() && !matches!(enemy.behavior, Behavior::Healer | Behavior::Summoner) {
+            let goal = enemy.grudge;
+            let stop = if enemy.range > 0.0 && matches!(enemy.behavior, Behavior::Shooter | Behavior::Mortar) { enemy.range * CHASE_STANDOFF } else { CHASE_STOP };
+            let speed = enemy.speed * CHASE_SPEED * speed_multiplier * enemy.pace();
+            walk(enemy, goal, stop, speed, dt, true, walls, &no_route);
+            continue;
+        }
         if enemy.chasing {
-            let speed = enemy.speed * CHASE_SPEED * speed_multiplier * enemy.slow;
+            let speed = enemy.speed * CHASE_SPEED * speed_multiplier * enemy.pace();
             //a boss that keeps its distance holds its ground inside its barriers, and otherwise stays out of the player's reach
             let (keeps_away, anchored) = enemy.boss.as_ref().map_or((0.0, false), |state| (state.def.keeps_away, state.anchor_left > 0.0));
             if anchored {
@@ -89,13 +113,13 @@ pub(crate) fn patrol_enemies(enemies: &mut [Enemy], player: Vec2, dt: f32, speed
             let position = enemy.position;
             let nearest = others.iter().copied().min_by(|a, b| a.distance_squared(position).total_cmp(&b.distance_squared(position)));
             if let Some(nearest) = nearest {
-                let speed = enemy.speed * CHASE_SPEED * speed_multiplier * enemy.slow;
+                let speed = enemy.speed * CHASE_SPEED * speed_multiplier * enemy.pace();
                 walk(enemy, nearest, HEALER_STAY, speed, dt, false, walls, &no_route);
                 continue;
             }
         }
         let target = enemy.route[enemy.heading_for];
-        let speed = enemy.speed * speed_multiplier * enemy.slow;
+        let speed = enemy.speed * speed_multiplier * enemy.pace();
         walk(enemy, target, 0.0, speed, dt, false, walls, &no_route);
         //arrived, or held up by a wall for too long to be going to get there
         if enemy.position.distance(target) < 1.0 || enemy.stuck > ROUTE_GIVE_UP {
@@ -103,6 +127,39 @@ pub(crate) fn patrol_enemies(enemies: &mut [Enemy], player: Vec2, dt: f32, speed
             enemy.stuck = 0.0;
         }
     }
+}
+
+//the reach of a captain's rally: RALLY_TILES from its edge
+pub(crate) fn rally_reach(captain: &Enemy) -> f32 {
+    RALLY_TILES * TILE_SIZE + captain.size / 2.0
+}
+
+//the crowd of a horde that a living captain is leading is rallied while it is near the captain: faster and harder hitting. who is
+//rallied is worked out again every frame, so a captain's death ends it, and one that is running away is not. returns how many are
+pub(crate) fn rally_followers(enemies: &mut [Enemy]) -> usize {
+    let captains: Vec<(Vec2, f32)> = enemies.iter().filter(|enemy| enemy.is_captain() && enemy.health > 0.0).map(|captain| (captain.position, rally_reach(captain))).collect();
+    let mut rallied = 0;
+    for enemy in enemies.iter_mut() {
+        enemy.rallied = !captains.is_empty()
+            && in_a_horde(enemy)
+            && !enemy.is_captain()
+            && enemy.boss.is_none()
+            && !enemy.routed()
+            && captains.iter().any(|&(at, reach)| at.distance_squared(enemy.position) <= reach * reach);
+        rallied += enemy.rallied as usize;
+    }
+    rallied
+}
+
+//a captain has fallen at a place: the crowd of its horde that was inside its rally, `reach` pixels round it, breaks and runs. returns
+//how many ran
+pub(crate) fn rout_followers(enemies: &mut [Enemy], at: Vec2, reach: f32) -> usize {
+    let mut routed = 0;
+    for enemy in enemies.iter_mut().filter(|enemy| in_a_horde(enemy) && !enemy.is_captain() && enemy.boss.is_none() && enemy.health > 0.0 && enemy.position.distance_squared(at) <= reach * reach) {
+        enemy.break_and_run();
+        routed += 1;
+    }
+    routed
 }
 
 //one step of an enemy towards a goal, stopping `stop` short of it, at a speed in pixels a second. it works out where to head
@@ -173,7 +230,7 @@ pub(crate) fn enemy_abilities(enemies: &mut Vec<Enemy>, units: &[Unit], player: 
                 enemy.shield = (enemy.shield + enemy.max_shield * SHIELD_REGEN_RATE * dt).min(enemy.max_shield);
             }
         }
-        if enemy.frozen > 0.0 {
+        if enemy.frozen > 0.0 || enemy.routed() {
             continue;
         }
         match enemy.behavior {
@@ -201,7 +258,8 @@ pub(crate) fn enemy_abilities(enemies: &mut Vec<Enemy>, units: &[Unit], player: 
             Behavior::Summoner => {
                 enemy.timer -= dt;
                 if enemy.timer <= 0.0 {
-                    if player.distance(enemy.position) > SUMMON_RANGE_TILES * TILE_SIZE + enemy.size / 2.0 {
+                    //(it calls for the player, or for whoever is hurting it)
+                    if enemy.provoked <= 0.0 && player.distance(enemy.position) > SUMMON_RANGE_TILES * TILE_SIZE + enemy.size / 2.0 {
                         //nobody to call them for, look again soon
                         enemy.timer = 0.5;
                         continue;
@@ -223,12 +281,17 @@ pub(crate) fn enemy_abilities(enemies: &mut Vec<Enemy>, units: &[Unit], player: 
             Behavior::Mortar => {
                 enemy.timer -= dt;
                 if enemy.timer <= 0.0 {
-                    //the first unit in range, from a random place in the list so it isn't always the same one
+                    //the first unit in range, from a random place in the list so it isn't always the same one. one that units are
+                    //hurting lobs its shells at them
                     let start = if units.is_empty() { 0 } else { rand::gen_range(0, units.len()) };
-                    let target = (0..units.len())
-                        .map(|k| &units[(start + k) % units.len()])
-                        .map(|unit| Vec2::new(unit.x, unit.y))
-                        .find(|at| at.distance(enemy.position) <= enemy.range);
+                    let target = if enemy.provoked > 0.0 && enemy.grudge.distance(enemy.position) <= enemy.range {
+                        Some(enemy.grudge)
+                    } else {
+                        (0..units.len())
+                            .map(|k| &units[(start + k) % units.len()])
+                            .map(|unit| Vec2::new(unit.x, unit.y))
+                            .find(|at| at.distance(enemy.position) <= enemy.range)
+                    };
                     let Some(target) = target else {
                         enemy.timer = 0.4;
                         continue;
@@ -283,3 +346,58 @@ pub(crate) fn enemy_abilities(enemies: &mut Vec<Enemy>, units: &[Unit], player: 
     enemies.extend(born);
 }
 
+
+//ambushers lying in wait spring when the player comes close, and the ones beside them spring too (so do the ones beside an ambusher
+//that has only just sprung, whatever set it off: a unit that stumbled on it). a spring is a rush at the player, and the
+//one popup and sound that says so. returns how many sprang
+pub(crate) fn spring_ambushes(enemies: &mut [Enemy], player: Vec2, fx: &mut Effects) -> usize {
+    if !enemies.iter().any(|enemy| enemy.behavior == Behavior::Ambusher) {
+        return 0;
+    }
+    //where the ones that have just sprung are
+    let mut sprung: Vec<Vec2> = enemies.iter().filter(|enemy| enemy.behavior == Behavior::Ambusher && !enemy.lurking() && enemy.flash < 0.5).map(|enemy| enemy.position).collect();
+    let trigger = AMBUSH_TRIGGER_TILES * TILE_SIZE;
+    let together = AMBUSH_ALARM_TILES * TILE_SIZE;
+    let mut count = 0;
+    for enemy in enemies.iter_mut().filter(|enemy| enemy.lurking()) {
+        if player.distance(enemy.position) <= trigger + enemy.size / 2.0 {
+            enemy.spring(player, fx);
+            sprung.push(enemy.position);
+            count += 1;
+        }
+    }
+    //the rest of a pack goes with the first of it
+    for enemy in enemies.iter_mut().filter(|enemy| enemy.lurking()) {
+        if sprung.iter().any(|at| at.distance_squared(enemy.position) <= together * together) {
+            enemy.spring(player, fx);
+            count += 1;
+        }
+    }
+    if count > 0 {
+        fx.add_shake(0.15);
+    }
+    count
+}
+
+//enemies that were hurt by units come to fight them, and the enemies near them that haven't been hurt come too: each alarm is where
+//the one that was hurt is, and where the units that hurt it are. returns how many came
+pub(crate) fn call_for_help(enemies: &mut [Enemy], alarms: Vec<(Vec2, Vec2)>, fx: &mut Effects) -> usize {
+    let reach = RETALIATE_ALARM_TILES * TILE_SIZE;
+    let orange = Color::new(1.0, 0.62, 0.15, 1.0);
+    let mut called = 0;
+    for (from, at) in alarms.into_iter().take(RETALIATE_MAX_ALARMS) {
+        let before = called;
+        for enemy in enemies.iter_mut().filter(|enemy| enemy.provoked <= 0.0 && !enemy.chasing && enemy.can_be_provoked() && enemy.position.distance_squared(from) <= reach * reach) {
+            enemy.provoke(at);
+            called += 1;
+            if called <= 6 {
+                fx.popup(enemy.position, enemy.size / 2.0, 0.0, "!".to_owned(), orange);
+            }
+        }
+        if called > before {
+            fx.ring(from, reach, orange);
+            fx.cue_at(Cue::Alert, from);
+        }
+    }
+    called
+}

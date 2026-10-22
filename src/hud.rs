@@ -4,7 +4,7 @@ use crate::prelude::*;
 
 //the army, what the run has done so far and what is coming, in the top left of the screen, drawn with the default camera so it
 //stays fixed. frame_time is the smoothed time of a frame in seconds
-pub(crate) fn draw_hud(x: f32, y: f32, frame_time: f32, units: usize, run: &Run, boost: f32, pickup_range: f32, muted: bool, music_on: bool, formation: Formation, director: &Director, sites: &[Site], cap: usize, horde_line: Option<(String, Color)>) {
+pub(crate) fn draw_hud(x: f32, y: f32, frame_time: f32, units: usize, run: &Run, boost: f32, pickup_range: f32, muted: bool, music_on: bool, formation: Formation, director: &Director, sites: &[Site], cap: usize, horde_line: Option<(String, Color)>, damage: &str, score: u64, best: u64) {
     let (left, top) = (12.0, 12.0);
     let pad = 14.0;
     //what goes in the panel, so it can be as wide as its widest line
@@ -16,6 +16,9 @@ pub(crate) fn draw_hud(x: f32, y: f32, frame_time: f32, units: usize, run: &Run,
         ("bosses slain", format!("{}", run.bosses)),
         ("speed", format!("x{:.1}", boost)),
         ("pickup range", format!("{:.0}", pickup_range)),
+        ("damage", damage.to_owned()),
+        ("score", grouped(score as usize)),
+        ("best", if best > 0 { grouped(best.max(score) as usize) } else { "-".to_owned() }),
     ];
     let (villages, nests, barracks) = site_counts(sites);
     let objectives = [("villages freed", villages), ("nests destroyed", nests), ("barracks taken", barracks)];
@@ -41,7 +44,8 @@ pub(crate) fn draw_hud(x: f32, y: f32, frame_time: f32, units: usize, run: &Run,
     for (i, (label, value)) in rows.iter().enumerate() {
         let (cx, cy) = (left + pad + column * (i % 2) as f32, at + 22.0 * (i / 2) as f32);
         draw_label(label, cx, cy + 14.0, small, MUTED, Face::Body);
-        draw_label(value, cx + text_width(label, small, Face::Body) + 7.0, cy + 14.0, size, INK, Face::Bold);
+        let at = cx + text_width(label, small, Face::Body) + 7.0;
+        draw_label(value, at, cy + 14.0, fit_size(value, size, (cx + column - 6.0 - at).max(20.0), Face::Bold), if *label == "score" && best > 0 && score >= best { TROPHY } else { INK }, Face::Bold);
     }
     at += 22.0 * ((rows.len() + 1) / 2) as f32 + 12.0;
     //what there is to do
@@ -102,11 +106,17 @@ pub(crate) fn draw_relic_bar(upgrades: &Upgrades, mouse: Vec2) {
     if let Some((relic, x)) = hovered {
         let count = upgrades.count(relic);
         let title = if count > 1 { format!("{} x{}", relic.name(), count) } else { relic.name().to_owned() };
-        let width = text_width(&title, 20.0, Face::Header).max(text_width(relic.blurb(), 16.0, Face::Body)) + 24.0;
-        let (tx, ty) = (x.min(screen_width() - width - 8.0), top - 62.0);
-        panel_edged(tx, ty, width, 54.0, relic.color());
+        //a relic that adds damage says what the army's damage comes to now, and what the enemies leave of it
+        let damage_line = matches!(relic, Relic::Whetstone | Relic::GlassCannon).then(|| format!("your damage is {}", upgrades.damage_text()));
+        let width = text_width(&title, 20.0, Face::Header).max(text_width(relic.blurb(), 16.0, Face::Body)).max(damage_line.as_deref().map_or(0.0, |line| text_width(line, 16.0, Face::Bold))) + 24.0;
+        let height = if damage_line.is_some() { 74.0 } else { 54.0 };
+        let (tx, ty) = (x.min(screen_width() - width - 8.0), top - 8.0 - height);
+        panel_edged(tx, ty, width, height, relic.color());
         draw_label(&title, tx + 12.0, ty + 24.0, 20.0, relic.color(), Face::Header);
         draw_label(relic.blurb(), tx + 12.0, ty + 45.0, 16.0, INK, Face::Body);
+        if let Some(line) = &damage_line {
+            draw_label(line, tx + 12.0, ty + 65.0, 16.0, CYAN, Face::Bold);
+        }
     }
 }
 
@@ -133,6 +143,7 @@ pub(crate) struct BlastWarning {
     pub(crate) seconds: f32,
     pub(crate) units: usize,       //the most units it will kill, which is the ones inside it or its limit
     pub(crate) player_inside: bool,
+    pub(crate) circle: Option<BossCircle>, //which of a boss's circles it is, if it is one
 }
 
 //the circle that is due to go off that would cost the most units, if it would cost enough (a few, or a hundredth of the army) or
@@ -147,7 +158,7 @@ pub(crate) fn blast_warning(hazards: &[Hazard], player: Vec2, units: &[Unit]) ->
         let worth_it = player_inside || at_stake >= (units.len() / 100).max(3);
         let worse = worst.as_ref().is_none_or(|other| (player_inside, at_stake) > (other.player_inside, other.units));
         if worth_it && worse {
-            worst = Some(BlastWarning { seconds: hazard.warn.max(0.0), units: at_stake, player_inside });
+            worst = Some(BlastWarning { seconds: hazard.warn.max(0.0), units: at_stake, player_inside, circle: hazard.circle });
         }
     }
     worst
@@ -158,12 +169,21 @@ pub(crate) fn blast_warning(hazards: &[Hazard], player: Vec2, units: &[Unit]) ->
 pub(crate) fn draw_blast_warning(warning: &BlastWarning, time: f32) {
     let (w, h) = (screen_width(), screen_height());
     let flash = 0.5 + 0.5 * (time * 10.0).sin();
-    let title = if warning.player_inside { "GET OUT OF THE RED!" } else { "THE ARMY IS IN THE RED!" };
+    //(a boss's circle is named by its colour, so the one on the ground can be told from the other kinds)
+    let colour_name = warning.circle.map_or("RED", |circle| circle.colour_name());
+    let title = if warning.player_inside { format!("GET OUT OF THE {colour_name}!") } else { format!("THE ARMY IS IN THE {colour_name}!") };
     let room = w - HUD_PANEL_RIGHT - 20.0;
-    let size = fit_size(title, (h * 0.06).round(), room, Face::Header);
-    let left = ((w - text_width(title, size, Face::Header)) / 2.0).max(HUD_PANEL_RIGHT);
-    draw_label_shadowed(title, left, h * 0.14, size, Color::new(1.0, 0.45 + 0.55 * flash, 0.4 + 0.5 * flash, 1.0), Face::Header);
-    let line = format!("{} units will die in {:.1}s - walk clear, [R] recalls squads", grouped(warning.units), warning.seconds);
+    let size = fit_size(&title, (h * 0.06).round(), room, Face::Header);
+    let left = ((w - text_width(&title, size, Face::Header)) / 2.0).max(HUD_PANEL_RIGHT);
+    let tint = warning.circle.map_or(Color::new(1.0, 0.45, 0.4, 1.0), |circle| circle.color());
+    //it flashes between the colour of the circle and white
+    let flashing = Color::new(tint.r + (1.0 - tint.r) * flash * 0.8, tint.g + (1.0 - tint.g) * flash * 0.8, tint.b + (1.0 - tint.b) * flash * 0.8, 1.0);
+    draw_label_shadowed(&title, left, h * 0.14, size, flashing, Face::Header);
+    let advice = warning.circle.map_or("walk clear", |circle| circle.advice());
+    let line = match warning.circle {
+        Some(circle) => format!("{}: {} units will die in {:.1}s - {advice}, [R] recalls squads", circle.name(), grouped(warning.units), warning.seconds),
+        None => format!("{} units will die in {:.1}s - {advice}, [R] recalls squads", grouped(warning.units), warning.seconds),
+    };
     let small = fit_size(&line, (h * 0.036).round(), room, Face::Bold);
     let left = ((w - text_width(&line, small, Face::Bold)) / 2.0).max(HUD_PANEL_RIGHT);
     let baseline = h * 0.14 + size * 0.85;
@@ -268,7 +288,13 @@ pub(crate) fn traits(enemy: &Enemy) -> Vec<String> {
     }
     match enemy.behavior {
         Behavior::Walker => {}
-        Behavior::Shooter => traits.push("shoots".to_owned()),
+        Behavior::Shooter => traits.push(match kind_named(enemy.name).shot {
+            ShotKind::Plain => "shoots",
+            ShotKind::Piercing => "bolts go through units",
+            ShotKind::Splash => "grenades hurt all round",
+            ShotKind::Homing => "orbs home in",
+        }
+        .to_owned()),
         Behavior::Splitter => traits.push("splits when destroyed".to_owned()),
         Behavior::Charger => traits.push("charges".to_owned()),
         Behavior::Bomber => traits.push("explodes on contact".to_owned()),
@@ -276,6 +302,10 @@ pub(crate) fn traits(enemy: &Enemy) -> Vec<String> {
         Behavior::Summoner => traits.push("calls up imps".to_owned()),
         Behavior::Mortar => traits.push("lobs shells".to_owned()),
         Behavior::Nest => traits.push("sends out more of its own".to_owned()),
+        Behavior::Ambusher => traits.push("springs from hiding".to_owned()),
+    }
+    if enemy.provoked > 0.0 && !enemy.chasing {
+        traits.push("fighting back".to_owned());
     }
     if enemy.aggro > 0.0 && enemy.behavior != Behavior::Charger && enemy.boss.is_none() {
         traits.push("chases".to_owned());
@@ -291,6 +321,13 @@ pub(crate) fn traits(enemy: &Enemy) -> Vec<String> {
         Modifier::Swift => traits.push("fast".to_owned()),
         Modifier::Volatile => traits.push("explodes when destroyed".to_owned()),
         Modifier::Frenzied => traits.push("hits twice as hard".to_owned()),
+        Modifier::Captain => traits.push("leads a horde, rallies those round it".to_owned()),
+    }
+    if enemy.rallied {
+        traits.push("rallied by its captain".to_owned());
+    }
+    if enemy.routed() {
+        traits.push("routed, running away".to_owned());
     }
     traits
 }
@@ -349,6 +386,20 @@ pub(crate) fn draw_boss_bar(boss: &Enemy, family_share: f32, alive: usize) {
     let name = if alive > 1 { format!("{}  x{}", state.def.name, alive) } else { state.def.name.to_owned() };
     let name_size = fit_size(&name, 26.0, width * 0.6, Face::Header);
     draw_label_shadowed(&name, x, y - 12.0, name_size, boss.color, Face::Header);
+    //the circle on the ground it will put down next, in its colour, and how long the army has
+    if let Some(next) = state.next_circle() {
+        let tint = next.circle.color();
+        let row = y - 42.0;
+        let label = format!("NEXT: {}", next.circle.name());
+        draw_label(&label, x, row, 16.0, tint, Face::Bold);
+        let meter_x = x + text_width(&label, 16.0, Face::Bold) + 12.0;
+        let meter_width = (width * 0.3).clamp(90.0, 200.0);
+        draw_meter(meter_x, row - 10.0, meter_width, 7.0, next.share, tint);
+        let soon = next.seconds <= 1.5;
+        let flash = if soon { 0.5 + 0.5 * (get_time() as f32 * 12.0).sin() } else { 0.0 };
+        let seconds_color = Color::new(INK.r + (tint.r - INK.r) * flash, INK.g + (tint.g - INK.g) * flash, INK.b + (tint.b - INK.b) * flash, 1.0);
+        draw_label(&format!("{:.1}s", next.seconds), meter_x + meter_width + 10.0, row, 16.0, seconds_color, Face::Bold);
+    }
     draw_label_right(&phase.name.to_uppercase(), x + width, y - 12.0, 16.0, CYAN, Face::Bold);
     draw_rectangle(x - 3.0, y - 3.0, width + 6.0, height + 6.0, Color::new(0.0, 0.0, 0.0, 0.8));
     draw_rectangle(x, y, width * family_share, height, boss.color);

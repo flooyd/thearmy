@@ -6,7 +6,7 @@ const CENTRE: Vec2 = Vec2::new(WORLD_SIZE / 2.0, WORLD_SIZE / 2.0);
 
 //a horde of this kind on its way, and arriving after one second. returns how many came
 fn arriving(hordes: &mut Hordes, name: &str, enemies: &mut Vec<Enemy>, army: usize) -> usize {
-    hordes.coming = Some(Coming { def: horde_named(name).unwrap(), at: CENTRE + Vec2::new(HORDE_DISTANCE_TILES * TILE_SIZE, 0.0), left: 0.5 });
+    hordes.coming = Some(Coming { def: horde_named(name).unwrap(), at: CENTRE + Vec2::new(HORDE_DISTANCE_TILES * TILE_SIZE, 0.0), left: 0.5, other: None });
     match hordes.update(enemies, CENTRE, army, army, false, 1.0) {
         Some(HordeBeat::Arrived { count, .. }) => count,
         _ => panic!("{name} should have arrived"),
@@ -198,7 +198,7 @@ fn a_chest_that_nobody_gets_to_is_gone_after_a_while_and_the_hud_says_what_there
     hordes.update(&mut Vec::new(), CENTRE, 500, 500, false, CHEST_SECONDS);
     assert!(hordes.chests.is_empty() && hordes.status(&[]).is_none());
     //a horde on its way is said first
-    hordes.coming = Some(Coming { def: &HORDES[0], at: CENTRE, left: 3.2 });
+    hordes.coming = Some(Coming { def: &HORDES[0], at: CENTRE, left: 3.2, other: None });
     assert_eq!(hordes.status(&[]).map(|(line, _)| line), Some("HORDE: Swarm Tide in 4s".to_owned()));
 }
 

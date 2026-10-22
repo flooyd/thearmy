@@ -38,7 +38,8 @@ fn a_horde_is_announced_with_its_direction_and_arrives_after_the_warning() {
     rand::srand(3);
     let mut hordes = Hordes::new();
     let mut enemies = Vec::new();
-    let army = 400;
+    //(too small an army for a horde with captains, which comes from two sides and has its own tests in pincer.rs)
+    let army = 90;
     //nothing before the first is due
     assert!(hordes.update(&mut enemies, CENTRE, army, army, false, HORDE_FIRST_SECONDS - 1.0).is_none() && hordes.coming.is_none());
     let beat = hordes.update(&mut enemies, CENTRE, army, army, false, 2.0);

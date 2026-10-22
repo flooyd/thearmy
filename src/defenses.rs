@@ -65,7 +65,7 @@ pub(crate) fn fire_towers(walls: &mut Walls, enemies: &mut [Enemy], upgrades: &U
         let at = wall.center();
         let target = enemies
             .iter_mut()
-            .filter(|enemy| enemy.health > 0.0 && enemy.position.distance(at) <= TOWER_RANGE + enemy.size / 2.0)
+            .filter(|enemy| enemy.health > 0.0 && !enemy.lurking() && enemy.position.distance(at) <= TOWER_RANGE + enemy.size / 2.0)
             .min_by(|a, b| a.position.distance_squared(at).total_cmp(&b.position.distance_squared(at)));
         let Some(enemy) = target else {
             //nothing to shoot at, look again soon

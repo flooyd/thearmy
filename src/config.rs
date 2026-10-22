@@ -110,6 +110,8 @@ pub(crate) const SPEED_BOOST_UNITS: usize = 3000; //the player, the units and th
 pub(crate) const MAX_SPEED_MULTIPLIER: f32 = 3.0; //how many times faster they are then
 pub(crate) const TAILWIND_BOOST: f32 = 0.5; //each Tailwind relic raises the most an army's size can speed it up by this many times normal
 pub(crate) const BABY_PICKUP_DELAY: f32 = 0.5; //seconds after it drops before a baby unit can grow, so a player standing right there still sees it
+pub(crate) const BABY_LIFE: f32 = 30.0; //seconds a baby unit waits to be picked up, then it is gone
+pub(crate) const BABY_BLINK_SECONDS: f32 = 5.0; //for this long before it is gone a baby blinks, faster and fainter the nearer it is to going
 pub(crate) const MIN_ZOOM: f32 = 0.1; //zoomed out all the way the player sees 2.5x as much of the world in each direction
 pub(crate) const MAX_ZOOM: f32 = 2.5; //zoomed in all the way everything is 10x bigger
 pub(crate) const ZOOM_STEP: f32 = 1.15; //each scroll wheel notch zooms by this factor
@@ -278,6 +280,7 @@ pub(crate) const ENEMY_MIGHT_BABIES: f32 = 0.35; //and what they drop
 pub(crate) const ENEMY_ROUND_GROWTH: f32 = 0.08; //the wild enemies are made for an army this much bigger for every boss destroyed, so they keep up with a run that goes on
 pub(crate) const BLAST_WARNING_MIN_SECONDS: f32 = 1.0; //a circle on the ground that counts down for at least this long is worth a warning on the screen, a shell is not
 pub(crate) const BOSS_BLAST_HOLD: f32 = 7.5; //seconds from one of a boss's circles on the ground until it can start the next, which the army needs to get back to it
+pub(crate) const HUD_PANEL_BOTTOM: f32 = 390.0; //pixels from the top of the screen to the bottom of that panel when it is at its tallest, which the arrows at the edge of the screen keep clear of
 pub(crate) const HUD_PANEL_RIGHT: f32 = 436.0; //pixels from the left of the screen to the right of the panel with the army in it, plus a little room, which messages in the middle keep clear of
 pub(crate) const BOSS_WARN_SLAM: f32 = 2.8; //seconds a boss's circle on the ground shows before it goes off: enough to notice it, press R and get the army out of it...
 pub(crate) const BOSS_WARN_NOVA: f32 = 3.4;
@@ -314,6 +317,19 @@ pub(crate) const HORDE_WARNING_SECONDS: f32 = 6.0; //how long it is announced be
 pub(crate) const HORDE_ARRIVED_TILES: f32 = 10.0; //the arrow stops pointing at a horde that has got this close
 pub(crate) const HORDE_BROKEN_SHARE: f32 = 0.5; //a horde is broken, and drops a chest, when it is gone and at least this share of it was destroyed rather than left behind
 pub(crate) const CHASE_STANDOFF: f32 = 0.7; //an enemy that shoots, sent running at the army, stops this share of its range away
+pub(crate) const PINCER_SKEW: f32 = 0.6; //radians, the second side of a pincer is straight across from the first give or take up to this much
+pub(crate) const CAPTAIN_SIZE_BASE: f32 = 130.0; //a captain is as big as a boss: this many pixels...
+pub(crate) const CAPTAIN_SIZE_GROWTH: f32 = 15.0; //...and this many more for each square root of the army it is made for, which is how a boss grows (a titan alone, at the biggest an enemy gets, is 1300 px)...
+pub(crate) const CAPTAIN_HEALTH: f32 = 2.5; //...this many times as tough as the titan it is made from...
+pub(crate) const CAPTAIN_ATTACK: f32 = 1.4; //...hits this many times as hard...
+pub(crate) const CAPTAIN_BABIES: f32 = 3.0; //...and drops this many times as many babies
+pub(crate) const CAPTAIN_ARMOR: f32 = 0.2; //the share of the damage it shrugs off
+pub(crate) const CAPTAIN_MIN_SPEED: f32 = 75.0; //pixels a second, a captain is never slower than this, so it keeps up with the ones it leads
+pub(crate) const RALLY_TILES: f32 = 12.0; //the crowd this close to a living captain (from its edge) is rallied: it...
+pub(crate) const RALLY_SPEED: f32 = 1.18; //...runs this many times as fast...
+pub(crate) const RALLY_ATTACK: f32 = 1.3; //...and hits this many times as hard. when the captain falls the ones it was rallying are routed...
+pub(crate) const ROUT_SECONDS: f32 = 4.5; //...and run from the army for this long, doing nothing else, before they turn back...
+pub(crate) const ROUT_SPEED: f32 = 0.9; //...at this share of the speed they chase at
 
 // ---------- chests ----------
 pub(crate) const CHEST_SECONDS: f32 = 150.0; //a chest from a broken horde stays this long, and is gone if nobody has opened it
@@ -325,7 +341,44 @@ pub(crate) const CHEST_RECRUITS_MIN: usize = 10; //...but never fewer than this 
 pub(crate) const CHEST_RECRUITS_MAX: usize = 150; //...or more than this
 pub(crate) const CHEST_CHAMPION_TIER: u32 = 2; //a chest of this tier or better holds a champion...
 pub(crate) const CHEST_RELIC_TIER: u32 = 3; //...and one of this tier a choice of relics as well
+pub(crate) const CHEST_HOLD_SECONDS: [f32; 3] = [0.0, 2.0, 4.0]; //how long the player or a unit has to stay at a bronze, silver and gold chest before it opens: 0 opens it the moment it is reached
+pub(crate) const CHEST_HOLD_DRAIN: f32 = 1.5; //the hold is lost this many times as fast as it was made when nobody is there
+pub(crate) const CHEST_CONTEST_TILES: f32 = 5.0; //a chest that has to be held is contested while an awake enemy (not frozen, routed or lying in wait) is this close to it, from its edge: the hold stands still until they are gone or dead
 
 // ---------- first minute ----------
 pub(crate) const HINT_SECONDS: f32 = 45.0; //the tips at the start of a run are up for this long
 pub(crate) const MENU_NOTICE_SECONDS: f32 = 4.0; //a message in the pause menu (saved, could not save) stays this long
+
+// ---------- ambushers, retaliation and the shots that pierce, splash and home ----------
+pub(crate) const AMBUSH_TRIGGER_TILES: f32 = 4.0; //an ambusher lying in wait springs when the player gets this close to its edge...
+pub(crate) const AMBUSH_ALARM_TILES: f32 = 5.0; //...and the ambushers this near it spring with it
+pub(crate) const AMBUSH_LUNGE_TIME: f32 = 0.45; //seconds its first rush lasts, which hits as hard as a charger's dash
+pub(crate) const AMBUSH_TELL: f32 = 0.2; //how plainly a lurking ambusher shows on the ground (opacity), enough to be seen by someone who looks
+pub(crate) const RETALIATE_SECONDS: f32 = 6.0; //an enemy hurt by units is provoked for this long: it stops its patrol, fights them, and stands its ground...
+pub(crate) const RETALIATE_ALARM_TILES: f32 = 6.0; //...and the enemies this near it, that are not provoked, come at the units too
+pub(crate) const RETALIATE_MAX_ALARMS: usize = 24; //alarms answered in a frame, a crowd all hurt at once does not need more than that
+pub(crate) const LANCE_SPEED: f32 = 780.0; //a piercing bolt flies this fast, faster than the other shots, and goes through...
+pub(crate) const LANCE_PIERCE: usize = 4; //...this many units at the least (a bigger enemy's goes through more, up to LANCE_PIERCE_MAX)...
+pub(crate) const LANCE_PIERCE_MAX: usize = 12;
+pub(crate) const LANCE_DAMAGE: f32 = 1.4; //...hurting each of them this many times as much as an ordinary shot
+pub(crate) const GRENADE_SPEED: f32 = 360.0; //a shot that goes off where it lands is slow...
+pub(crate) const GRENADE_RADIUS: f32 = 100.0; //...and hurts the units this near where it lands, for the smallest army...
+pub(crate) const GRENADE_DAMAGE: f32 = 0.9; //...each this many times as much as an ordinary shot
+pub(crate) const GRENADE_VICTIMS: f32 = 0.0006; //...up to this share of the army (but never fewer than three)
+pub(crate) const SEEKER_SPEED: f32 = 300.0; //a shot that homes in flies this fast...
+pub(crate) const SEEKER_TURN: f32 = 2.4; //...bends towards the nearest unit this many radians a second...
+pub(crate) const SEEKER_REACH: f32 = 380.0; //...and sees units this far away
+pub(crate) const SEEKER_LIFE: f32 = 4.5; //seconds before it gives up, a long time next to SHOT_LIFE
+pub(crate) const SEEKER_DAMAGE: f32 = 0.7; //each hit does this many times as much as an ordinary shot, there are more of them than a volley's worth
+
+// ---------- score ----------
+pub(crate) const SCORE_PER_KILL: u64 = 5; //what a run is worth: each enemy destroyed...
+pub(crate) const SCORE_PER_BOSS: u64 = 1_000; //...each boss slain...
+pub(crate) const SCORE_PER_CITADEL: u64 = 5_000; //...(and more for the Sovereign each time it falls)...
+pub(crate) const SCORE_PER_NEST: u64 = 200; //...each nest destroyed...
+pub(crate) const SCORE_PER_VILLAGE: u64 = 150; //...each village freed...
+pub(crate) const SCORE_PER_UNIT: u64 = 4; //...each unit in the largest army the run had...
+pub(crate) const SCORE_PER_SECOND: f32 = 1.0; //...and each second survived, all times what the difficulty is worth
+pub(crate) const HIGH_SCORES_KEPT: usize = 5; //the best runs kept, on the title screen and the defeat screen
+pub(crate) const MAX_AMBUSH_PACK: usize = 10; //an ambush has this many in it at the most, however big the army is (other packs are bigger)
+pub(crate) const MAX_LURKERS_SHARE: usize = 6; //ambushers lying in wait are at most one in this many of the wild enemies, as they stay put and would crowd out the others

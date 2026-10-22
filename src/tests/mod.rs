@@ -3,6 +3,7 @@
 
 use crate::prelude::*;
 
+mod ambush;
 mod arena;
 mod army;
 mod boost;
@@ -10,6 +11,7 @@ mod boss_fights;
 mod champions;
 mod chests;
 mod bosses;
+mod circles;
 mod crowds;
 mod danger;
 mod discs;
@@ -21,10 +23,13 @@ mod frame;
 mod horde_fights;
 mod hordes;
 mod minimap;
+mod morale;
 mod relics;
 mod movement;
 mod pause;
+mod pincer;
 mod save;
+mod score;
 mod scenes;
 mod parallel;
 mod polish;
@@ -32,6 +37,7 @@ mod pressure;
 mod siege;
 mod sites;
 mod settings;
+mod shooters;
 mod shortcuts;
 mod sound;
 mod squads;

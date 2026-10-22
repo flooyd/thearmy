@@ -184,6 +184,84 @@ fn a_baby_grows_into_a_unit_when_the_player_comes_within_range_and_not_before() 
 }
 
 #[test]
+fn a_baby_nobody_picks_up_is_gone_after_thirty_seconds() {
+    assert_eq!(BABY_LIFE, 30.0);
+    let far = Vec2::new(9000.0, 9000.0);
+    let mut babies = vec![Baby { position: Vec2::new(3000.0, 3000.0), age: 0.0 }];
+    let mut units = Vec::new();
+    let mut fx = Effects::default();
+    //a second short of it, still there, and then the last second takes it
+    grow_babies(&mut babies, &mut units, far.x, far.y, BABY_LIFE - 1.0, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut fx);
+    assert_eq!(babies.len(), 1);
+    grow_babies(&mut babies, &mut units, far.x, far.y, 0.99, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut fx);
+    assert_eq!(babies.len(), 1, "gone before its time was up");
+    grow_babies(&mut babies, &mut units, far.x, far.y, 0.02, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut fx);
+    assert!(babies.is_empty());
+    assert!(units.is_empty(), "an expired baby doesn't grow");
+    assert_eq!(fx.picked_up, 0);
+}
+
+#[test]
+fn a_baby_that_waited_for_room_in_the_army_expires_too() {
+    //the army is full, so the baby can't grow however close the player is
+    let mut babies = vec![Baby { position: Vec2::new(3000.0, 3000.0), age: BABY_LIFE - 1.0 }];
+    let mut units = vec![new_unit(Vec2::new(3000.0, 3000.0))];
+    grow_babies(&mut babies, &mut units, 3000.0, 3000.0, 0.5, BABY_PICKUP_RANGE, 1, &mut Effects::default());
+    assert_eq!((babies.len(), units.len()), (1, 1));
+    grow_babies(&mut babies, &mut units, 3000.0, 3000.0, 0.6, BABY_PICKUP_RANGE, 1, &mut Effects::default());
+    assert_eq!((babies.len(), units.len()), (0, 1));
+}
+
+#[test]
+fn a_baby_picked_up_in_time_still_grows() {
+    let mut babies = vec![Baby { position: Vec2::new(3000.0, 3000.0), age: BABY_LIFE - 3.0 }];
+    let mut units = Vec::new();
+    grow_babies(&mut babies, &mut units, 3000.0, 3000.0, 0.1, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
+    assert_eq!((babies.len(), units.len()), (0, 1));
+}
+
+#[test]
+fn a_baby_blinks_for_the_last_seconds_of_its_life_and_not_before() {
+    //solid until BABY_BLINK_SECONDS are left
+    for age in [0.0, 5.0, BABY_LIFE - BABY_BLINK_SECONDS] {
+        assert_eq!(baby_blink(age), 1.0, "at {age}");
+    }
+    //then it flickers, never gone altogether, and gets fainter as it goes
+    let (mut lowest, mut early_low, mut late_low) = (1.0_f32, 1.0_f32, 1.0_f32);
+    let mut age = BABY_LIFE - BABY_BLINK_SECONDS;
+    while age < BABY_LIFE {
+        let shown = baby_blink(age);
+        assert!(shown > 0.05 && shown <= 1.0, "{shown} at {age}");
+        lowest = lowest.min(shown);
+        if age < BABY_LIFE - BABY_BLINK_SECONDS / 2.0 { early_low = early_low.min(shown) } else { late_low = late_low.min(shown) }
+        age += 0.01;
+    }
+    assert!(lowest < 0.5, "never dimmed: {lowest}");
+    assert!(late_low < early_low, "{late_low} not fainter than {early_low}");
+}
+
+#[test]
+fn the_discs_of_a_baby_about_to_expire_are_fainter_than_a_fresh_baby() {
+    let view = Rect::new(0.0, 0.0, 1000.0, 1000.0);
+    //pick the moment in the blink when it is faintest
+    let faintest = (0..500).map(|i| BABY_LIFE - BABY_BLINK_SECONDS + i as f32 * 0.01).min_by(|a, b| baby_blink(*a).total_cmp(&baby_blink(*b))).unwrap();
+    let babies = [Baby { position: Vec2::new(100.0, 100.0), age: 5.0 }, Baby { position: Vec2::new(200.0, 100.0), age: faintest }];
+    let discs = baby_discs(&babies, view);
+    assert_eq!(discs.len(), 4);
+    assert!(discs[2].color[3] < discs[0].color[3] && discs[3].color[3] < discs[1].color[3]);
+    assert_eq!(discs[2].color[..3], discs[0].color[..3], "only the see-through-ness changes");
+}
+
+#[test]
+fn how_long_a_baby_has_waited_is_saved() {
+    let mut writer = SaveWriter::new();
+    writer.put(&Baby { position: Vec2::new(1.0, 2.0), age: 17.25 });
+    let text = writer.finish();
+    let back: Baby = SaveReader::new(&text).get().unwrap();
+    assert_eq!((back.position, back.age), (Vec2::new(1.0, 2.0), 17.25));
+}
+
+#[test]
 fn only_the_babies_in_range_grow() {
     let mut babies = vec![
         Baby { position: Vec2::new(1000.0, 1000.0), age: BABY_PICKUP_DELAY },
