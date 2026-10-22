@@ -72,7 +72,7 @@ fn units_off_screen_and_units_inside_towers_are_not_sent_to_be_drawn() {
 
 #[test]
 fn an_army_of_thousands_is_made_into_discs_quickly() {
-    let units: Vec<Unit> = (0..MAX_UNITS).map(|i| unit_on(Vec2::new((i % 100) as f32 * 20.0, (i / 100) as f32 * 20.0))).collect();
+    let units: Vec<Unit> = (0..DEFAULT_ARMY_LIMIT).map(|i| unit_on(Vec2::new((i % 100) as f32 * 20.0, (i / 100) as f32 * 20.0))).collect();
     let view = Rect::new(-100.0, -100.0, 5000.0, 5000.0);
     let started = Instant::now();
     let mut made = 0;
@@ -80,7 +80,7 @@ fn an_army_of_thousands_is_made_into_discs_quickly() {
         made += unit_discs(&units, view).len();
     }
     let per_frame = started.elapsed().as_secs_f32() * 10.0;
-    assert_eq!(made, MAX_UNITS * 100);
+    assert_eq!(made, DEFAULT_ARMY_LIMIT * 100);
     //it is part of every frame, so it should be a small share of one (other tests running at the same time slow this down)
     assert!(per_frame < 2.0, "{per_frame} ms a frame");
 }

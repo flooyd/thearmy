@@ -7,7 +7,7 @@ use super::*;
 #[test]
 fn spreading_a_huge_army_crammed_into_a_small_space_stays_cheap_and_still_pushes_it_apart() {
     let centre = Vec2::new(16000.0, 16000.0);
-    let mut units: Vec<Unit> = (0..MAX_UNITS.min(6000)).map(|_| {
+    let mut units: Vec<Unit> = (0..DEFAULT_ARMY_LIMIT.min(6000)).map(|_| {
         let at = random_position_around(centre.x, centre.y, 0.0, 150.0);
         unit_on(at)
     }).collect();

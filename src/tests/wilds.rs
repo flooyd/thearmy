@@ -38,9 +38,7 @@ pub(super) fn wander(army: usize, formation: Formation, seconds: f32, pressure: 
     let squads = Squads::new();
     let mut fx = Effects::default();
     let mut upgrades = Upgrades::default();
-    while upgrades.unit_cap() < cap {
-        upgrades.take(Relic::Barracks);
-    }
+    upgrades.army_limit = cap;
     let dead = |units: &[Unit]| units.iter().filter(|unit| unit.health <= 0.0).count();
     let mut routes = Routes::new(player, &walls);
     let dt = 1.0 / 60.0;

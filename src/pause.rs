@@ -29,6 +29,8 @@ pub(crate) enum Act {
     Hints,
     Difficulty,
     Formation,
+    ArmyLimit,
+    ResetArmyLimit,
 }
 
 //what the game is to do about what the player did in the menu
@@ -48,6 +50,7 @@ pub(crate) enum PauseEvent {
 pub(crate) enum Look {
     Button,
     Slider(f32),
+    Amount(f32, String), //a slider that shows a number of its own in place of a percentage
     Toggle(bool),
     Choice(String),
 }
@@ -56,7 +59,7 @@ pub(crate) enum Look {
 pub(crate) fn page_rows(page: Page) -> &'static [Act] {
     match page {
         Page::Main => &[Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
-        Page::Settings => &[Act::Master, Act::Effects, Act::Music, Act::Shake, Act::Fullscreen, Act::Colours, Act::Hints, Act::Difficulty, Act::Formation, Act::Back],
+        Page::Settings => &[Act::Master, Act::Effects, Act::Music, Act::Shake, Act::Fullscreen, Act::Colours, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit, Act::Back],
         Page::Controls => &[Act::Back],
     }
 }
@@ -81,6 +84,8 @@ pub(crate) fn describe(act: Act, settings: &Settings) -> (&'static str, Look) {
         Act::Hints => ("Hints", Look::Toggle(settings.hints)),
         Act::Difficulty => ("Enemy difficulty", Look::Choice(settings.difficulty.name().to_owned())),
         Act::Formation => ("Army formation", Look::Choice(settings.formation.name().to_owned())),
+        Act::ArmyLimit => ("Army limit", Look::Amount(limit_level(settings.army_limit), grouped(settings.army_limit))),
+        Act::ResetArmyLimit => ("Reset army limit to 15,000", Look::Button),
     }
 }
 
@@ -97,6 +102,8 @@ pub(crate) fn explain(act: Act, settings: &Settings) -> &'static str {
         Act::Hints => "tips at the start of a run",
         Act::Difficulty => settings.difficulty.blurb(),
         Act::Formation => settings.formation.blurb(),
+        Act::ArmyLimit => "the most units the army can have, 5,000 to 50,000. a bigger army is harder on the computer",
+        Act::ResetArmyLimit => "back to the usual 15,000",
         _ => "",
     }
 }
@@ -111,6 +118,7 @@ pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32) -> bool {
         Act::Effects => slide(&mut settings.effects),
         Act::Music => slide(&mut settings.music),
         Act::Shake => slide(&mut settings.shake),
+        Act::ArmyLimit => settings.army_limit = (settings.army_limit as i64 + ARMY_LIMIT_STEP as i64 * direction.signum() as i64).clamp(MIN_ARMY_LIMIT as i64, MAX_ARMY_LIMIT as i64) as usize,
         Act::Fullscreen => settings.fullscreen = !settings.fullscreen,
         Act::Colours => settings.colourblind = !settings.colourblind,
         Act::Hints => settings.hints = !settings.hints,
@@ -127,9 +135,24 @@ pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32) -> bool {
     *settings != before
 }
 
+//where on its slider (0 to 1) an army limit is
+pub(crate) fn limit_level(limit: usize) -> f32 {
+    (limit.saturating_sub(MIN_ARMY_LIMIT) as f32 / (MAX_ARMY_LIMIT - MIN_ARMY_LIMIT) as f32).clamp(0.0, 1.0)
+}
+
+//the army limit at a place on its slider (0 to 1), a whole number of steps
+fn limit_at(level: f32) -> usize {
+    let steps = ((MAX_ARMY_LIMIT - MIN_ARMY_LIMIT) / ARMY_LIMIT_STEP) as f32;
+    MIN_ARMY_LIMIT + (level.clamp(0.0, 1.0) * steps).round() as usize * ARMY_LIMIT_STEP
+}
+
 //set a slider to a level (0 to 1)
 pub(crate) fn set_level(settings: &mut Settings, act: Act, level: f32) -> bool {
     let before = settings.clone();
+    if act == Act::ArmyLimit {
+        settings.army_limit = limit_at(level);
+        return *settings != before;
+    }
     let level = ((level.clamp(0.0, 1.0) * 20.0).round() / 20.0).clamp(0.0, 1.0);
     match act {
         Act::Master => settings.master = level,
@@ -150,8 +173,10 @@ pub(crate) struct MenuLayout {
 
 pub(crate) fn layout(page: Page, count: usize, screen: Vec2) -> MenuLayout {
     let width = (screen.x * 0.92).min(560.0);
-    let row_height = (screen.y * 0.056).clamp(32.0, 46.0);
     let extra = if page == Page::Controls { CONTROLS.len().div_ceil(2) as f32 * 28.0 + 20.0 } else { 0.0 };
+    //rows are as tall as the screen has room for, down to 28 px: a page with a lot of them on a small screen has them squeezed
+    let room = (screen.y - 16.0 - 78.0 - extra - 56.0) / count as f32;
+    let row_height = (screen.y * 0.056).clamp(32.0, 46.0).min(room).max(28.0);
     let height = 78.0 + extra + row_height * count as f32 + 56.0;
     let panel = Rect::new((screen.x - width) / 2.0, ((screen.y - height) / 2.0).max(8.0), width, height);
     let first = panel.y + 74.0 + extra;
@@ -310,7 +335,7 @@ impl Pause {
         if !(input.enter || clicked.is_some()) {
             return PauseEvent::Nothing;
         }
-        if let (Look::Slider(_), Some(i)) = (&face, clicked) {
+        if let (Look::Slider(_) | Look::Amount(..), Some(i)) = (&face, clicked) {
             self.dragging = Some(act);
             let bar = slider_bar(frame.rows[i]);
             return if set_level(settings, act, (input.mouse.x - bar.x) / bar.w) { PauseEvent::Changed } else { PauseEvent::Nothing };
@@ -334,6 +359,11 @@ impl Pause {
                 self.go_to(Page::Main);
                 PauseEvent::Nothing
             }
+            Act::ResetArmyLimit if settings.army_limit != DEFAULT_ARMY_LIMIT => {
+                settings.army_limit = DEFAULT_ARMY_LIMIT;
+                PauseEvent::Changed
+            }
+            Act::ResetArmyLimit => PauseEvent::Nothing,
             _ => {
                 if nudge(settings, act, 1) { PauseEvent::Changed } else { PauseEvent::Nothing }
             }
@@ -387,13 +417,8 @@ impl Pause {
                         draw_label_right(&note, row.x + row.w - 14.0, baseline, size * 0.78, MUTED, Face::Body);
                     }
                 }
-                Look::Slider(level) => {
-                    let bar = slider_bar(*row);
-                    draw_rectangle(bar.x, bar.y, bar.w, bar.h, Color::new(0.0, 0.0, 0.0, 0.55));
-                    draw_rectangle(bar.x, bar.y, bar.w * level, bar.h, CYAN);
-                    draw_circle(bar.x + bar.w * level, bar.y + bar.h / 2.0, 8.0, if chosen { WHITE } else { INK });
-                    draw_label_right(&format!("{:.0}%", level * 100.0), row.x + row.w - 12.0, baseline, size * 0.9, INK, Face::Bold);
-                }
+                Look::Slider(level) => draw_slider(*row, level, &format!("{:.0}%", level * 100.0), chosen, baseline, size),
+                Look::Amount(level, text) => draw_slider(*row, level, &text, chosen, baseline, size),
                 Look::Toggle(on) => {
                     draw_label_right(if on { "ON" } else { "OFF" }, row.x + row.w - 14.0, baseline, size, if on { CYAN } else { MUTED }, Face::Bold);
                 }
@@ -409,6 +434,15 @@ impl Pause {
         draw_label_centered(note, p.x + p.w / 2.0, p.y + p.h - 34.0, 16.0, tint, Face::Body);
         draw_label_centered("up and down choose   left and right change   enter selects   esc goes back", p.x + p.w / 2.0, p.y + p.h - 12.0, 13.0, Color::new(MUTED.r, MUTED.g, MUTED.b, 0.6), Face::Body);
     }
+}
+
+//a slider at a level (0 to 1), with what it says it is at on the right
+fn draw_slider(row: Rect, level: f32, text: &str, chosen: bool, baseline: f32, size: f32) {
+    let bar = slider_bar(row);
+    draw_rectangle(bar.x, bar.y, bar.w, bar.h, Color::new(0.0, 0.0, 0.0, 0.55));
+    draw_rectangle(bar.x, bar.y, bar.w * level, bar.h, CYAN);
+    draw_circle(bar.x + bar.w * level, bar.y + bar.h / 2.0, 8.0, if chosen { WHITE } else { INK });
+    draw_label_right(text, row.x + row.w - 12.0, baseline, size * 0.9, INK, Face::Bold);
 }
 
 //a time that has gone by, in the biggest unit that fits

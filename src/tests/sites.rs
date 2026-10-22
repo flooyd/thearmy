@@ -23,7 +23,7 @@ impl Scene {
     }
 
     fn step(&mut self, player: Vec2, dt: f32) -> SiteNews {
-        update_sites(&mut self.sites, &mut self.enemies, &mut self.walls, &mut self.babies, &mut self.units, player, dt, false, MAX_UNITS, 0, &mut self.fx)
+        update_sites(&mut self.sites, &mut self.enemies, &mut self.walls, &mut self.babies, &mut self.units, player, dt, false, DEFAULT_ARMY_LIMIT, 0, &mut self.fx)
     }
 
     fn near(&self) -> Vec2 {
@@ -311,7 +311,7 @@ fn a_barracks_is_taken_when_its_soldiers_are_all_gone_and_pays_once() {
     assert!((scene.fx.points - BARRACKS_REWARD_POINTS).abs() < 0.01);
     assert_eq!(scene.babies.len(), BARRACKS_RECRUITS + 120 / BARRACKS_RECRUITS_PER);
     let again = scene.step(near, 0.016);
-    assert_eq!((again.barracks, again.barracks_relics), (0, 0), "it is only taken once");
+    assert_eq!((again.barracks, again.barracks_champions), (0, 0), "it is only taken once");
     //and it announces itself
     assert!(scene.fx.announcements.iter().any(|(text, _)| text.starts_with("BARRACKS TAKEN")));
 }
@@ -327,45 +327,6 @@ fn a_barracks_the_player_leaves_before_it_is_taken_puts_its_soldiers_back() {
     assert_eq!(scene.sites[0].state, SiteState::Dormant);
     scene.step(near, 0.016);
     assert!(!scene.enemies.is_empty(), "they are back when the army is");
-}
-
-#[test]
-fn taking_a_barracks_drops_the_relic_about_as_often_as_the_chance_says() {
-    //the line between a roll that drops it and one that doesn't is the chance
-    assert!(barracks_relic_dropped(0.0));
-    assert!(barracks_relic_dropped(BARRACKS_RELIC_CHANCE - 0.001));
-    assert!(!barracks_relic_dropped(BARRACKS_RELIC_CHANCE));
-    assert!(!barracks_relic_dropped(0.999));
-    //and what the game does when it is taken: the random numbers are shared with the tests that seed them, so a wrong chance has
-    //to be wrong on every try to fail
-    let taken = |times: usize| {
-        (0..times)
-            .filter(|_| {
-                let mut scene = Scene::new(SiteKind::Barracks, 60);
-                let near = scene.near();
-                scene.step(near, 0.016);
-                scene.enemies.clear();
-                let news = scene.step(near, 0.016);
-                assert_eq!(news.barracks, 1);
-                assert!(news.barracks_relics <= 1);
-                news.barracks_relics == 1
-            })
-            .count() as f32
-            / times as f32
-    };
-    let ok = (0..4).any(|_| (BARRACKS_RELIC_CHANCE - 0.12..BARRACKS_RELIC_CHANCE + 0.12).contains(&taken(300)));
-    assert!(ok, "a barracks should drop a relic about {BARRACKS_RELIC_CHANCE} of the time");
-}
-
-#[test]
-fn a_barracks_relic_that_drops_makes_the_army_bigger_and_stacks() {
-    let mut upgrades = Upgrades::default();
-    assert_eq!(upgrades.unit_cap(), MAX_UNITS);
-    upgrades.take(Relic::Barracks);
-    upgrades.take(Relic::Barracks);
-    assert_eq!(upgrades.unit_cap(), MAX_UNITS + 2 * BARRACKS_UNITS);
-    //it is the relic that the one on the minimap and in the world takes its colour from
-    assert_eq!(Relic::Barracks.name(), "Barracks");
 }
 
 #[test]
@@ -388,14 +349,14 @@ fn sites_can_be_added_to_a_world_that_has_some_without_crowding_them() {
 fn the_citadel_stays_shut_while_a_boss_is_alive() {
     let mut scene = Scene::new(SiteKind::Citadel, CITADEL_MIN_ARMY);
     let near = scene.near();
-    update_sites(&mut scene.sites, &mut scene.enemies, &mut scene.walls, &mut scene.babies, &mut scene.units, near, 0.016, true, MAX_UNITS, 0, &mut scene.fx);
+    update_sites(&mut scene.sites, &mut scene.enemies, &mut scene.walls, &mut scene.babies, &mut scene.units, near, 0.016, true, DEFAULT_ARMY_LIMIT, 0, &mut scene.fx);
     assert_eq!(scene.sites[0].state, SiteState::Dormant);
 }
 
 #[test]
 fn rewards_do_not_overfill_the_army() {
     let mut babies = Vec::new();
-    spread_babies(&mut babies, Vec2::splat(20000.0), 50, MAX_UNITS - 5, MAX_UNITS, 100.0);
+    spread_babies(&mut babies, Vec2::splat(20000.0), 50, DEFAULT_ARMY_LIMIT - 5, DEFAULT_ARMY_LIMIT, 100.0);
     assert_eq!(babies.len(), 5);
 }
 
@@ -423,7 +384,6 @@ fn the_hud_counts_what_has_been_done() {
 fn taking_a_barracks_sends_a_champion_about_as_often_as_the_chance_says() {
     //the random numbers are shared with the tests that seed them, so a wrong chance has to be wrong on every try to fail
     let taken = |times: usize| {
-        let mut both = 0;
         let champions = (0..times)
             .filter(|_| {
                 let mut scene = Scene::new(SiteKind::Barracks, 60);
@@ -432,8 +392,7 @@ fn taking_a_barracks_sends_a_champion_about_as_often_as_the_chance_says() {
                 scene.enemies.clear();
                 let news = scene.step(near, 0.016);
                 assert_eq!(news.barracks, 1);
-                assert!(news.barracks_champions <= 1 && news.barracks_relics <= 1);
-                both += (news.barracks_champions + news.barracks_relics > 1) as usize;
+                assert!(news.barracks_champions <= 1);
                 //a champion that is sent is waiting to be handed out where the barracks was, and says so
                 assert_eq!(scene.fx.recruits.len(), news.barracks_champions);
                 if news.barracks_champions == 1 {
@@ -444,7 +403,6 @@ fn taking_a_barracks_sends_a_champion_about_as_often_as_the_chance_says() {
             })
             .count() as f32
             / times as f32;
-        assert_eq!(both, 0);
         champions
     };
     let ok = (0..4).any(|_| (BARRACKS_CHAMPION_CHANCE - 0.12..BARRACKS_CHAMPION_CHANCE + 0.12).contains(&taken(300)));

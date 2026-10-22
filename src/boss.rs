@@ -319,6 +319,7 @@ impl Enemy {
             stuck: 0.0,
             pressing: None,
             slow: 1.0,
+            frozen: 0.0,
         }
     }
 }

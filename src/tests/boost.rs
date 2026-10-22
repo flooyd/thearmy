@@ -76,12 +76,12 @@ fn at_2000_units_every_baby_on_a_screen_zoomed_all_the_way_out_is_picked_up() {
         }
         let total = babies.len();
         let mut units = Vec::new();
-        grow_babies(&mut babies, &mut units, player.x, player.y, 0.0, baby_pickup_range(2000, screen), MAX_UNITS, &mut Effects::default());
+        grow_babies(&mut babies, &mut units, player.x, player.y, 0.0, baby_pickup_range(2000, screen), DEFAULT_ARMY_LIMIT, &mut Effects::default());
         assert_eq!((babies.len(), units.len()), (0, total), "{w}x{h}: a baby on screen was left");
         // the same screen with a small army leaves them all
         let mut babies: Vec<Baby> = (0..total).map(|i| Baby { position: player + Vec2::new(half_w * 0.5, i as f32), age: BABY_PICKUP_DELAY }).collect();
         let mut units = Vec::new();
-        grow_babies(&mut babies, &mut units, player.x, player.y, 0.0, baby_pickup_range(20, screen), MAX_UNITS, &mut Effects::default());
+        grow_babies(&mut babies, &mut units, player.x, player.y, 0.0, baby_pickup_range(20, screen), DEFAULT_ARMY_LIMIT, &mut Effects::default());
         assert_eq!(units.len(), 0, "{w}x{h}: a small army reached half a screen away");
     }
 }

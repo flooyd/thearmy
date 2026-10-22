@@ -17,9 +17,10 @@ pub(crate) const UNIT_SPAWN_MAX_DISTANCE: f32 = RADIUS * 6.0; //and at most this
 pub(crate) const UNIT_MIN_SPEED: f32 = 250.0; //pixels per second, each unit is given a random speed between these two
 pub(crate) const UNIT_MAX_SPEED: f32 = 550.0;
 pub(crate) const UNIT_DAMAGE: f32 = 100.0; //damage per second a unit does to every enemy it is inside
-pub(crate) const MAX_UNITS: usize = 10000; //the army can't grow past this many units, babies wait until there is room, unless Barracks relics raise it
-pub(crate) const BARRACKS_UNITS: usize = 1000; //each Barracks relic raises the most units the army can have by this many
-pub(crate) const BARRACKS_FULL_ARMY_WEIGHT: f32 = 5.0; //a Barracks is this many times as likely to be offered while the army is as big as it can be
+pub(crate) const DEFAULT_ARMY_LIMIT: usize = 15000; //the army can't grow past this many units, babies wait until there is room. the player can change it in the settings...
+pub(crate) const MIN_ARMY_LIMIT: usize = 5000; //...to anything from this...
+pub(crate) const MAX_ARMY_LIMIT: usize = 50000; //...to this, a step at a time
+pub(crate) const ARMY_LIMIT_STEP: usize = 1000;
 pub(crate) const UNIT_HEALTH: f32 = 100.0; //damage a unit takes before it dies
 pub(crate) const UNIT_HEAL_RATE: f32 = 8.0; //health a hurt unit gets back every second
 pub(crate) const CHASE_SPEED: f32 = 1.6; //an enemy that has noticed the player runs at them this many times faster than it patrols
@@ -205,11 +206,11 @@ pub(crate) const VILLAGE_HEAL_RATE: f32 = 30.0; //...by this much health a secon
 pub(crate) const VILLAGE_TRICKLE_SECONDS: f32 = 25.0; //and a volunteer turns up this often, while fewer than three are waiting
 pub(crate) const CITADEL_MIN_ARMY: usize = 600; //the citadel at the world's corner stays shut until the army is this big
 pub(crate) const CITADEL_RING: i32 = 12; //grid squares from its middle to its walls
-pub(crate) const BARRACKS_COUNT: usize = 14; //enemy-held barracks in the world, each with a chance of a Barracks relic when it is taken
+pub(crate) const BARRACKS_COUNT: usize = 14; //enemy-held barracks in the world, each with a chance of a champion joining when it is taken
 pub(crate) const BARRACKS_MIN_ARMY: usize = 40; //a barracks sleeps on until the army is this big
 pub(crate) const BARRACKS_RING: i32 = 7; //grid squares from its middle to its walls
-pub(crate) const BARRACKS_RELIC_CHANCE: f32 = 0.4; //the chance that taking one drops a Barracks relic...
-pub(crate) const BARRACKS_CHAMPION_CHANCE: f32 = 0.35; //...and the chance that it is a champion who joins instead, which is the next slice of the roll after the relic's. the rest of the time it is neither
+pub(crate) const BARRACKS_CHAMPION_CHANCE: f32 = 0.35; //the chance that taking one sends a champion to join the army
+pub(crate) const BARRACKS_COLOR: Color = Color::new(0.95, 0.72, 0.85, 1.0); //the emblem on one, and its colour on the minimap
 pub(crate) const BARRACKS_GUARDS: usize = 6; //the soldiers in one for the smallest army...
 pub(crate) const BARRACKS_GUARDS_PER: usize = 40; //...with one more for every this many units in the army...
 pub(crate) const BARRACKS_MAX_GUARDS: usize = 30; //...and never more than this
@@ -221,6 +222,7 @@ pub(crate) const NEST_MAX_BROOD: usize = 40; //however big the army, a nest neve
 
 //the colour of the interface: edges, selections and what is worth a look
 pub(crate) const CYAN: Color = Color::new(0.22, 0.89, 1.0, 1.0);
+pub(crate) const ICE: Color = Color::new(0.75, 0.93, 1.0, 1.0); //frozen enemies and their shards
 pub(crate) const NEIGHBORS: [(i32, i32); 8] = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)];
 
 
@@ -251,6 +253,12 @@ pub(crate) const MAX_CHAMPION_SIZE: f32 = 2.2; //the biggest a champion is, in u
 pub(crate) const CHAMPION_JUMP_RANGE: f32 = 280.0; //pixels lightning jumps from one enemy to the next
 pub(crate) const FROZEN_SLOW: f32 = 0.05; //the share of its speed an enemy keeps while it is frozen, a boss keeps FROZEN_BOSS_SLOW
 pub(crate) const FROZEN_BOSS_SLOW: f32 = 0.45;
+pub(crate) const FREEZE_CHANCE: f32 = 0.2; //each Freezing relic gives an enemy being fought this chance, every second, of freezing solid (they add up)
+pub(crate) const MOST_FREEZE_CHANCE: f32 = 0.95; //however many there are
+pub(crate) const FREEZE_SECONDS: f32 = 2.5; //how long a frozen enemy is held, unable to move, attack or shoot. a boss or a nest can't be frozen
+pub(crate) const SHATTER_PIECE_SIZE: f32 = 18.0; //a frozen enemy that is destroyed breaks into a shard for each this many pixels of its size...
+pub(crate) const SHATTER_MIN_PIECES: usize = 3; //...but never fewer than this...
+pub(crate) const SHATTER_MAX_PIECES: usize = 8; //...or more than this
 
 //bosses: each time round they are tougher, and what they telegraph (the red circles) is meant to be run from, not stood in
 pub(crate) const BOSS_TIER_HEALTH: f32 = 0.7; //a boss has this much more health for each time round the bosses have been

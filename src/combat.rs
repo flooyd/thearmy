@@ -25,6 +25,13 @@ pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut V
         };
         let dealt = enemy.take_damage(strength * UNIT_DAMAGE * upgrades.damage * dt);
         enemy.hurt += dealt;
+        //a Freezing relic: an enemy being fought now and then freezes solid
+        enemy.frozen = (enemy.frozen - dt).max(0.0);
+        if upgrades.freeze > 0.0 && enemy.frozen <= 0.0 && enemy.can_freeze() && !touching.is_empty() && rand::gen_range(0.0, 1.0) < upgrades.freeze_chance(dt) {
+            enemy.frozen = FREEZE_SECONDS;
+            fx.burst(enemy.position, ICE, 8, 160.0);
+            fx.cue_at(Cue::Frost, enemy.position);
+        }
         if enemy.behavior == Behavior::Bomber && enemy.mode == Mode::Roam && !touching.is_empty() {
             enemy.mode = Mode::Fuse { left: BOMB_FUSE };
             enemy.flash = 0.0;
@@ -70,7 +77,7 @@ pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut V
 
 //remove every enemy that has run out of health. one that was made by another is just gone, a bomber that set itself off
 //too, anything else drops its baby units (more with upgrades.bounty) and counts as destroyed. a splitter breaks into
-//smaller ones, a volatile one goes off, and whatever an enemy made dies with it. returns how many were destroyed
+//smaller ones, a frozen one shatters, a volatile one goes off, and whatever an enemy made dies with it. returns how many were destroyed
 pub(crate) fn resolve_deaths(enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, army: usize, upgrades: &Upgrades, fx: &mut Effects) -> usize {
     let mut destroyed = 0;
     let mut gone: Vec<u32> = Vec::new();
@@ -109,16 +116,14 @@ pub(crate) fn resolve_deaths(enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, a
             fx.mark(enemy.position, enemy.size * 0.9, enemy.color, MarkKind::Scorch);
         }
         if enemy.behavior == Behavior::Splitter {
-            for _ in 0..3 {
-                let at = enemy.position + Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * rand::gen_range(0.0, enemy.size * 0.3);
-                let mut splitling = Enemy::new(at, kind_named("Splitling"), minion_scale(enemy.scale));
-                splitling.empower(army_might(army));
-                //what a horde's splitter breaks into is still part of the horde, so it isn't broken until they are gone too
-                if in_a_horde(enemy) {
-                    join_horde(&mut splitling);
-                }
-                born.push(splitling);
-            }
+            break_off(enemy, kind_named("Splitling"), 3, army, &mut born);
+        }
+        //a frozen one is brittle: it breaks into as many shards as it has size for, which are new enemies
+        if enemy.shatters() {
+            fx.burst(enemy.position, ICE, 28, 380.0);
+            fx.cue_at(Cue::Frost, enemy.position);
+            let pieces = ((enemy.size / SHATTER_PIECE_SIZE).round() as usize).clamp(SHATTER_MIN_PIECES, SHATTER_MAX_PIECES);
+            break_off(enemy, kind_named("Shard"), pieces, army, &mut born);
         }
         if enemy.modifier == Modifier::Volatile {
             fx.hazards.push(Hazard::new(enemy.position, enemy.size * 0.9 + 90.0, 0.4, UNIT_HEALTH, victims_of(army, 0.015), enemy.color, Cue::Explosion));
@@ -137,6 +142,20 @@ pub(crate) fn resolve_deaths(enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, a
     }
     enemies.extend(born);
     destroyed
+}
+
+//`count` enemies of a smaller kind that break off one that has been destroyed, where it was. what a horde's enemy breaks into is still
+//part of the horde, so it isn't broken until they are gone too
+fn break_off(enemy: &Enemy, kind: &'static EnemyKind, count: usize, army: usize, born: &mut Vec<Enemy>) {
+    for _ in 0..count {
+        let at = enemy.position + Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * rand::gen_range(0.0, enemy.size * 0.3);
+        let mut piece = Enemy::new(at, kind, minion_scale(enemy.scale));
+        piece.empower(army_might(army));
+        if in_a_horde(enemy) {
+            join_horde(&mut piece);
+        }
+        born.push(piece);
+    }
 }
 
 //something an enemy that shoots has fired, which flies straight until it hits a unit or a wall, or gives up
@@ -162,7 +181,7 @@ impl Shot {
 
 //an enemy that shoots fires a volley at the nearest unit within its range whenever it is ready
 pub(crate) fn shoot_enemies(enemies: &mut [Enemy], units: &[Unit], shots: &mut Vec<Shot>, dt: f32, fx: &mut Effects) {
-    for enemy in enemies.iter_mut().filter(|enemy| enemy.behavior == Behavior::Shooter && enemy.range > 0.0) {
+    for enemy in enemies.iter_mut().filter(|enemy| enemy.behavior == Behavior::Shooter && enemy.range > 0.0 && enemy.frozen <= 0.0) {
         enemy.shot_in -= dt;
         if enemy.shot_in > 0.0 {
             continue;

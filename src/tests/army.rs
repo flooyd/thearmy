@@ -172,14 +172,14 @@ fn a_unit_running_through_an_enemy_does_damage_for_the_time_it_is_inside() {
 fn a_baby_grows_into_a_unit_when_the_player_comes_within_range_and_not_before() {
     let mut babies = vec![Baby { position: Vec2::new(3000.0, 3000.0), age: BABY_PICKUP_DELAY }];
     let mut units = Vec::new();
-    grow_babies(&mut babies, &mut units, 3000.0 + BABY_PICKUP_RANGE + 1.0, 3000.0, 0.0, BABY_PICKUP_RANGE, MAX_UNITS, &mut Effects::default());
+    grow_babies(&mut babies, &mut units, 3000.0 + BABY_PICKUP_RANGE + 1.0, 3000.0, 0.0, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
     assert_eq!((babies.len(), units.len()), (1, 0), "grew when the player was out of range");
-    grow_babies(&mut babies, &mut units, 3000.0 + BABY_PICKUP_RANGE - 1.0, 3000.0, 0.0, BABY_PICKUP_RANGE, MAX_UNITS, &mut Effects::default());
+    grow_babies(&mut babies, &mut units, 3000.0 + BABY_PICKUP_RANGE - 1.0, 3000.0, 0.0, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
     assert_eq!((babies.len(), units.len()), (0, 1));
     assert_eq!((units[0].x, units[0].y), (3000.0, 3000.0));
     assert!(units[0].speed >= UNIT_MIN_SPEED && units[0].speed <= UNIT_MAX_SPEED);
     // nothing left to grow
-    grow_babies(&mut babies, &mut units, 3000.0, 3000.0, 0.0, BABY_PICKUP_RANGE, MAX_UNITS, &mut Effects::default());
+    grow_babies(&mut babies, &mut units, 3000.0, 3000.0, 0.0, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
     assert_eq!(units.len(), 1);
 }
 
@@ -191,7 +191,7 @@ fn only_the_babies_in_range_grow() {
         Baby { position: Vec2::new(5000.0, 5000.0), age: BABY_PICKUP_DELAY },
     ];
     let mut units = Vec::new();
-    grow_babies(&mut babies, &mut units, 1050.0, 1000.0, 0.0, BABY_PICKUP_RANGE, MAX_UNITS, &mut Effects::default());
+    grow_babies(&mut babies, &mut units, 1050.0, 1000.0, 0.0, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
     assert_eq!(units.len(), 2);
     assert_eq!(babies.len(), 1);
     assert_eq!(babies[0].position, Vec2::new(5000.0, 5000.0));
@@ -237,7 +237,7 @@ fn a_whole_fight_works_start_to_finish() {
             assert_eq!(babies.len(), 1);
         }
         let before = units.len();
-        grow_babies(&mut babies, &mut units, player.x, player.y, dt, BABY_PICKUP_RANGE, MAX_UNITS, &mut Effects::default());
+        grow_babies(&mut babies, &mut units, player.x, player.y, dt, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
         if units.len() > before && grown_at.is_none() {
             grown_at = Some(frame);
         }
@@ -300,11 +300,11 @@ fn a_new_baby_waits_a_moment_before_it_can_grow_even_with_the_player_on_it() {
     let mut grown = Vec::new();
     let frames = (BABY_PICKUP_DELAY * 120.0) as usize;
     for frame in 0..frames - 2 {
-        grow_babies(&mut babies, &mut grown, 1000.0, 1000.0, 1.0 / 120.0, BABY_PICKUP_RANGE, MAX_UNITS, &mut Effects::default());
+        grow_babies(&mut babies, &mut grown, 1000.0, 1000.0, 1.0 / 120.0, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
         assert_eq!((babies.len(), grown.len()), (1, 0), "grew after only {frame} frames");
     }
     for _ in 0..6 {
-        grow_babies(&mut babies, &mut grown, 1000.0, 1000.0, 1.0 / 120.0, BABY_PICKUP_RANGE, MAX_UNITS, &mut Effects::default());
+        grow_babies(&mut babies, &mut grown, 1000.0, 1000.0, 1.0 / 120.0, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
     }
     assert_eq!((babies.len(), grown.len()), (0, 1));
 }
@@ -314,10 +314,10 @@ fn a_baby_that_is_waiting_still_waits_for_the_player_to_come() {
     let mut babies = vec![Baby { position: Vec2::new(1000.0, 1000.0), age: 0.0 }];
     let mut units = Vec::new();
     for _ in 0..(120 * 5) {
-        grow_babies(&mut babies, &mut units, 4000.0, 4000.0, 1.0 / 120.0, BABY_PICKUP_RANGE, MAX_UNITS, &mut Effects::default());
+        grow_babies(&mut babies, &mut units, 4000.0, 4000.0, 1.0 / 120.0, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
     }
     assert_eq!((babies.len(), units.len()), (1, 0));
-    grow_babies(&mut babies, &mut units, 1100.0, 1000.0, 1.0 / 120.0, BABY_PICKUP_RANGE, MAX_UNITS, &mut Effects::default());
+    grow_babies(&mut babies, &mut units, 1100.0, 1000.0, 1.0 / 120.0, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
     assert_eq!((babies.len(), units.len()), (0, 1));
 }
 

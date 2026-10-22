@@ -6,7 +6,7 @@ use crate::prelude::*;
 pub(crate) enum SiteKind {
     Nest(usize), //which of NESTS
     Village,
-    Barracks, //held by soldiers, and a chance of a Barracks relic when it is taken
+    Barracks, //held by soldiers, and a chance of a champion joining when it is taken
     Citadel,
 }
 
@@ -188,14 +188,9 @@ fn garrison(site: &Site, army: usize, count: usize, reach: f32) -> Vec<Enemy> {
         .collect()
 }
 
-//whether taking a barracks drops the relic, for a roll between 0 and 1
-pub(crate) fn barracks_relic_dropped(roll: f32) -> bool {
-    roll < BARRACKS_RELIC_CHANCE
-}
-
-//whether it gives a champion instead, for the same roll: the slice of it after the relic's. so a barracks gives one or the other or neither
+//whether taking a barracks sends a champion, for a roll between 0 and 1
 pub(crate) fn barracks_champion_dropped(roll: f32) -> bool {
-    (BARRACKS_RELIC_CHANCE..BARRACKS_RELIC_CHANCE + BARRACKS_CHAMPION_CHANCE).contains(&roll)
+    roll < BARRACKS_CHAMPION_CHANCE
 }
 
 //the enemies of a site that are gone from the world, with whatever they made
@@ -225,7 +220,6 @@ pub(crate) struct SiteNews {
     pub(crate) nests: usize,        //destroyed
     pub(crate) villages: usize,     //liberated
     pub(crate) barracks: usize,     //taken...
-    pub(crate) barracks_relics: usize, //...and how many of them dropped a Barracks relic, for the game to hand over
     pub(crate) barracks_champions: usize, //...and how many sent a champion (who is put in `fx.recruits`)
     pub(crate) citadel: bool,       //the citadel's lord fell
     pub(crate) citadel_rearmed: bool, //and is back: the citadel has waited out CITADEL_RESPAWN_SECONDS
@@ -299,22 +293,17 @@ pub(crate) fn update_sites(
                         news.barracks += 1;
                         fx.points += BARRACKS_REWARD_POINTS;
                         spread_babies(babies, site.position, BARRACKS_RECRUITS + army / BARRACKS_RECRUITS_PER, army, cap, TILE_SIZE * 3.0);
-                        let roll = rand::gen_range(0.0, 1.0);
-                        let relic = barracks_relic_dropped(roll);
-                        let champion = barracks_champion_dropped(roll);
-                        news.barracks_relics += relic as usize;
+                        let champion = barracks_champion_dropped(rand::gen_range(0.0, 1.0));
                         news.barracks_champions += champion as usize;
                         if champion {
                             fx.recruits.push((site.position, Odds::Barracks));
                         }
-                        let message = if relic {
-                            "BARRACKS TAKEN: A BARRACKS RELIC!"
-                        } else if champion {
+                        let message = if champion {
                             "BARRACKS TAKEN: A CHAMPION JOINS!"
                         } else {
                             "BARRACKS TAKEN"
                         };
-                        fx.announce(message.to_owned(), Relic::Barracks.color());
+                        fx.announce(message.to_owned(), BARRACKS_COLOR);
                         fx.add_shake(0.3);
                         fx.cue(Cue::Liberate);
                     }
@@ -507,10 +496,10 @@ fn draw_barracks(site: &Site, time: f32) {
     draw_rectangle(hall.x, hall.y, hall.w, hall.h, wall);
     draw_rectangle(hall.x + t * 0.25, hall.y + t * 0.25, hall.w - t * 0.5, hall.h - t * 0.9, roof);
     draw_line(hall.x + t * 0.25, hall.y + hall.h * 0.4, hall.right() - t * 0.25, hall.y + hall.h * 0.4, 3.0, Color::new(0.0, 0.0, 0.0, 0.35));
-    //the door, in the middle of the front, and the emblem on the roof: the colour of the Barracks relic
+    //the door, in the middle of the front, and the emblem on the roof
     draw_rectangle(x - t * 0.45, hall.bottom() - t * 0.6, t * 0.9, t * 0.6, Color::new(0.04, 0.03, 0.05, 1.0));
     draw_rectangle_lines(x - t * 0.45, hall.bottom() - t * 0.6, t * 0.9, t * 0.6, 3.0, trim);
-    let emblem = Relic::Barracks.color();
+    let emblem = BARRACKS_COLOR;
     draw_circle(x, hall.y + hall.h * 0.4, t * 0.5, emblem);
     draw_circle_lines(x, hall.y + hall.h * 0.4, t * 0.5, 3.0, Color::new(0.0, 0.0, 0.0, 0.5));
     //the flag over a corner of it
@@ -563,8 +552,8 @@ pub(crate) fn draw_site_marks(map: &Minimap, sites: &[Site], time: f32) {
                 draw_triangle(point + Vec2::new(-3.5, -1.0), point + Vec2::new(3.5, -1.0), point + Vec2::new(0.0, -4.5), color);
             }
             SiteKind::Barracks => {
-                //a little castle, in the colour of the relic it may drop, cyan once it is taken
-                let emblem = Relic::Barracks.color();
+                //a little castle, cyan once it is taken
+                let emblem = BARRACKS_COLOR;
                 let color = if site.state == SiteState::Cleared { Color::new(CYAN.r, CYAN.g, CYAN.b, 0.9) } else { Color::new(emblem.r, emblem.g, emblem.b, fade.max(0.6)) };
                 draw_rectangle(point.x - 3.5, point.y - 1.0, 7.0, 5.0, color);
                 for dx in [-3.5, -0.6, 2.5] {

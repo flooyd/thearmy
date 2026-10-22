@@ -35,6 +35,10 @@ pub(crate) fn patrol_enemies(enemies: &mut [Enemy], player: Vec2, dt: f32, speed
     let no_route = FlowField::new();
     for enemy in enemies {
         enemy.pressing = None;
+        //a frozen one is held where it is
+        if enemy.frozen > 0.0 {
+            continue;
+        }
         //a nest stays where it is
         if enemy.behavior == Behavior::Nest {
             continue;
@@ -168,6 +172,9 @@ pub(crate) fn enemy_abilities(enemies: &mut Vec<Enemy>, units: &[Unit], player: 
             if enemy.shield_idle >= SHIELD_REGEN_DELAY && enemy.shield < enemy.max_shield {
                 enemy.shield = (enemy.shield + enemy.max_shield * SHIELD_REGEN_RATE * dt).min(enemy.max_shield);
             }
+        }
+        if enemy.frozen > 0.0 {
+            continue;
         }
         match enemy.behavior {
             Behavior::Bomber => {

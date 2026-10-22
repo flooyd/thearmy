@@ -30,7 +30,7 @@ fn every_relic_has_a_rarity_and_the_rares_are_few() {
 fn common_relics_are_offered_more_often_than_rare_ones() {
     let mut seen: HashMap<&str, usize> = HashMap::new();
     for _ in 0..4000 {
-        for relic in relic_choices(false) {
+        for relic in relic_choices() {
             *seen.entry(relic.name()).or_default() += 1;
         }
     }
@@ -59,7 +59,7 @@ fn winning_offers_three_different_rare_relics_and_a_reroll_stays_rare() {
 fn a_reroll_brings_other_relics_and_one_is_earned_for_every_three_bosses() {
     let mut changed = 0;
     for _ in 0..50 {
-        let mut choice = RelicChoice::new(false);
+        let mut choice = RelicChoice::new();
         let before = choice.options;
         choice.reroll();
         assert!(choice.options[0] != choice.options[1] && choice.options[1] != choice.options[2] && choice.options[0] != choice.options[2]);
@@ -286,7 +286,7 @@ fn every_relic_has_its_own_tag_that_fits_its_tile() {
 
 //everything a relic can change, as numbers
 fn signature(up: &Upgrades) -> [f32; 16] {
-    [up.damage, up.toughness, up.healing, up.speed, up.pickup, up.bounty, up.masonry, up.archery, up.quarry, up.thorns, up.bloodlust, up.guard, up.salvo, up.martyr, up.extra_units as f32, up.extra_boost]
+    [up.damage, up.toughness, up.healing, up.speed, up.pickup, up.bounty, up.masonry, up.archery, up.quarry, up.thorns, up.bloodlust, up.guard, up.salvo, up.martyr, up.freeze, up.extra_boost]
 }
 
 #[test]
@@ -318,29 +318,30 @@ fn shockwaves_stack_without_a_ceiling_and_never_kill_outright() {
 }
 
 #[test]
-fn barracks_let_the_army_grow_past_the_most_it_could() {
-    assert_eq!(Upgrades::default().unit_cap(), MAX_UNITS);
-    let up = with(&[Relic::Barracks, Relic::Barracks]);
-    assert_eq!(up.unit_cap(), MAX_UNITS + 2 * BARRACKS_UNITS);
-    //a full army takes no more babies until there is room, and then it takes them
+fn the_most_units_the_army_can_have_is_the_limit_it_is_given_and_no_relic_changes_it() {
+    assert_eq!(Upgrades::default().unit_cap(), DEFAULT_ARMY_LIMIT);
+    let mut up = with(&RELICS);
+    assert_eq!(up.unit_cap(), DEFAULT_ARMY_LIMIT);
+    //a full army takes no more babies until the limit is raised, and then it takes them
     let player = Vec2::new(1000.0, 1000.0);
-    let mut units: Vec<Unit> = (0..MAX_UNITS).map(|_| Unit::new(player.x, player.y, 300.0)).collect();
+    let mut units: Vec<Unit> = (0..DEFAULT_ARMY_LIMIT).map(|_| Unit::new(player.x, player.y, 300.0)).collect();
     let mut babies: Vec<Baby> = (0..3).map(|_| Baby { position: player, age: 1.0 }).collect();
-    grow_babies(&mut babies, &mut units, player.x, player.y, 0.0, BABY_PICKUP_RANGE, Upgrades::default().unit_cap(), &mut Effects::default());
-    assert_eq!((units.len(), babies.len()), (MAX_UNITS, 3));
     grow_babies(&mut babies, &mut units, player.x, player.y, 0.0, BABY_PICKUP_RANGE, up.unit_cap(), &mut Effects::default());
-    assert_eq!((units.len(), babies.len()), (MAX_UNITS + 3, 0));
+    assert_eq!((units.len(), babies.len()), (DEFAULT_ARMY_LIMIT, 3));
+    up.army_limit += 3;
+    grow_babies(&mut babies, &mut units, player.x, player.y, 0.0, BABY_PICKUP_RANGE, up.unit_cap(), &mut Effects::default());
+    assert_eq!((units.len(), babies.len()), (DEFAULT_ARMY_LIMIT + 3, 0));
 }
 
 #[test]
-fn enemies_drop_babies_for_the_room_the_bigger_cap_gives() {
+fn enemies_drop_babies_for_the_room_a_bigger_limit_gives() {
     let mut enemy = plain_enemy(Vec2::new(5000.0, 5000.0));
     enemy.babies = 10;
     let mut none = Vec::new();
-    drop_babies(&enemy, &mut none, MAX_UNITS, 1.0, Upgrades::default().unit_cap());
+    drop_babies(&enemy, &mut none, DEFAULT_ARMY_LIMIT, 1.0, Upgrades::default().unit_cap());
     assert!(none.is_empty());
     let mut some = Vec::new();
-    drop_babies(&enemy, &mut some, MAX_UNITS, 1.0, with(&[Relic::Barracks]).unit_cap());
+    drop_babies(&enemy, &mut some, DEFAULT_ARMY_LIMIT, 1.0, DEFAULT_ARMY_LIMIT + 10);
     assert_eq!(some.len(), 10);
 }
 
@@ -369,45 +370,230 @@ fn speed_relics_have_no_limit_of_their_own() {
 }
 
 #[test]
-fn a_full_army_is_offered_a_barracks_far_more_often_because_it_is_the_only_way_to_grow() {
-    let offered = |army_full: bool| {
-        (0..3000).filter(|_| relic_choices(army_full).contains(&Relic::Barracks)).count() as f32 / 3000.0
-    };
-    //three of nineteen, weighted: a barracks turns up in roughly one offer in eight, and a full army's in nearly half. the
-    //random numbers are shared with the tests that seed them, which can skew one measurement, so a wrong weighting has to
-    //get it wrong every time to fail
-    let mut rates = (0.0, 0.0);
-    for _ in 0..4 {
-        rates = (offered(false), offered(true));
-        if rates.0 > 0.06 && rates.0 < 0.2 && rates.1 > rates.0 * 2.5 && rates.1 > 0.3 {
-            break;
-        }
-    }
-    let (usually, full) = rates;
-    assert!(usually > 0.06 && usually < 0.2, "{usually}");
-    assert!(full > usually * 2.5 && full > 0.3, "{full} against {usually}");
-    //the offers are still three different relics, and only a barracks is likelier
+fn an_offer_is_three_different_relics_and_a_reroll_is_three_others() {
     for _ in 0..200 {
-        let choices = relic_choices(true);
+        let choices = relic_choices();
         assert!(choices[0] != choices[1] && choices[1] != choices[2] && choices[0] != choices[2]);
     }
-    //a reroll of the offer a full army got keeps it likelier
-    //(a reroll avoids the relics it replaces, which takes some of the barracks out of it, so only a clear rise is asked for)
-    let mut rerolled = 0.0;
-    for _ in 0..4 {
-        let count = (0..1000)
-            .filter(|_| {
-                let mut choice = RelicChoice::new(true);
-                choice.reroll();
-                choice.options.contains(&Relic::Barracks)
-            })
-            .count();
-        rerolled = count as f32 / 1000.0;
-        if rerolled > usually * 1.6 {
-            break;
+    let mut choice = RelicChoice::new();
+    let before = choice.options;
+    choice.reroll();
+    let after = choice.options;
+    assert!(after[0] != after[1] && after[1] != after[2] && after[0] != after[2]);
+    //(a reroll avoids what it replaces when it can, which is nearly always)
+    assert!(before.iter().all(|relic| !after.contains(relic)) || (0..20).any(|_| { choice.reroll(); before.iter().all(|relic| !choice.options.contains(relic)) }));
+    //the rare ones the winner gets are all rare
+    assert!(RelicChoice::rare().options.iter().all(|relic| relic.rarity() == Rarity::Rare));
+}
+
+// ---------- freezing ----------
+
+#[test]
+fn freezing_relics_add_up_to_a_chance_a_second_that_never_reaches_certain() {
+    assert_eq!(Upgrades::default().freeze, 0.0);
+    assert_eq!(Upgrades::default().freeze_chance(1.0), 0.0);
+    let one = with(&[Relic::Freezing]);
+    assert!((one.freeze - FREEZE_CHANCE).abs() < 1e-6);
+    assert!((one.freeze_chance(1.0) - FREEZE_CHANCE).abs() < 1e-6, "a second of fighting is the chance a second");
+    assert!((with(&[Relic::Freezing; 2]).freeze - 2.0 * FREEZE_CHANCE).abs() < 1e-6, "they stack");
+    let many = with(&[Relic::Freezing; 40]);
+    assert!(many.freeze <= MOST_FREEZE_CHANCE && many.freeze_chance(1.0) < 1.0);
+    //a frame is a small part of a second's chance, and sixty of them come to it
+    let frame = one.freeze_chance(1.0 / 60.0);
+    assert!(frame > 0.0 && frame < 0.01);
+    assert!(((1.0 - frame).powi(60) - (1.0 - FREEZE_CHANCE)).abs() < 1e-3);
+    //the relic is on the list, and has a rarity, a tag and words of its own
+    assert!(RELICS.contains(&Relic::Freezing));
+    assert_eq!((Relic::Freezing.name(), Relic::Freezing.tag(), Relic::Freezing.rarity()), ("Freezing", "Fz", Rarity::Uncommon));
+}
+
+#[test]
+fn an_enemy_being_fought_freezes_now_and_then_and_one_left_alone_does_not() {
+    let up = with(&[Relic::Freezing; 4]);
+    let (mut fought, mut alone) = (0, 0);
+    for _ in 0..200 {
+        let enemy = still_enemy(MIDDLE, 1.0e6);
+        let mut units = units_inside(&enemy, 5);
+        let mut enemies = vec![enemy];
+        fight(&mut enemies, &mut units, &mut Vec::new(), 1.0, &up, &mut Effects::default());
+        if enemies[0].frozen > 0.0 {
+            fought += 1;
+            assert_eq!(enemies[0].frozen, FREEZE_SECONDS);
+        }
+        let mut lonely = vec![still_enemy(MIDDLE, 1.0e6)];
+        fight(&mut lonely, &mut [], &mut Vec::new(), 1.0, &up, &mut Effects::default());
+        alone += (lonely[0].frozen > 0.0) as usize;
+    }
+    //four relics make it four chances in five a second
+    assert!(fought > 130 && fought < 195, "{fought} of 200 froze");
+    assert_eq!(alone, 0);
+    //and with no relic nothing freezes
+    let enemy = still_enemy(MIDDLE, 1.0e6);
+    let mut units = units_inside(&enemy, 5);
+    let mut enemies = vec![enemy];
+    for _ in 0..50 {
+        fight(&mut enemies, &mut units, &mut Vec::new(), 1.0, &Upgrades::default(), &mut Effects::default());
+    }
+    assert_eq!(enemies[0].frozen, 0.0);
+}
+
+#[test]
+fn a_frozen_enemy_cannot_attack_move_or_shoot_and_thaws_after_a_while() {
+    let up = Upgrades::default();
+    //it does no damage to the units inside it
+    let mut enemy = striker(MIDDLE, 100.0);
+    enemy.frozen = FREEZE_SECONDS;
+    assert_eq!(enemy.attack_now(), 0.0);
+    let mut units = units_inside(&enemy, 5);
+    let mut enemies = vec![enemy];
+    fight(&mut enemies, &mut units, &mut Vec::new(), 0.5, &up, &mut Effects::default());
+    assert!(units.iter().all(|unit| unit.health == UNIT_HEALTH));
+    //it thaws after FREEZE_SECONDS of the fight, and then it attacks again
+    for _ in 0..(FREEZE_SECONDS * 10.0) as usize {
+        fight(&mut enemies, &mut units, &mut Vec::new(), 0.1, &up, &mut Effects::default());
+    }
+    assert_eq!(enemies[0].frozen, 0.0);
+    assert!(enemies[0].attack_now() > 0.0);
+    let mut units = units_inside(&enemies[0], 5);
+    fight(&mut enemies, &mut units, &mut Vec::new(), 0.5, &up, &mut Effects::default());
+    assert!(units.iter().any(|unit| unit.health < UNIT_HEALTH));
+    //it does not walk
+    let player = MIDDLE + Vec2::new(1200.0, 0.0);
+    let walker = || {
+        let mut enemy = plain_enemy(MIDDLE);
+        enemy.speed = 100.0;
+        enemy.chasing = true;
+        enemy.aggro = 5000.0;
+        enemy
+    };
+    let mut free = vec![walker()];
+    patrol_free(&mut free, player, 1.0, 1.0, &mut Effects::default());
+    assert!(free[0].position.distance(MIDDLE) > 10.0, "a thawed one walks");
+    let mut held = vec![walker()];
+    held[0].frozen = FREEZE_SECONDS;
+    patrol_free(&mut held, player, 1.0, 1.0, &mut Effects::default());
+    assert_eq!(held[0].position, MIDDLE);
+    //and does not shoot
+    let mut shooter = Enemy::new(MIDDLE, the_spitter(), 1.0);
+    shooter.position = MIDDLE;
+    shooter.shot_in = 0.0;
+    let target = [unit_on(MIDDLE + Vec2::new(200.0, 0.0))];
+    let mut shots = Vec::new();
+    let mut shooters = vec![shooter];
+    shooters[0].frozen = FREEZE_SECONDS;
+    shoot_enemies(&mut shooters, &target, &mut shots, 0.1, &mut Effects::default());
+    assert!(shots.is_empty());
+    shooters[0].frozen = 0.0;
+    shoot_enemies(&mut shooters, &target, &mut shots, 0.1, &mut Effects::default());
+    assert!(!shots.is_empty(), "a thawed one does");
+}
+
+#[test]
+fn a_boss_and_a_nest_cannot_be_frozen() {
+    let up = with(&[Relic::Freezing; 10]);
+    let boss = Enemy::boss(&BOSSES[0], 100, 1, MIDDLE);
+    let nest = kind_at("Nest", MIDDLE + Vec2::new(5000.0, 0.0));
+    assert!(!boss.can_freeze() && !nest.can_freeze());
+    for mut enemy in [boss, nest] {
+        enemy.health = 1.0e9;
+        enemy.max_health = 1.0e9;
+        let mut units = units_inside(&enemy, 5);
+        let mut enemies = vec![enemy];
+        for _ in 0..20 {
+            fight(&mut enemies, &mut units, &mut Vec::new(), 1.0, &up, &mut Effects::default());
+        }
+        assert_eq!(enemies[0].frozen, 0.0, "{}", enemies[0].name);
+        enemies[0].frozen = 1.0;
+        assert!(!enemies[0].shatters(), "{} does not shatter", enemies[0].name);
+    }
+}
+
+#[test]
+fn a_frozen_enemy_that_is_destroyed_shatters_into_shards_that_are_new_enemies() {
+    let up = Upgrades::default();
+    for name in ["Grunt", "Scout", "Brute", "Titan", "Colossus"] {
+        let mut enemy = kind_at(name, MIDDLE);
+        enemy.frozen = 1.0;
+        enemy.health = 0.0;
+        let size = enemy.size;
+        let mut enemies = vec![enemy];
+        let mut babies = Vec::new();
+        let destroyed = resolve_deaths(&mut enemies, &mut babies, 100, &up, &mut Effects::default());
+        assert_eq!(destroyed, 1, "{name} counts as destroyed");
+        let pieces = ((size / SHATTER_PIECE_SIZE).round() as usize).clamp(SHATTER_MIN_PIECES, SHATTER_MAX_PIECES);
+        assert_eq!(enemies.len(), pieces, "{name} of {size} px");
+        assert!(SHATTER_MIN_PIECES <= enemies.len() && enemies.len() <= SHATTER_MAX_PIECES);
+        for shard in &enemies {
+            assert_eq!(shard.name, "Shard");
+            assert!(!shard.is_minion(), "a shard is an enemy of its own, that counts when it is destroyed");
+            assert!(shard.health > 0.0 && shard.frozen == 0.0);
+            assert!(shard.position.distance(MIDDLE) <= size, "they break off where it was");
         }
     }
-    assert!(rerolled > usually * 1.6, "{rerolled} against {usually}");
-    //the rare ones the winner gets are not changed
-    assert!(RelicChoice::rare().options.iter().all(|relic| *relic != Relic::Barracks));
+    //a bigger enemy breaks into more
+    let pieces = |name: &str| {
+        let mut enemy = kind_at(name, MIDDLE);
+        enemy.size = kind_named(name).size;
+        enemy.frozen = 1.0;
+        enemy.health = 0.0;
+        let mut enemies = vec![enemy];
+        resolve_deaths(&mut enemies, &mut Vec::new(), 100, &up, &mut Effects::default());
+        enemies.len()
+    };
+    assert!(pieces("Scout") < pieces("Titan"));
+    //one that was not frozen leaves nothing
+    let mut enemy = kind_at("Grunt", MIDDLE);
+    enemy.health = 0.0;
+    let mut enemies = vec![enemy];
+    resolve_deaths(&mut enemies, &mut Vec::new(), 100, &up, &mut Effects::default());
+    assert!(enemies.is_empty());
+}
+
+#[test]
+fn shards_do_not_shatter_again_and_neither_do_the_enemies_other_enemies_made() {
+    let up = Upgrades::default();
+    let mut shard = kind_at("Shard", MIDDLE);
+    shard.frozen = 1.0;
+    shard.health = 0.0;
+    let mut imp = Enemy::minion(MIDDLE, kind_named("Imp"), 1.0, 99);
+    imp.frozen = 1.0;
+    imp.health = 0.0;
+    for enemy in [shard, imp] {
+        let mut enemies = vec![enemy];
+        resolve_deaths(&mut enemies, &mut Vec::new(), 100, &up, &mut Effects::default());
+        assert!(enemies.is_empty());
+    }
+}
+
+#[test]
+fn the_shards_of_a_horde_enemy_are_still_part_of_the_horde() {
+    let mut enemy = kind_at("Brute", MIDDLE);
+    join_horde(&mut enemy);
+    enemy.frozen = 1.0;
+    enemy.health = 0.0;
+    let mut enemies = vec![enemy];
+    resolve_deaths(&mut enemies, &mut Vec::new(), 100, &Upgrades::default(), &mut Effects::default());
+    assert!(!enemies.is_empty() && enemies.iter().all(in_a_horde));
+}
+
+#[test]
+fn the_army_destroys_a_frozen_enemy_and_it_shatters_in_the_middle_of_the_fight() {
+    let mut enemy = kind_at("Grunt", MIDDLE);
+    enemy.frozen = FREEZE_SECONDS;
+    enemy.health = 1.0;
+    let mut units = units_inside(&enemy, 20);
+    let mut enemies = vec![enemy];
+    let mut babies = Vec::new();
+    let destroyed = fight(&mut enemies, &mut units, &mut babies, 0.5, &Upgrades::default(), &mut Effects::default());
+    assert_eq!(destroyed, 1);
+    assert!(enemies.len() >= SHATTER_MIN_PIECES && enemies.iter().all(|shard| shard.name == "Shard"));
+    //and a shard the army destroys is worth babies like anything else, and leaves nothing
+    let mut fx = Effects::default();
+    let mut shard = enemies.remove(0);
+    shard.health = 0.0;
+    shard.babies = 3;
+    let mut shards = vec![shard];
+    let mut babies = Vec::new();
+    assert_eq!(resolve_deaths(&mut shards, &mut babies, 100, &Upgrades::default(), &mut fx), 1);
+    assert!(shards.is_empty() && babies.len() == 3 && fx.points > 0.0);
 }

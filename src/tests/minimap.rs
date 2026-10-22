@@ -143,7 +143,7 @@ fn mapping_a_full_army_and_a_lot_of_enemies_onto_the_minimap_is_cheap() {
     //the part of drawing that isn't the GPU: mapping and culling a full army, a lot of enemies and babies, and walls
     let player = Vec2::new(16000.0, 16000.0);
     let map = Minimap::new(SCREEN, MapView::Near, player);
-    let units: Vec<Unit> = (0..MAX_UNITS).map(|i| unit_on(player + Vec2::new((i % 80) as f32 * 40.0 - 1600.0, (i / 80) as f32 * 40.0 - 1000.0))).collect();
+    let units: Vec<Unit> = (0..DEFAULT_ARMY_LIMIT).map(|i| unit_on(player + Vec2::new((i % 80) as f32 * 40.0 - 1600.0, (i / 80) as f32 * 40.0 - 1000.0))).collect();
     let enemies: Vec<Enemy> = (0..ENEMY_COUNT).map(|i| still_enemy(player + Vec2::new(i as f32 * 90.0 - 2000.0, 700.0), 10.0)).collect();
     let started = Instant::now();
     let mut visible = 0;

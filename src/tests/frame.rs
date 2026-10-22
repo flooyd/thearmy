@@ -17,7 +17,7 @@ macro_rules! timed {
 #[ignore]
 fn where_a_whole_frame_goes() {
     let formation = std::env::var("FRAME_FORMATION").ok().and_then(|name| Formation::from_name(&name)).unwrap_or(Formation::Free);
-    for army in [300usize, 1500, 4000, 13000, 20000] {
+    for army in [300usize, 1500, 4000, 13000, 20000, 35000, 50000] {
         rand::srand(5);
         let mut walls = starting_house();
         let mut sites = generate_sites();
@@ -76,14 +76,14 @@ fn where_a_whole_frame_goes() {
                 bury_units(&mut units, &mut fx);
             });
             timed!(totals[4], {
-                update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, player, dt, false, MAX_UNITS, 0, &mut fx);
+                update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, player, dt, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
             });
             timed!(totals[5], {
                 fx.fallen.clear();
                 fx.heal_all = 0.0;
                 fx.points = 0.0;
                 respawn_enemies(&mut enemies, player.x, player.y, units.len());
-                grow_babies(&mut babies, &mut units, player.x, player.y, dt, 200.0, MAX_UNITS, &mut fx);
+                grow_babies(&mut babies, &mut units, player.x, player.y, dt, 200.0, DEFAULT_ARMY_LIMIT, &mut fx);
                 fx.update(dt, player);
                 fx.cues.clear();
             });

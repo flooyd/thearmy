@@ -110,7 +110,7 @@ pub(crate) struct EnemyKind {
     pub(crate) pack: usize, //how many turn up together, 0 for one on its own
 }
 
-pub(crate) static ENEMY_KINDS: [EnemyKind; 18] = [
+pub(crate) static ENEMY_KINDS: [EnemyKind; 19] = [
     //the ordinary one
     EnemyKind { name: "Grunt", color: RED, size: 44.0, health: 100.0, babies: 1.0, min_speed: 60.0, max_speed: 120.0, weight: 6.0, from_army: 0, attack: 25.0, aggro_tiles: 7.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
     //small, fast and frail
@@ -141,6 +141,8 @@ pub(crate) static ENEMY_KINDS: [EnemyKind; 18] = [
     EnemyKind { name: "Imp", color: Color::new(0.8, 0.3, 0.9, 1.0), size: 22.0, health: 30.0, babies: 0.0, min_speed: 150.0, max_speed: 230.0, weight: 0.0, from_army: 0, attack: 8.0, aggro_tiles: 20.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
     EnemyKind { name: "Splitling", color: Color::new(0.35, 0.9, 0.75, 1.0), size: 34.0, health: 60.0, babies: 1.0, min_speed: 90.0, max_speed: 150.0, weight: 0.0, from_army: 0, attack: 18.0, aggro_tiles: 12.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
     EnemyKind { name: "Drone", color: Color::new(0.5, 0.8, 1.0, 1.0), size: 28.0, health: 60.0, babies: 0.0, min_speed: 60.0, max_speed: 100.0, weight: 0.0, from_army: 0, attack: 6.0, aggro_tiles: 0.0, range: 520.0, behavior: Behavior::Shooter, shield: 0.0, pack: 0 },
+    //what a frozen enemy breaks into when it is destroyed
+    EnemyKind { name: "Shard", color: Color::new(0.75, 0.93, 1.0, 1.0), size: 26.0, health: 45.0, babies: 0.5, min_speed: 110.0, max_speed: 190.0, weight: 0.0, from_army: 0, attack: 14.0, aggro_tiles: 14.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0 },
     //what a lair is built round: it never moves, and is only ever put in the world by a site
     EnemyKind { name: "Nest", color: Color::new(0.8, 0.25, 0.3, 1.0), size: 96.0, health: 700.0, babies: 12.0, min_speed: 0.0, max_speed: 0.0, weight: 0.0, from_army: 0, attack: 30.0, aggro_tiles: 0.0, range: 0.0, behavior: Behavior::Nest, shield: 0.0, pack: 0 },
 ];
@@ -209,6 +211,7 @@ pub(crate) struct Enemy {
     pub(crate) stuck: f32,         //seconds it has been held up by a wall
     pub(crate) pressing: Option<(i32, i32)>, //the wall it is pushing against and chewing at
     pub(crate) slow: f32,          //the share of its speed it keeps, tar takes some away
+    pub(crate) frozen: f32,        //seconds it is held solid for, by a Freezing relic: it can't move, attack or shoot, and shatters if it is destroyed
 }
 
 impl Enemy {
@@ -270,6 +273,7 @@ impl Enemy {
             stuck: 0.0,
             pressing: None,
             slow: 1.0,
+            frozen: 0.0,
         }
     }
 
@@ -350,8 +354,21 @@ impl Enemy {
         taken
     }
 
-    //damage per second to the units it touches: a dash hits much harder
+    //whether a Freezing relic can hold it: not a boss, and not a nest that never moves
+    pub(crate) fn can_freeze(&self) -> bool {
+        self.boss.is_none() && self.behavior != Behavior::Nest
+    }
+
+    //whether it breaks into shards when it is destroyed: it is frozen, and was not itself made by another enemy or broken off one
+    pub(crate) fn shatters(&self) -> bool {
+        self.frozen > 0.0 && self.can_freeze() && !self.is_minion() && self.name != "Shard"
+    }
+
+    //damage per second to the units it touches: a dash hits much harder, and a frozen one does none
     pub(crate) fn attack_now(&self) -> f32 {
+        if self.frozen > 0.0 {
+            return 0.0;
+        }
         match self.mode {
             Mode::Dash { .. } => self.attack * CHARGE_DAMAGE,
             _ => self.attack,
@@ -526,10 +543,19 @@ pub(crate) fn draw_enemies(enemies: &[Enemy], squads: &Squads, time: f32, speed_
         if matches!(enemy.mode, Mode::Fuse { .. }) && (time * 24.0).sin() > 0.0 {
             color = WHITE;
         }
+        if enemy.frozen > 0.0 {
+            color = Color::new(color.r * 0.3 + ICE.r * 0.7, color.g * 0.3 + ICE.g * 0.7, color.b * 0.3 + ICE.b * 0.7, 1.0);
+        }
         if enemy.boss.as_ref().is_some_and(|boss| boss.shifting > 0.0) && (time * 30.0).sin() > 0.0 {
             color = lighten(color, 0.7);
         }
         draw_rectangle(x, y, enemy.size, enemy.size, color);
+        if enemy.frozen > 0.0 {
+            //frosted over: a white edge and a glint across it
+            let width = (enemy.size * 0.06).clamp(3.0, 16.0);
+            draw_rectangle_lines(x, y, enemy.size, enemy.size, width, WHITE);
+            draw_line(x + enemy.size * 0.2, y + enemy.size * 0.8, x + enemy.size * 0.8, y + enemy.size * 0.2, width * 0.6, Color::new(1.0, 1.0, 1.0, 0.7));
+        }
         if enemy.armor > 0.0 {
             let width = (enemy.size * 0.05).clamp(3.0, 14.0);
             draw_rectangle_lines(x + width * 0.5, y + width * 0.5, enemy.size - width, enemy.size - width, width, Color::new(0.8, 0.82, 0.9, 0.9));

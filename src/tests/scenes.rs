@@ -1,6 +1,6 @@
 //saves of busy moments, to load in the real game and look at (for screenshots). nothing here checks anything:
 //LOOK_SCENES_DIR=<folder> cargo test --release write_scenes_to_look_at -- --ignored
-//it writes horde.sav, boss.sav, champions.sav and chest.sav there
+//it writes horde.sav, boss.sav, champions.sav, chest.sav and freeze.sav there
 
 use super::*;
 
@@ -20,7 +20,7 @@ fn army_at(count: usize, at: Vec2, zoom: f32) -> Snapshot {
     respawn_enemies(&mut world.enemies, at.x, at.y, count * 2);
     world.run = Run { destroyed: 4120, lost: 380, peak_army: count + 300, bosses: 2, nests: 7, villages: 4, seconds: 1480.0, citadels: 0 };
     world.wall_points = 340.0;
-    for relic in [Relic::Whetstone, Relic::Whetstone, Relic::IronResolve, Relic::FleetFeet, Relic::Magnet, Relic::Bounty, Relic::Thorns, Relic::Bloodlust, Relic::Barracks, Relic::Barracks, Relic::Aegis, Relic::Archers] {
+    for relic in [Relic::Whetstone, Relic::Whetstone, Relic::IronResolve, Relic::FleetFeet, Relic::Magnet, Relic::Bounty, Relic::Thorns, Relic::Bloodlust, Relic::Freezing, Relic::Freezing, Relic::Aegis, Relic::Archers] {
         world.upgrades.take(relic);
     }
     //a line of walls with towers in it, behind the army
@@ -87,6 +87,21 @@ fn write_scenes_to_look_at() {
     let mut world = army_at(2200, field, 0.55);
     world.enemies.extend(horde_of("Titan March", field + Vec2::new(700.0, -200.0), 2200));
     world.enemies.extend(horde_of("Stampede", field + Vec2::new(-650.0, 150.0), 2200));
-    world.choice = Some(RelicChoice::from_chest(3, false));
+    world.choice = Some(RelicChoice::from_chest(3));
     write("chest", &world);
+
+    //a small army at close range with a lot of Freezing relics, so most of what it fights is frozen and breaks into shards
+    rand::srand(105);
+    let mut world = army_at(450, field, 0.9);
+    for _ in 0..4 {
+        world.upgrades.take(Relic::Freezing);
+    }
+    world.enemies.clear();
+    for (i, name) in ["Brute", "Titan", "Grunt", "Brute", "Charger", "Grunt", "Titan", "Brute", "Grunt", "Brute"].into_iter().enumerate() {
+        let at = field + Vec2::from_angle(i as f32 * 0.63) * (330.0 + (i % 3) as f32 * 90.0);
+        let mut enemy = Enemy::new(at, kind_named(name), 1.4);
+        enemy.chasing = true;
+        world.enemies.push(enemy);
+    }
+    write("freeze", &world);
 }

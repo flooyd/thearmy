@@ -227,7 +227,7 @@ fn a_huge_enemy_near_the_edge_of_the_world_stays_inside_it() {
 #[test]
 fn a_lone_baby_drops_in_the_middle_and_a_bunch_are_scattered_over_the_enemy() {
     let mut babies = Vec::new();
-    drop_babies(&plain_enemy(Vec2::new(5000.0, 5000.0)), &mut babies, 0, 1.0, MAX_UNITS);
+    drop_babies(&plain_enemy(Vec2::new(5000.0, 5000.0)), &mut babies, 0, 1.0, DEFAULT_ARMY_LIMIT);
     assert_eq!(babies.len(), 1);
     assert_eq!(babies[0].position, Vec2::new(5000.0, 5000.0));
 
@@ -235,7 +235,7 @@ fn a_lone_baby_drops_in_the_middle_and_a_bunch_are_scattered_over_the_enemy() {
     big.size = 300.0;
     big.babies = 40;
     let mut babies = Vec::new();
-    drop_babies(&big, &mut babies, 0, 1.0, MAX_UNITS);
+    drop_babies(&big, &mut babies, 0, 1.0, DEFAULT_ARMY_LIMIT);
     assert_eq!(babies.len(), 40);
     assert!(babies.iter().all(|b| (b.position.x - 5000.0).abs() <= 150.0 && (b.position.y - 5000.0).abs() <= 150.0 && b.age == 0.0));
     let spread = babies.iter().map(|b| b.position.distance(Vec2::new(5000.0, 5000.0))).fold(0.0, f32::max);
@@ -248,7 +248,7 @@ fn babies_dropped_at_the_edge_of_the_world_stay_inside_it() {
     enemy.size = 400.0;
     enemy.babies = 100;
     let mut babies = Vec::new();
-    drop_babies(&enemy, &mut babies, 0, 1.0, MAX_UNITS);
+    drop_babies(&enemy, &mut babies, 0, 1.0, DEFAULT_ARMY_LIMIT);
     assert!(babies.iter().all(|b| b.position.x >= 0.0 && b.position.y >= 0.0 && b.position.x <= WORLD_SIZE && b.position.y <= WORLD_SIZE));
 }
 

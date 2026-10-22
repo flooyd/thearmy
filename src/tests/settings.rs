@@ -3,7 +3,7 @@
 use super::*;
 
 fn changed() -> Settings {
-    Settings { master: 0.35, effects: 0.8, music: 0.0, shake: 0.5, fullscreen: false, colourblind: true, difficulty: Difficulty::Hard, hints: false, formation: Formation::Wedge }
+    Settings { master: 0.35, effects: 0.8, music: 0.0, shake: 0.5, fullscreen: false, colourblind: true, difficulty: Difficulty::Hard, hints: false, formation: Formation::Wedge, army_limit: 32000 }
 }
 
 #[test]
@@ -55,4 +55,16 @@ fn the_colours_are_the_usual_ones_until_they_are_changed() {
     assert_eq!(pickup_color(), GREEN);
     assert_eq!(wound_color(), RED);
     assert_eq!(danger_color(0.5).a, 0.5);
+}
+
+#[test]
+fn the_army_limit_is_kept_and_put_right_when_it_is_out_of_range_or_missing() {
+    assert_eq!(Settings::default().army_limit, DEFAULT_ARMY_LIMIT);
+    //a settings file from before the limit could be set has none, which is the usual one
+    assert_eq!(Settings::from_text("master 0.5\nformation Ring\n").army_limit, DEFAULT_ARMY_LIMIT);
+    assert_eq!(Settings::from_text("army_limit 30000\n").army_limit, 30000);
+    assert_eq!(Settings::from_text("army_limit 100\n").army_limit, MIN_ARMY_LIMIT);
+    assert_eq!(Settings::from_text("army_limit 999999999\n").army_limit, MAX_ARMY_LIMIT);
+    assert_eq!(Settings::from_text("army_limit lots\n").army_limit, DEFAULT_ARMY_LIMIT);
+    assert_eq!(Settings::from_text("army_limit -5\n").army_limit, DEFAULT_ARMY_LIMIT);
 }

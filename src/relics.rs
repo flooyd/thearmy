@@ -56,7 +56,7 @@ pub(crate) enum Relic {
     Martyr,       //a unit that dies in an enemy hurts it
     GlassCannon,  //units hit much harder and take more damage
     Overclock,    //the player and the army are much faster, and heal slower
-    Barracks,     //the army can have more units than it could
+    Freezing,     //enemies being fought freeze now and then, and a frozen one that is destroyed shatters into new, smaller enemies
     Tailwind,     //the speed an army's size gives can go higher than it could
 }
 
@@ -78,7 +78,7 @@ pub(crate) const RELICS: [Relic; 19] = [
     Relic::Martyr,
     Relic::GlassCannon,
     Relic::Overclock,
-    Relic::Barracks,
+    Relic::Freezing,
     Relic::Tailwind,
 ];
 
@@ -102,7 +102,7 @@ impl Relic {
             Relic::Martyr => "Martyr",
             Relic::GlassCannon => "Glass Cannon",
             Relic::Overclock => "Overclock",
-            Relic::Barracks => "Barracks",
+            Relic::Freezing => "Freezing",
             Relic::Tailwind => "Tailwind",
         }
     }
@@ -126,7 +126,7 @@ impl Relic {
             Relic::Martyr => "a unit that dies inside an enemy blows up for 40 damage",
             Relic::GlassCannon => "units hit 60% harder but take 40% more damage",
             Relic::Overclock => "you and the army are 35% faster, but heal at half the rate",
-            Relic::Barracks => "the army can grow 1,000 units bigger than it could",
+            Relic::Freezing => "20% a second to freeze enemies. A frozen one destroyed shatters into new enemies",
             Relic::Tailwind => "the speed a big army gets can go 0.5x higher than the limit",
         }
     }
@@ -151,7 +151,7 @@ impl Relic {
             Relic::Martyr => "My",
             Relic::GlassCannon => "GC",
             Relic::Overclock => "Ov",
-            Relic::Barracks => "Br",
+            Relic::Freezing => "Fz",
             Relic::Tailwind => "Tw",
         }
     }
@@ -175,7 +175,7 @@ impl Relic {
             Relic::Martyr => Color::new(1.0, 0.4, 0.15, 1.0),
             Relic::GlassCannon => Color::new(0.9, 0.95, 1.0, 1.0),
             Relic::Overclock => Color::new(0.5, 1.0, 0.9, 1.0),
-            Relic::Barracks => Color::new(0.95, 0.72, 0.85, 1.0),
+            Relic::Freezing => Color::new(0.78, 0.93, 1.0, 1.0),
             Relic::Tailwind => Color::new(0.6, 0.95, 1.0, 1.0),
         }
     }
@@ -183,7 +183,7 @@ impl Relic {
     pub(crate) fn rarity(self) -> Rarity {
         match self {
             Relic::Whetstone | Relic::IronResolve | Relic::Regeneration | Relic::Magnet | Relic::Masonry | Relic::Quarry => Rarity::Common,
-            Relic::FleetFeet | Relic::Bounty | Relic::Archers | Relic::Thorns | Relic::Bloodlust | Relic::Aegis | Relic::Muster | Relic::Barracks | Relic::Tailwind => Rarity::Uncommon,
+            Relic::FleetFeet | Relic::Bounty | Relic::Archers | Relic::Thorns | Relic::Bloodlust | Relic::Aegis | Relic::Muster | Relic::Freezing | Relic::Tailwind => Rarity::Uncommon,
             Relic::OpeningSalvo | Relic::Martyr | Relic::GlassCannon | Relic::Overclock => Rarity::Rare,
         }
     }
@@ -206,14 +206,15 @@ pub(crate) struct Upgrades {
     pub(crate) guard: f32,     //points of shield every unit has
     pub(crate) salvo: f32,     //shockwaves' strength when a fight begins, 0 for none
     pub(crate) martyr: f32,    //of the damage a unit does to the enemy it dies in
-    pub(crate) extra_units: usize, //the army can have this many more units than MAX_UNITS
+    pub(crate) freeze: f32,   //chance a second, for an enemy being fought, of freezing solid
+    pub(crate) army_limit: usize, //the most units the army can have. not a relic: it is the player's setting, which the game copies in
     pub(crate) extra_boost: f32,   //the most the army's size can speed everyone up is this many times normal higher than MAX_SPEED_MULTIPLIER
     pub(crate) taken: Vec<Relic>,
 }
 
 impl Default for Upgrades {
     fn default() -> Upgrades {
-        Upgrades { damage: 1.0, toughness: 1.0, healing: 1.0, speed: 1.0, pickup: 1.0, bounty: 1.0, masonry: 1.0, archery: 1.0, quarry: 1.0, thorns: 0.0, bloodlust: 0.0, guard: 0.0, salvo: 0.0, martyr: 0.0, extra_units: 0, extra_boost: 0.0, taken: Vec::new() }
+        Upgrades { damage: 1.0, toughness: 1.0, healing: 1.0, speed: 1.0, pickup: 1.0, bounty: 1.0, masonry: 1.0, archery: 1.0, quarry: 1.0, thorns: 0.0, bloodlust: 0.0, guard: 0.0, salvo: 0.0, martyr: 0.0, freeze: 0.0, army_limit: DEFAULT_ARMY_LIMIT, extra_boost: 0.0, taken: Vec::new() }
     }
 }
 
@@ -243,7 +244,7 @@ impl Upgrades {
                 self.speed *= 1.35;
                 self.healing *= 0.5;
             }
-            Relic::Barracks => self.extra_units += BARRACKS_UNITS,
+            Relic::Freezing => self.freeze = (self.freeze + FREEZE_CHANCE).min(MOST_FREEZE_CHANCE),
             Relic::Tailwind => self.extra_boost += TAILWIND_BOOST,
         }
         self.taken.push(relic);
@@ -255,7 +256,7 @@ impl Upgrades {
 
     //the most units the army can have
     pub(crate) fn unit_cap(&self) -> usize {
-        MAX_UNITS + self.extra_units
+        self.army_limit
     }
 
     //how many times faster than normal the player and the army are for an army this big, from its size and the relics that
@@ -269,42 +270,41 @@ impl Upgrades {
     pub(crate) fn salvo_share(&self) -> f32 {
         1.0 - (1.0 - SALVO_SHARE).powf(self.salvo)
     }
-}
 
-//how likely a relic is to be offered. a Barracks is much likelier while the army is full, which is when it is the only way to grow it
-fn offer_weight(relic: Relic, army_full: bool) -> f32 {
-    let weight = relic.rarity().weight();
-    if army_full && relic == Relic::Barracks { weight * BARRACKS_FULL_ARMY_WEIGHT } else { weight }
+    //the chance that an enemy being fought freezes in a frame of `dt` seconds, from the chance a second of freezing
+    pub(crate) fn freeze_chance(&self, dt: f32) -> f32 {
+        1.0 - (1.0 - self.freeze).powf(dt)
+    }
 }
 
 //three different relics out of a pool, at random, the common ones more often than the rare ones
-pub(crate) fn weighted_choices(pool: &[Relic], army_full: bool) -> [Relic; 3] {
+pub(crate) fn weighted_choices(pool: &[Relic]) -> [Relic; 3] {
     let mut left = pool.to_vec();
     let mut choices = [pool[0]; 3];
     for choice in &mut choices {
-        let mut pick = rand::gen_range(0.0, left.iter().map(|&relic| offer_weight(relic, army_full)).sum::<f32>());
+        let mut pick = rand::gen_range(0.0, left.iter().map(|&relic| relic.rarity().weight()).sum::<f32>());
         let mut index = left.len() - 1;
         for (i, relic) in left.iter().enumerate() {
-            if pick < offer_weight(*relic, army_full) {
+            if pick < relic.rarity().weight() {
                 index = i;
                 break;
             }
-            pick -= offer_weight(*relic, army_full);
+            pick -= relic.rarity().weight();
         }
         *choice = left.remove(index);
     }
     choices
 }
 
-//three different relics to choose from, at random. `army_full` is whether the army is as big as it can be
-pub(crate) fn relic_choices(army_full: bool) -> [Relic; 3] {
-    weighted_choices(&RELICS, army_full)
+//three different relics to choose from, at random
+pub(crate) fn relic_choices() -> [Relic; 3] {
+    weighted_choices(&RELICS)
 }
 
 //three of the rare ones, the reward for winning
 pub(crate) fn rare_choices() -> [Relic; 3] {
     let rares: Vec<Relic> = RELICS.iter().copied().filter(|relic| relic.rarity() == Rarity::Rare).collect();
-    weighted_choices(&rares, false)
+    weighted_choices(&rares)
 }
 
 //the relics on offer after a boss, while the world stands still
@@ -313,29 +313,28 @@ pub(crate) struct RelicChoice {
     pub(crate) options: [Relic; 3],
     pub(crate) age: f32,       //seconds it has been up
     pub(crate) rare_only: bool, //the relics are all rare, and so are the ones a reroll brings
-    pub(crate) army_full: bool, //the army was as big as it can be when this came up, which makes a Barracks likelier
     pub(crate) chest: u32,      //the tier of the chest of a horde that it came from, 0 if it came from a boss
 }
 
 impl RelicChoice {
-    pub(crate) fn new(army_full: bool) -> RelicChoice {
-        RelicChoice { options: relic_choices(army_full), age: 0.0, rare_only: false, army_full, chest: 0 }
+    pub(crate) fn new() -> RelicChoice {
+        RelicChoice { options: relic_choices(), age: 0.0, rare_only: false, chest: 0 }
     }
 
     //what a gold chest holds
-    pub(crate) fn from_chest(tier: u32, army_full: bool) -> RelicChoice {
-        RelicChoice { chest: tier, ..RelicChoice::new(army_full) }
+    pub(crate) fn from_chest(tier: u32) -> RelicChoice {
+        RelicChoice { chest: tier, ..RelicChoice::new() }
     }
 
     pub(crate) fn rare() -> RelicChoice {
-        RelicChoice { options: rare_choices(), age: 0.0, rare_only: true, army_full: false, chest: 0 }
+        RelicChoice { options: rare_choices(), age: 0.0, rare_only: true, chest: 0 }
     }
 
     //three others, if there are any
     pub(crate) fn reroll(&mut self) {
         let before = self.options;
         for _ in 0..8 {
-            self.options = if self.rare_only { rare_choices() } else { relic_choices(self.army_full) };
+            self.options = if self.rare_only { rare_choices() } else { relic_choices() };
             if self.options.iter().all(|relic| !before.contains(relic)) || self.rare_only {
                 break;
             }

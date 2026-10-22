@@ -178,12 +178,15 @@ pub(crate) fn citadel_status(sites: &[Site]) -> Option<String> {
     Some(format!("the Sovereign returns in {}", clock(site.clock.ceil())))
 }
 
-pub(crate) const MILESTONES: [usize; 7] = [100, 250, 500, 1000, 2000, 3000, MAX_UNITS]; //army sizes the player is congratulated on
+pub(crate) const MILESTONES: [usize; 14] = [100, 250, 500, 1000, 2000, 3000, 5000, 7500, 10000, 15000, 20000, 30000, 40000, 50000]; //army sizes the player is congratulated on
 
-//the next army size to congratulate the player on once the army is `size`: the round ones, and then each time the army gets
-//BARRACKS_UNITS past the usual cap, which only Barracks relics make room for
-pub(crate) fn next_milestone(size: usize) -> usize {
-    MILESTONES.iter().copied().find(|&milestone| milestone > size).unwrap_or_else(|| (size - MAX_UNITS) / BARRACKS_UNITS * BARRACKS_UNITS + MAX_UNITS + BARRACKS_UNITS)
+//the next army size to congratulate the player on once the army is `size`, with the army able to be `limit` big: the round ones
+//below the limit, then the limit itself, which is full strength, and then none (usize::MAX)
+pub(crate) fn next_milestone(size: usize, limit: usize) -> usize {
+    if size >= limit {
+        return usize::MAX;
+    }
+    MILESTONES.iter().copied().find(|&milestone| milestone > size && milestone < limit).unwrap_or(limit)
 }
 pub(crate) const BANNER_SECONDS: f32 = 3.0; //how long a message stays up
 pub(crate) const MAX_WAITING_BANNERS: usize = 4; //messages that can be waiting for the one on screen to go, any more are dropped

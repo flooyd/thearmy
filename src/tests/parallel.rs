@@ -100,7 +100,7 @@ fn a_big_army_is_moved_in_a_small_share_of_a_frame() {
     let player = Vec2::splat(WORLD_SIZE / 2.0);
     let walls = starting_house();
     let field = field_for(player, &walls);
-    let mut units = an_army_round_the_player(MAX_UNITS, player);
+    let mut units = an_army_round_the_player(DEFAULT_ARMY_LIMIT, player);
     let squads = Squads::new();
     //the first frames start the threads
     for _ in 0..5 {

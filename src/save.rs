@@ -111,7 +111,8 @@ macro_rules! stored_numbers {
 stored_numbers!(f32, u32, i32, usize);
 
 //a struct kept field by field, in the order given. the reader builds it with every field, so one that is left out of the
-//list is an error when the game is built and not a save that quietly loses it
+//list is an error when the game is built and not a save that quietly loses it (unless it is named after a `;`, as one that is
+//meant not to be kept)
 macro_rules! stored_fields {
     ($type:ident { $($field:ident),* $(,)? }) => {
         impl Stored for $type {
@@ -122,6 +123,19 @@ macro_rules! stored_fields {
 
             fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
                 Ok($type { $($field: r.get()?,)* })
+            }
+        }
+    };
+    //the same, with fields that are not kept: they start as the value after the colon when it is read back
+    ($type:ident { $($field:ident),* $(,)? } ; $($left:ident: $value:expr),+ $(,)?) => {
+        impl Stored for $type {
+            fn store(&self, w: &mut SaveWriter) {
+                $(self.$field.store(w);)*
+                w.end_line();
+            }
+
+            fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
+                Ok($type { $($field: r.get()?,)* $($left: $value,)+ })
             }
         }
     };
@@ -278,10 +292,22 @@ stored_words!(Modifier { None, Swift, Armored, Volatile, Frenzied });
 stored_words!(WallKind { Wall, Gate, Tower, Spikes, Tar, Barrier });
 stored_words!(Side { Friendly, Hostile });
 stored_words!(SiteState { Dormant, Awake, Cleared });
-stored_words!(Relic {
-    Whetstone, IronResolve, Regeneration, FleetFeet, Magnet, Bounty, Masonry, Quarry, Archers, Thorns, Bloodlust, Aegis, Muster,
-    OpeningSalvo, Martyr, GlassCannon, Overclock, Barracks, Tailwind
-});
+//a relic is kept as its name. a save from when there was a Barracks relic still has it: it is a Freezing where it was one of three on
+//offer (see `Upgrades`, where the ones taken drop it)
+impl Stored for Relic {
+    fn store(&self, w: &mut SaveWriter) {
+        w.word(&format!("{self:?}"));
+    }
+
+    fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
+        let word = r.word()?;
+        relic_named(word).or_else(|| (word == "Barracks").then_some(Relic::Freezing)).ok_or_else(|| SaveError(format!("{word:?} is not a Relic")))
+    }
+}
+
+fn relic_named(word: &str) -> Option<Relic> {
+    RELICS.iter().copied().find(|relic| format!("{relic:?}") == word)
+}
 
 impl Stored for Mode {
     fn store(&self, w: &mut SaveWriter) {
@@ -443,7 +469,7 @@ stored_fields!(
         id, name, position, size, color, max_health, health, babies, speed, route, heading_for, attack, aggro, chasing, range, volley, shot_in,
         hurt, killed, popup_in, behavior, modifier, scale, owner, armor, shield, max_shield, shield_idle, mode, timer, flash, blew_up, boss,
         site, steer, steer_in, stuck, pressing, slow
-    }
+    } ; frozen: 0.0 //(a freeze lasts a moment, so it is not kept)
 );
 
 //the walls are kept in order of their squares, so the same walls make the same file
@@ -464,16 +490,24 @@ impl Stored for Walls {
 }
 
 //the relics taken, which are taken again in the same order when it is read, so the numbers they add up to come out the same
+//(a save from when there was a Barracks relic has some, and they are left out: the most units the army can have is the player's to set now)
 impl Stored for Upgrades {
     fn store(&self, w: &mut SaveWriter) {
         self.taken.store(w);
     }
 
     fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
-        let taken: Vec<Relic> = r.get()?;
+        let count: usize = r.number()?;
+        if count > MOST_ITEMS {
+            return Err(SaveError(format!("a list of {count} is more than any run has")));
+        }
         let mut upgrades = Upgrades::default();
-        for relic in taken {
-            upgrades.take(relic);
+        for _ in 0..count {
+            let word = r.word()?;
+            if word == "Barracks" {
+                continue;
+            }
+            upgrades.take(relic_named(word).ok_or_else(|| SaveError(format!("{word:?} is not a Relic")))?);
         }
         Ok(upgrades)
     }
@@ -486,12 +520,15 @@ impl Stored for RelicChoice {
             w.put(&relic);
         }
         w.put(&self.rare_only);
-        w.put(&self.army_full);
+        w.put(&false); //(it was whether the army was full, which a Barracks relic cared about. kept so a file is the shape it was)
         w.put(&self.chest);
     }
 
     fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
-        let mut choice = RelicChoice { options: [r.get()?, r.get()?, r.get()?], age: 0.0, rare_only: r.get()?, army_full: r.get()?, chest: 0 };
+        let options = [r.get()?, r.get()?, r.get()?];
+        let rare_only = r.get()?;
+        let _army_full: bool = r.get()?;
+        let mut choice = RelicChoice { options, age: 0.0, rare_only, chest: 0 };
         //(where it came from is on the end, which a save from before chests has not got: the next word in one of those is the label of the section after)
         if !r.next_is("victory") {
             choice.chest = r.get()?;

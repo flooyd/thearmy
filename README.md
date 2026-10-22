@@ -12,8 +12,8 @@ are the fonts.
 
 ## What you do
 
-- **Grow.** Enemies drop babies, villages are freed into more army, and barracks you take raise the cap. The army fights
-  on its own around you. Walk where you want it to be.
+- **Grow.** Enemies drop babies, villages are freed into more army, and barracks you take send recruits and sometimes a champion.
+  The army fights on its own around you. Walk where you want it to be.
 - **Send squads.** Click an enemy to send part of the army at it, sized to what it takes to win. `R` recalls them. Three
   formations (`F`) change how the rest of the army follows you: a ring with you safe in the middle, a wedge, or a line.
 - **Survive bosses.** Seven bosses with several phases each, plus the Sovereign. They raise barriers, call meteors, charge,
@@ -25,10 +25,10 @@ are the fonts.
   eight more, each with a power of its own. A second of a kind merges into the first and raises its level.
 - **Build.** Earn wall points by destroying enemies, then spend them on walls, gates, towers you can man, spikes and tar.
   Enemies path around what you build, and walls decide where a fight happens.
-- **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis and many more stack across the run.
+- **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter into shards) and many more stack across the run.
 - **Combos.** Chain kills for a MASSACRE, then a RAMPAGE, and watch the numbers climb.
 
-The game is built for a lot of units: up to 10,000 or more on screen, drawn as instanced circles with the army's
+The game is built for a lot of units: 15,000 by default (the settings take it anywhere from 5,000 to 50,000), drawn as instanced circles with the army's
 work shared over all your processor cores. It runs at your display's refresh rate (it was developed on a 120 Hz screen).
 
 | | |

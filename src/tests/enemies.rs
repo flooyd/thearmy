@@ -157,7 +157,7 @@ fn elites_turn_up_once_the_army_is_big_enough_and_more_often_as_it_grows() {
         last = chance;
     }
     assert!((elite_chance(ELITE_FULL_UNITS) - ELITE_MAX_CHANCE).abs() < 1e-6);
-    assert!((elite_chance(MAX_UNITS) - ELITE_MAX_CHANCE).abs() < 1e-6);
+    assert!((elite_chance(DEFAULT_ARMY_LIMIT) - ELITE_MAX_CHANCE).abs() < 1e-6);
     assert_eq!((0..500).filter(|_| spawn_enemy(MIDDLE.x, MIDDLE.y, 10).modifier != Modifier::None).count(), 0);
     let mut seen = HashSet::new();
     let elites = (0..2000)
@@ -588,7 +588,7 @@ fn a_small_army_meets_no_warbands_and_a_pack_of_swarmers_is_bigger_for_a_big_arm
     let swarm = |army: usize| (0..2000).map(|_| spawn_group(MIDDLE.x, MIDDLE.y, army)).find(|group| group[0].name == "Swarmer").unwrap().len();
     assert_eq!(swarm(0), kind_named("Swarmer").pack);
     assert!(swarm(2900) > swarm(0));
-    assert!(swarm(MAX_UNITS) <= 30);
+    assert!(swarm(DEFAULT_ARMY_LIMIT) <= 30);
 }
 
 #[test]

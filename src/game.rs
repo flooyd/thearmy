@@ -87,6 +87,8 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
     rand::srand(miniquad::date::now() as u64);
     let Snapshot { player: start_at, mut zoom, mut run, mut rerolls, mut upgrades, wall_kind, wall_points, mut director, mut units, mut babies, mut walls, mut sites, mut enemies, mut choice, victory: was_victory, hordes: saved_hordes } =
         start.unwrap_or_else(new_run);
+    //the most units the army can have is the player's to choose, in the settings, so it is theirs and not the run's
+    upgrades.army_limit = settings.army_limit;
     let (mut x, mut y) = (start_at.x, start_at.y);
     let speed = 800.0; //pixels per second
     let mut frame_time = 1.0 / 60.0; //smoothed so the number on the HUD can be read
@@ -108,7 +110,8 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
     let mut stillness = Stillness::default();
     let mut salvo_wait = 0.0; //seconds until an opening salvo can go off again
     let mut walls_dirty = false; //walls went up or came down in the middle of the last frame
-    let mut milestone = next_milestone(units.len());
+    let mut milestone = next_milestone(units.len(), upgrades.army_limit);
+    let mut milestone_limit = upgrades.army_limit; //the limit it was worked out for
     let mut banners = Banners::new();
     let mut fallen_for = 0.0; //how long there has been no army and nothing to make one from
     let mut map_view = MapView::Near;
@@ -131,6 +134,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
     }
 
     loop {
+        upgrades.army_limit = settings.army_limit;
         let real_dt = get_frame_time().min(MAX_FRAME_TIME);
         frame_time += (get_frame_time() - frame_time) * 0.05;
         //the game is saved when the window is closed, when the player asks (F5), and by itself now and then and each time a
@@ -364,7 +368,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                     if choice.is_some() {
                         hordes.chests.push(chest);
                     } else if open_chest(&chest, units.len(), upgrades.unit_cap(), &mut babies, &mut fx) {
-                        choice = Some(RelicChoice::from_chest(chest.tier, units.len() >= upgrades.unit_cap()));
+                        choice = Some(RelicChoice::from_chest(chest.tier));
                         autosave_in = 0.0;
                     }
                 }
@@ -373,13 +377,6 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             walls_changed |= news.walls_changed;
             run.nests += news.nests;
             run.villages += news.villages;
-            //a barracks that dropped its relic hands it over, and the army can grow that much bigger
-            for _ in 0..news.barracks_relics {
-                upgrades.take(Relic::Barracks);
-                fx.cue(Cue::Relic);
-                fx.popup(Vec2::new(x, y), RADIUS * 2.0, 0.0, format!("{}!", Relic::Barracks.name()), Relic::Barracks.color());
-                autosave_in = 0.0;
-            }
             if news.citadel {
                 run.bosses += 1;
                 run.citadels += 1;
@@ -471,7 +468,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                     if run.bosses % 3 == 0 {
                         rerolls += 1;
                     }
-                    choice = Some(RelicChoice::new(units.len() >= upgrades.unit_cap()));
+                    choice = Some(RelicChoice::new());
                     if boss_drops_champion(run.bosses, rand::gen_range(0.0, 1.0)) {
                         fx.recruits.push((player, Odds::Boss(tier)));
                     }
@@ -492,13 +489,18 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
 
         //round army sizes get a message, once. the army being gone is the end, but not while there are babies to be picked up
         run.peak_army = run.peak_army.max(units.len());
+        if upgrades.army_limit != milestone_limit {
+            //the limit was changed in the settings: the sizes ahead are worked out again
+            milestone_limit = upgrades.army_limit;
+            milestone = next_milestone(units.len(), milestone_limit);
+        }
         while units.len() >= milestone {
-            let text = if milestone == MAX_UNITS && upgrades.unit_cap() == MAX_UNITS { format!("FULL STRENGTH: {milestone} UNITS") } else { format!("ARMY OF {milestone}!") };
+            let text = if milestone == upgrades.army_limit { format!("FULL STRENGTH: {milestone} UNITS") } else { format!("ARMY OF {milestone}!") };
             banners.push(text, Color::new(1.0, 0.9, 0.4, 1.0));
             fx.cue(Cue::Milestone);
             fx.add_shake(0.25);
             fx.add_punch(0.5);
-            milestone = next_milestone(milestone);
+            milestone = next_milestone(milestone, upgrades.army_limit);
         }
         for (text, color) in fx.announcements.drain(..) {
             banners.push(text, color);

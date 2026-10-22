@@ -330,11 +330,11 @@ fn citadel_scene(army: usize) -> (Vec<Site>, Vec<Enemy>, Walls, Vec<Baby>, Vec<U
 fn the_citadel_waits_for_a_big_army_and_wakes_with_its_lord_inside_its_walls() {
     let (mut sites, mut enemies, mut walls, mut babies, mut units, mut fx) = citadel_scene(CITADEL_MIN_ARMY - 1);
     let near = sites[0].position + Vec2::new(0.0, TILE_SIZE * 30.0);
-    update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, MAX_UNITS, 0, &mut fx);
+    update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
     assert_eq!(sites[0].state, SiteState::Dormant, "{} units are not enough", units.len());
     let (mut sites, mut enemies, mut walls, mut babies, mut units, mut fx) = citadel_scene(CITADEL_MIN_ARMY);
     let near = sites[0].position + Vec2::new(0.0, TILE_SIZE * 30.0);
-    let news = update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, MAX_UNITS, 0, &mut fx);
+    let news = update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
     assert_eq!(sites[0].state, SiteState::Awake);
     assert!(news.walls_changed && !news.citadel);
     assert_eq!(enemies.len(), 1);
@@ -353,7 +353,7 @@ fn the_citadel_waits_for_a_big_army_and_wakes_with_its_lord_inside_its_walls() {
 fn the_lord_of_the_citadel_stays_put_and_quiet_until_the_player_comes_close() {
     let (mut sites, mut enemies, mut walls, mut babies, mut units, mut fx) = citadel_scene(CITADEL_MIN_ARMY);
     let near = sites[0].position + Vec2::new(0.0, TILE_SIZE * 40.0);
-    update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, MAX_UNITS, 0, &mut fx);
+    update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
     let at = enemies[0].position;
     let (mut shots, mut fx) = (Vec::new(), Effects::default());
     for _ in 0..3000 {
@@ -382,13 +382,13 @@ fn the_lord_of_the_citadel_stays_put_and_quiet_until_the_player_comes_close() {
 fn when_the_lord_falls_the_citadel_is_cleared_and_the_walls_come_down() {
     let (mut sites, mut enemies, mut walls, mut babies, mut units, mut fx) = citadel_scene(CITADEL_MIN_ARMY);
     let near = sites[0].position + Vec2::new(0.0, TILE_SIZE * 30.0);
-    update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, MAX_UNITS, 0, &mut fx);
+    update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
     enemies.clear();
-    let news = update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, MAX_UNITS, 0, &mut fx);
+    let news = update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
     assert!(news.citadel && news.walls_changed);
     assert_eq!(sites[0].state, SiteState::Cleared);
     assert!(walls.is_empty());
-    let news = update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, MAX_UNITS, 0, &mut fx);
+    let news = update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
     assert!(!news.citadel, "the victory is only once");
 }
 
@@ -396,13 +396,13 @@ fn when_the_lord_falls_the_citadel_is_cleared_and_the_walls_come_down() {
 fn a_citadel_the_player_runs_from_resets_and_comes_back_at_full_strength() {
     let (mut sites, mut enemies, mut walls, mut babies, mut units, mut fx) = citadel_scene(CITADEL_MIN_ARMY);
     let near = sites[0].position + Vec2::new(0.0, TILE_SIZE * 30.0);
-    update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, MAX_UNITS, 0, &mut fx);
+    update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
     enemies[0].health = 5.0;
     let far = sites[0].position + Vec2::new(0.0, TILE_SIZE * (SLEEP_TILES + 20.0));
-    let news = update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, far, 0.016, false, MAX_UNITS, 0, &mut fx);
+    let news = update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, far, 0.016, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
     assert_eq!(sites[0].state, SiteState::Dormant);
     assert!(enemies.is_empty() && walls.is_empty() && !news.citadel);
-    update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, MAX_UNITS, 0, &mut fx);
+    update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, near, 0.016, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
     assert_eq!(enemies[0].health, enemies[0].max_health);
 }
 
@@ -474,7 +474,7 @@ type CitadelWorld = (Vec<Site>, Vec<Enemy>, Walls, Vec<Baby>, Vec<Unit>, Effects
 //one frame of the sites in a citadel scene, the lord having fallen `falls` times before
 fn citadel_step(world: &mut CitadelWorld, player: Vec2, dt: f32, falls: u32) -> SiteNews {
     let (sites, enemies, walls, babies, units, fx) = world;
-    update_sites(sites, enemies, walls, babies, units, player, dt, false, MAX_UNITS, falls, fx)
+    update_sites(sites, enemies, walls, babies, units, player, dt, false, DEFAULT_ARMY_LIMIT, falls, fx)
 }
 
 #[test]

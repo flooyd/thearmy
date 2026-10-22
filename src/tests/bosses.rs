@@ -338,7 +338,7 @@ fn a_slain_boss_drops_its_babies_takes_its_minions_with_it_and_counts_once() {
     let mut boss = Enemy::boss(&BOSSES[0], 5000, 0, MIDDLE);
     boss.health = 0.0;
     let mut babies = Vec::new();
-    resolve_deaths(&mut vec![boss], &mut babies, MAX_UNITS - 10, &Upgrades::default(), &mut Effects::default());
+    resolve_deaths(&mut vec![boss], &mut babies, DEFAULT_ARMY_LIMIT - 10, &Upgrades::default(), &mut Effects::default());
     assert_eq!(babies.len(), 10);
 }
 
@@ -366,7 +366,7 @@ fn relics_multiply_what_they_say_and_stack() {
 fn three_different_relics_are_offered_and_every_relic_gets_offered() {
     let mut seen = HashSet::new();
     for _ in 0..300 {
-        let choices = relic_choices(false);
+        let choices = relic_choices();
         assert!(choices[0] != choices[1] && choices[1] != choices[2] && choices[0] != choices[2]);
         seen.extend(choices.iter().map(|relic| relic.name()));
     }
@@ -427,7 +427,7 @@ fn the_relics_change_the_fight_the_way_they_say() {
     let mut enemy = kind_at("Grunt", MIDDLE);
     enemy.babies = 10;
     let mut babies = Vec::new();
-    drop_babies(&enemy, &mut babies, 0, up.bounty, MAX_UNITS);
+    drop_babies(&enemy, &mut babies, 0, up.bounty, DEFAULT_ARMY_LIMIT);
     assert_eq!(babies.len(), 14);
 }
 

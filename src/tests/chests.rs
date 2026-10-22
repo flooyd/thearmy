@@ -62,7 +62,7 @@ fn opening_a_chest_earns_the_points_puts_recruits_down_and_wins_a_champion_if_it
         let chest = Chest::new(SPOT, tier, 30.0);
         let mut babies = Vec::new();
         let mut fx = Effects::default();
-        let relic = open_chest(&chest, 1200, MAX_UNITS, &mut babies, &mut fx);
+        let relic = open_chest(&chest, 1200, DEFAULT_ARMY_LIMIT, &mut babies, &mut fx);
         let loot = chest.loot(1200);
         assert_eq!(relic, tier >= CHEST_RELIC_TIER, "tier {tier}");
         assert_eq!(fx.points, loot.points);
@@ -80,11 +80,11 @@ fn recruits_that_the_army_has_no_room_for_are_not_made_and_the_chest_still_opens
     let chest = Chest::new(SPOT, 3, 30.0);
     let mut babies = Vec::new();
     let mut fx = Effects::default();
-    open_chest(&chest, MAX_UNITS, MAX_UNITS, &mut babies, &mut fx);
+    open_chest(&chest, DEFAULT_ARMY_LIMIT, DEFAULT_ARMY_LIMIT, &mut babies, &mut fx);
     assert!(babies.is_empty(), "a full army has no room");
     assert!(fx.points > 0.0);
     //and a little room gives a few
-    open_chest(&chest, MAX_UNITS - 7, MAX_UNITS, &mut babies, &mut fx);
+    open_chest(&chest, DEFAULT_ARMY_LIMIT - 7, DEFAULT_ARMY_LIMIT, &mut babies, &mut fx);
     assert_eq!(babies.len(), 7);
 }
 

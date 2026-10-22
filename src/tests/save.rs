@@ -89,7 +89,7 @@ fn busy_world() -> Snapshot {
         world.enemies.push(boss);
     }
     world.director = Director { next_boss_in: 41.5, slain: 5, boss: world.enemies.last().map(|boss| boss.id), warned: true };
-    for relic in [Relic::Whetstone, Relic::Barracks, Relic::Barracks, Relic::Tailwind, Relic::GlassCannon, Relic::Overclock, Relic::Aegis, Relic::Martyr] {
+    for relic in [Relic::Whetstone, Relic::Freezing, Relic::Freezing, Relic::Tailwind, Relic::GlassCannon, Relic::Overclock, Relic::Aegis, Relic::Martyr] {
         world.upgrades.take(relic);
     }
     world.player = Vec2::new(15123.5, 15456.75);
@@ -98,7 +98,7 @@ fn busy_world() -> Snapshot {
     world.rerolls = 3;
     world.wall_kind = WallKind::Tower;
     world.wall_points = 77.5;
-    world.choice = Some(RelicChoice::new(true));
+    world.choice = Some(RelicChoice::new());
     //a horde on its way, one being fought, and two chests it left
     world.hordes = Hordes {
         next_in: 33.5,
@@ -175,11 +175,11 @@ fn the_relics_taken_add_up_the_same_after_loading() {
     let world = busy_world();
     let loaded = Snapshot::from_text(&world.to_text()).unwrap();
     assert_eq!(format!("{:?}", loaded.upgrades), format!("{:?}", world.upgrades));
-    assert_eq!(loaded.upgrades.unit_cap(), MAX_UNITS + 2 * BARRACKS_UNITS);
-    assert_eq!(loaded.upgrades.count(Relic::Barracks), 2);
+    assert_eq!(loaded.upgrades.count(Relic::Freezing), 2);
+    assert!((loaded.upgrades.freeze - 2.0 * FREEZE_CHANCE).abs() < 1e-6);
     //the relics on offer are the same three, shown from the start again
     let (before, after) = (world.choice.as_ref().unwrap(), loaded.choice.as_ref().unwrap());
-    assert_eq!((after.options, after.rare_only, after.army_full), (before.options, before.rare_only, before.army_full));
+    assert_eq!((after.options, after.rare_only), (before.options, before.rare_only));
     assert_eq!(after.age, 0.0);
 }
 
@@ -217,7 +217,7 @@ fn a_loaded_nest_is_still_held_by_its_core_and_a_loaded_boss_by_its_family() {
     let at = nest.position;
     //the player is at the nest, and it carries on as a nest that is still there: nothing is destroyed or liberated
     let mut fx = Effects::default();
-    let news = update_sites(&mut loaded.sites, &mut loaded.enemies, &mut loaded.walls, &mut loaded.babies, &mut loaded.units, at, 0.016, false, MAX_UNITS, 0, &mut fx);
+    let news = update_sites(&mut loaded.sites, &mut loaded.enemies, &mut loaded.walls, &mut loaded.babies, &mut loaded.units, at, 0.016, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
     assert_eq!((news.nests, news.citadel), (0, false));
     let nest = loaded.sites.iter().find(|site| site.position == at).unwrap();
     assert_eq!(nest.state, SiteState::Awake);
@@ -538,7 +538,7 @@ fn a_save_from_before_hordes_were_kept_starts_their_timer_again_and_one_that_nam
 #[test]
 fn a_choice_of_relics_remembers_that_it_came_from_a_chest_and_an_older_save_without_that_still_loads() {
     let mut world = busy_world();
-    world.choice = Some(RelicChoice::from_chest(3, false));
+    world.choice = Some(RelicChoice::from_chest(3));
     let text = world.to_text();
     assert_eq!(Snapshot::from_text(&text).unwrap().choice.map(|choice| choice.chest), Some(3));
     //the offer used to end after the word for whether the army was full
@@ -546,6 +546,46 @@ fn a_choice_of_relics_remembers_that_it_came_from_a_chest_and_an_older_save_with
     let old = Snapshot::from_text(&text.replacen("no 3 victory", "no victory", 1)).expect("a save from before chests still loads");
     assert_eq!(old.choice.map(|choice| choice.chest), Some(0));
     //and a boss's relics have none
-    world.choice = Some(RelicChoice::new(true));
+    world.choice = Some(RelicChoice::new());
     assert_eq!(Snapshot::from_text(&world.to_text()).unwrap().choice.map(|choice| choice.chest), Some(0));
+}
+
+#[test]
+fn a_save_from_when_there_was_a_barracks_relic_still_loads_without_it() {
+    let mut world = busy_world();
+    world.choice = Some(RelicChoice { options: [Relic::Whetstone, Relic::Freezing, Relic::Aegis], age: 0.0, rare_only: false, chest: 0 });
+    assert_eq!(world.upgrades.count(Relic::Freezing), 2);
+    //the relic that is Freezing now was the Barracks then, so a file from then has that word where this one has the other
+    let old = world.to_text().replace("Freezing", "Barracks");
+    assert!(!old.contains("Freezing") && old.contains("Barracks"));
+    let loaded = Snapshot::from_text(&old).expect("a save with a Barracks relic in it loads");
+    //the relics taken lose it, the others are the same
+    assert_eq!(loaded.upgrades.count(Relic::Freezing), 0);
+    assert_eq!(loaded.upgrades.taken.len(), world.upgrades.taken.len() - 2);
+    assert_eq!(loaded.upgrades.count(Relic::Tailwind), 1);
+    assert_eq!(loaded.upgrades.unit_cap(), DEFAULT_ARMY_LIMIT);
+    //a Barracks on offer is a Freezing, so the choice still has three different relics
+    assert_eq!(loaded.choice.as_ref().unwrap().options, [Relic::Whetstone, Relic::Freezing, Relic::Aegis]);
+    //and the rest of the run is all there
+    assert_eq!((loaded.units.len(), loaded.enemies.len(), loaded.walls.len()), (world.units.len(), world.enemies.len(), world.walls.len()));
+    //a relic that was never in the game is still a damaged file
+    assert!(Snapshot::from_text(&world.to_text().replace("Freezing", "Banana")).is_err());
+}
+
+#[test]
+fn the_relics_on_offer_from_a_chest_are_kept_with_where_they_came_from() {
+    let mut world = busy_world();
+    world.choice = Some(RelicChoice::from_chest(2));
+    let loaded = Snapshot::from_text(&world.to_text()).unwrap();
+    let (before, after) = (world.choice.as_ref().unwrap(), loaded.choice.as_ref().unwrap());
+    assert_eq!((after.options, after.rare_only, after.chest), (before.options, before.rare_only, before.chest));
+}
+
+#[test]
+fn a_freeze_is_not_kept_in_a_save() {
+    let mut world = busy_world();
+    world.enemies[0].frozen = 2.0;
+    let loaded = Snapshot::from_text(&world.to_text()).unwrap();
+    assert_eq!(loaded.enemies[0].frozen, 0.0);
+    assert_eq!(loaded.enemies[0].id, world.enemies[0].id, "and it is the same enemy otherwise");
 }

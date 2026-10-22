@@ -375,20 +375,20 @@ fn a_shot_leaving_the_world_is_removed() {
 #[test]
 fn babies_stop_growing_at_the_unit_cap() {
     let player = Vec2::new(16000.0, 16000.0);
-    let mut units: Vec<Unit> = (0..MAX_UNITS - 2).map(|_| unit_on(player)).collect();
+    let mut units: Vec<Unit> = (0..DEFAULT_ARMY_LIMIT - 2).map(|_| unit_on(player)).collect();
     let mut babies: Vec<Baby> = (0..5).map(|i| Baby { position: player + Vec2::new(10.0 * i as f32, 0.0), age: 5.0 }).collect();
     let mut fx = Effects::default();
-    grow_babies(&mut babies, &mut units, player.x, player.y, 1.0 / 60.0, 160.0, MAX_UNITS, &mut fx);
-    assert_eq!(units.len(), MAX_UNITS);
+    grow_babies(&mut babies, &mut units, player.x, player.y, 1.0 / 60.0, 160.0, DEFAULT_ARMY_LIMIT, &mut fx);
+    assert_eq!(units.len(), DEFAULT_ARMY_LIMIT);
     //the other three wait where they are, for room
     assert_eq!(babies.len(), 3);
-    grow_babies(&mut babies, &mut units, player.x, player.y, 1.0 / 60.0, 160.0, MAX_UNITS, &mut fx);
-    assert_eq!(units.len(), MAX_UNITS);
+    grow_babies(&mut babies, &mut units, player.x, player.y, 1.0 / 60.0, 160.0, DEFAULT_ARMY_LIMIT, &mut fx);
+    assert_eq!(units.len(), DEFAULT_ARMY_LIMIT);
     assert_eq!(babies.len(), 3);
     //and when units die they grow into the room
-    units.truncate(MAX_UNITS - 1);
-    grow_babies(&mut babies, &mut units, player.x, player.y, 1.0 / 60.0, 160.0, MAX_UNITS, &mut fx);
-    assert_eq!(units.len(), MAX_UNITS);
+    units.truncate(DEFAULT_ARMY_LIMIT - 1);
+    grow_babies(&mut babies, &mut units, player.x, player.y, 1.0 / 60.0, 160.0, DEFAULT_ARMY_LIMIT, &mut fx);
+    assert_eq!(units.len(), DEFAULT_ARMY_LIMIT);
     assert_eq!(babies.len(), 2);
 }
 
@@ -398,46 +398,62 @@ fn an_enemy_drops_no_more_babies_than_the_army_has_room_for() {
     let mut enemy = plain_enemy(at);
     enemy.babies = 20;
     let mut babies = Vec::new();
-    drop_babies(&enemy, &mut babies, MAX_UNITS - 5, 1.0, MAX_UNITS);
+    drop_babies(&enemy, &mut babies, DEFAULT_ARMY_LIMIT - 5, 1.0, DEFAULT_ARMY_LIMIT);
     assert_eq!(babies.len(), 5);
     //babies already waiting count against the room
-    drop_babies(&enemy, &mut babies, MAX_UNITS - 5, 1.0, MAX_UNITS);
+    drop_babies(&enemy, &mut babies, DEFAULT_ARMY_LIMIT - 5, 1.0, DEFAULT_ARMY_LIMIT);
     assert_eq!(babies.len(), 5);
     let mut none = Vec::new();
-    drop_babies(&enemy, &mut none, MAX_UNITS, 1.0, MAX_UNITS);
+    drop_babies(&enemy, &mut none, DEFAULT_ARMY_LIMIT, 1.0, DEFAULT_ARMY_LIMIT);
     assert!(none.is_empty());
     let mut all = Vec::new();
-    drop_babies(&enemy, &mut all, 100, 1.0, MAX_UNITS);
+    drop_babies(&enemy, &mut all, 100, 1.0, DEFAULT_ARMY_LIMIT);
     assert_eq!(all.len(), 20);
 }
 
 #[test]
 fn the_starting_army_and_the_milestones_fit_under_the_unit_cap() {
-    assert!(START_UNITS_MAX as usize <= MAX_UNITS);
+    assert!(MIN_ARMY_LIMIT <= DEFAULT_ARMY_LIMIT && DEFAULT_ARMY_LIMIT <= MAX_ARMY_LIMIT);
+    assert_eq!((MAX_ARMY_LIMIT - MIN_ARMY_LIMIT) % ARMY_LIMIT_STEP, 0, "the slider moves in whole steps from one end to the other");
+    assert_eq!((DEFAULT_ARMY_LIMIT - MIN_ARMY_LIMIT) % ARMY_LIMIT_STEP, 0);
+    //the smallest limit still holds the starting army
+    assert!(START_UNITS_MAX as usize <= MIN_ARMY_LIMIT);
     assert!(MILESTONES.windows(2).all(|pair| pair[0] < pair[1]));
-    assert_eq!(*MILESTONES.last().unwrap(), MAX_UNITS);
-    //the full speed and the full pickup range come before the army can't grow any more
-    assert!(SPEED_BOOST_UNITS <= MAX_UNITS && PICKUP_FULL_UNITS <= MAX_UNITS);
+    assert_eq!(*MILESTONES.last().unwrap(), MAX_ARMY_LIMIT);
+    //the full speed and the full pickup range come before the army can't grow any more, whatever the limit is
+    assert!(SPEED_BOOST_UNITS <= MIN_ARMY_LIMIT && PICKUP_FULL_UNITS <= MIN_ARMY_LIMIT);
 }
 
 #[test]
-fn the_army_is_congratulated_at_round_sizes_and_again_for_every_barracks_past_the_usual_cap() {
-    assert_eq!(next_milestone(0), 100);
-    assert_eq!(next_milestone(99), 100);
-    assert_eq!(next_milestone(100), 250);
-    assert_eq!(next_milestone(2000), 3000);
-    assert_eq!(next_milestone(3000), MAX_UNITS);
-    //each is further on than the army that got there, and no round size is skipped
+fn the_army_is_congratulated_at_round_sizes_below_the_limit_and_then_at_the_limit() {
+    let limit = DEFAULT_ARMY_LIMIT;
+    assert_eq!(next_milestone(0, limit), 100);
+    assert_eq!(next_milestone(99, limit), 100);
+    assert_eq!(next_milestone(100, limit), 250);
+    assert_eq!(next_milestone(2000, limit), 3000);
+    //each is further on than the army that got there, and no round size below the limit is skipped
     let mut size = 0;
     let mut seen = Vec::new();
-    for _ in 0..12 {
-        size = next_milestone(size);
+    loop {
+        size = next_milestone(size, limit);
+        if size == usize::MAX {
+            break;
+        }
+        assert!(seen.last().is_none_or(|&last| size > last));
         seen.push(size);
     }
-    assert_eq!(&seen[..7], &MILESTONES[..]);
-    assert_eq!(&seen[7..], &[MAX_UNITS + BARRACKS_UNITS, MAX_UNITS + 2 * BARRACKS_UNITS, MAX_UNITS + 3 * BARRACKS_UNITS, MAX_UNITS + 4 * BARRACKS_UNITS, MAX_UNITS + 5 * BARRACKS_UNITS]);
-    //an army that jumped past several only has the next one still to come
-    assert_eq!(next_milestone(MAX_UNITS + BARRACKS_UNITS + 1), MAX_UNITS + 2 * BARRACKS_UNITS);
+    let round: Vec<usize> = MILESTONES.iter().copied().filter(|&milestone| milestone < limit).collect();
+    assert_eq!(&seen[..seen.len() - 1], &round[..]);
+    assert_eq!(seen.last(), Some(&limit), "and the last is the limit itself, which is full strength");
+    //an army at or past the limit has none to come
+    assert_eq!(next_milestone(limit, limit), usize::MAX);
+    assert_eq!(next_milestone(limit + 500, limit), usize::MAX);
+    //a limit that is itself a round size comes once, and a bigger one has more sizes below it
+    assert_eq!(next_milestone(7500, 10000), 10000);
+    assert_eq!(next_milestone(7500, 50000), 10000);
+    assert_eq!(next_milestone(40000, 50000), 50000);
+    assert_eq!(next_milestone(0, MIN_ARMY_LIMIT), 100);
+    assert_eq!(next_milestone(3000, MIN_ARMY_LIMIT), MIN_ARMY_LIMIT);
 }
 
 //what happens when a squad the game would send fights an enemy of each kind, the army being `army` units
@@ -509,7 +525,7 @@ fn fighting_thousands_of_units_costs_little_of_a_frame() {
             enemy
         })
         .collect();
-    let mut units: Vec<Unit> = (0..MAX_UNITS)
+    let mut units: Vec<Unit> = (0..DEFAULT_ARMY_LIMIT)
         .map(|i| {
             rng_x += 7.3;
             let enemy = &enemies[i % ENEMY_COUNT];
@@ -531,7 +547,7 @@ fn fighting_thousands_of_units_costs_little_of_a_frame() {
         tick_enemy_numbers(&mut enemies, 1.0 / 120.0, &mut fx);
         bury_units(&mut units, &mut fx);
         //units that die in the test are put back so every frame is as busy as the first
-        while units.len() < MAX_UNITS {
+        while units.len() < DEFAULT_ARMY_LIMIT {
             let enemy = &enemies[units.len() % ENEMY_COUNT];
             units.push(unit_on(enemy.position));
         }
@@ -543,7 +559,7 @@ fn fighting_thousands_of_units_costs_little_of_a_frame() {
         }
     }
     let per_frame = started.elapsed().as_secs_f32() / frames as f32 * 1000.0;
-    eprintln!("fight, shots and burying with {} units: {per_frame:.2} ms a frame", MAX_UNITS);
+    eprintln!("fight, shots and burying with {} units: {per_frame:.2} ms a frame", DEFAULT_ARMY_LIMIT);
     assert!(per_frame < 6.0, "{per_frame} ms a frame");
 }
 

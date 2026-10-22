@@ -1,5 +1,5 @@
 //! what the player can change: how loud things are, how much the screen shakes, the colours for those who can't tell red from
-//! green, how hard the enemies are, which formation the army keeps and whether hints are shown. kept in a small text file beside the
+//! green, how hard the enemies are, which formation the army keeps, how big the army can grow and whether hints are shown. kept in a small text file beside the
 //! saves and read again the next time the game starts
 
 use crate::prelude::*;
@@ -61,11 +61,12 @@ pub(crate) struct Settings {
     pub(crate) difficulty: Difficulty,
     pub(crate) hints: bool,
     pub(crate) formation: Formation,
+    pub(crate) army_limit: usize, //the most units the army can have, from MIN_ARMY_LIMIT to MAX_ARMY_LIMIT
 }
 
 impl Default for Settings {
     fn default() -> Settings {
-        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Free }
+        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Free, army_limit: DEFAULT_ARMY_LIMIT }
     }
 }
 
@@ -73,7 +74,7 @@ impl Settings {
     //the settings as lines of text, a name and a value each
     pub(crate) fn to_text(&self) -> String {
         format!(
-            "master {:.2}\neffects {:.2}\nmusic {:.2}\nshake {:.2}\nfullscreen {}\ncolourblind {}\ndifficulty {}\nhints {}\nformation {}\n",
+            "master {:.2}\neffects {:.2}\nmusic {:.2}\nshake {:.2}\nfullscreen {}\ncolourblind {}\ndifficulty {}\nhints {}\nformation {}\narmy_limit {}\n",
             self.master,
             self.effects,
             self.music,
@@ -83,6 +84,7 @@ impl Settings {
             self.difficulty.name(),
             if self.hints { "yes" } else { "no" },
             self.formation.name(),
+            self.army_limit,
         )
     }
 
@@ -111,6 +113,7 @@ impl Settings {
                 "hints" => settings.hints = yes().unwrap_or(settings.hints),
                 "difficulty" => settings.difficulty = Difficulty::from_name(value).unwrap_or(settings.difficulty),
                 "formation" => settings.formation = Formation::from_name(value).unwrap_or(settings.formation),
+                "army_limit" => settings.army_limit = value.parse::<usize>().map_or(settings.army_limit, |limit| limit.clamp(MIN_ARMY_LIMIT, MAX_ARMY_LIMIT)),
                 _ => {}
             }
         }
