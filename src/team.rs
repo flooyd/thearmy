@@ -77,7 +77,7 @@ pub(crate) fn draw_tags(mates: &[Mate], camera: Vec2, zoom: f32) {
         }
         let size = 18.0;
         let width = text_width(&mate.name, size, Face::Bold);
-        let y = at.y - (RADIUS + UNIT_BORDER) * zoom - 12.0;
+        let y = at.y - RUNNER_TOP * zoom - 8.0;
         draw_label_shadowed(&mate.name, at.x - width / 2.0, y, size, light(mate.color), Face::Bold);
         if mate.choosing {
             let line = "CHOOSING A RELIC";

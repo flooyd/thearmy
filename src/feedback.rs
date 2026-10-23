@@ -10,11 +10,12 @@ pub(crate) struct Feedback {
     pub(crate) ground: Vec<Mark>,     //scorch marks and what is left of enemies, which fade
     pub(crate) shards: Vec<Shard>,    //pieces of the enemies that have just been destroyed
     pub(crate) combo: Combo,
+    pub(crate) runners: Vec<Runner>,  //how each player's figure is striding, in the order of the players
 }
 
 impl Feedback {
     pub(crate) fn new() -> Feedback {
-        Feedback { fx: Effects::default(), particles: Vec::new(), ground: Vec::new(), shards: Vec::new(), combo: Combo::default() }
+        Feedback { fx: Effects::default(), particles: Vec::new(), ground: Vec::new(), shards: Vec::new(), combo: Combo::default(), runners: Vec::new() }
     }
 
     //take in what happened in the world. `me` is the player at this machine and `at` is where they are: the babies they have taken show over
@@ -51,6 +52,14 @@ impl Feedback {
 
     //a frame later: the numbers, rings and beams age, the shaking settles, the babies that were taken show as one number over the player, puffs
     //become particles, marks and chips are laid and thrown and the kill streak runs down
+    //the figures of `players` take a step, at the speed each is going
+    pub(crate) fn run(&mut self, players: &[Player], dt: f32) {
+        self.runners.resize_with(players.len(), Runner::new);
+        for (runner, player) in self.runners.iter_mut().zip(players) {
+            runner.step(player.velocity, dt);
+        }
+    }
+
     pub(crate) fn update(&mut self, dt: f32, at: Vec2) {
         self.fx.update(dt, at);
         self.fx.spawn_bursts(&mut self.particles);

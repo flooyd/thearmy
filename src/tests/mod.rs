@@ -31,6 +31,7 @@ mod online;
 mod morale;
 mod relics;
 mod replication;
+mod runner;
 mod movement;
 mod netplay;
 mod party;

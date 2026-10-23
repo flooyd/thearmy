@@ -1,6 +1,6 @@
 # The Army
 
-A top-down game about a growing army, alone or with up to three others over the internet. You are one dot at the centre of a few thousand of them, and the world is a
+A top-down game about a growing army, alone or with up to three others over the internet. You are one little runner at the centre of a few thousand of them, and the world is a
 1000 x 1000 tile field full of things that want to stop you: nests, raiding hordes, and eight bosses (the last one, the Sovereign,
 comes back after you fell it). Pick up the babies that enemies drop, grow the army to the thousands, point it at whatever is
 in the way, and wall in whatever you can't fight.
@@ -30,6 +30,8 @@ are the fonts.
 
 The game is built for a lot of units: 15,000 by default (the settings take it anywhere from 5,000 to 50,000), drawn as instanced ships (small darts that point the way they are going, drawn in the shader, with plain
 circles as a setting) with the army's work shared over all your processor cores. It runs at your display's refresh rate (it was developed on a 120 Hz screen).
+
+You are a stick figure that runs: facing you going down, showing its back going up, in profile going across, and shrinking to a plain dot when the view is zoomed far out.
 
 | | |
 |---|---|

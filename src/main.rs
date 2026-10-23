@@ -51,6 +51,7 @@ mod pathing;
 mod players;
 mod prey;
 mod replica;
+mod runner;
 mod polish;
 mod relics;
 mod save;

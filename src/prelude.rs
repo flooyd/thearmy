@@ -39,6 +39,7 @@ pub(crate) use crate::polish::*;
 pub(crate) use crate::prey::*;
 pub(crate) use crate::relics::*;
 pub(crate) use crate::replica::*;
+pub(crate) use crate::runner::*;
 pub(crate) use crate::save::*;
 pub(crate) use crate::score::*;
 pub(crate) use crate::screens::*;

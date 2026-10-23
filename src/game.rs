@@ -510,6 +510,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         for other in &sim.players.list {
             emit_trail(&mut feedback.particles, other.position, other.velocity, PLAYER_SPEED * boost, dt, other.color);
         }
+        feedback.run(&sim.players.list, dt);
         for unit in &sim.units {
             let position = Vec2::new(unit.x, unit.y);
             if view.contains(position) {
@@ -554,15 +555,30 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         }
         draw_shots(shots);
         //(one that has gone is a faint mark of where they will find their army)
-        let avatars: Vec<Disc> = players.list.iter().enumerate().map(|(i, other)| {
-            let gone = mates.get(i).is_some_and(|mate| mate.away);
-            let color = if gone { Color::new(other.color.r, other.color.g, other.color.b, 0.3) } else { other.color };
-            Disc::new(other.position.x, other.position.y, RADIUS, color).edged(if gone { 0.0 } else { UNIT_BORDER })
+        //(a player is a little runner, or the circle they were when they are too small on the screen to make one out, and a fade between the two)
+        let show = runner_show(RADIUS * camera.zoom.x.abs() * screen_width() / 2.0);
+        let is_gone = |i: usize| mates.get(i).is_some_and(|mate| mate.away);
+        let avatars: Vec<Disc> = players.list.iter().enumerate().filter_map(|(i, other)| {
+            if is_gone(i) {
+                Some(Disc::new(other.position.x, other.position.y, RADIUS, Color::new(other.color.r, other.color.g, other.color.b, 0.3)))
+            } else if show < 1.0 {
+                Some(Disc::new(other.position.x, other.position.y, RADIUS, Color::new(other.color.r, other.color.g, other.color.b, 1.0 - show)).edged(UNIT_BORDER))
+            } else {
+                None
+            }
         }).collect();
         draw_discs(Layer::Player, &avatars, &camera);
         draw_chest_holds(&hordes.chests, drawn);
         //the walls go on top of everything in the world, the numbers and the screen over them are for reading
         draw_walls(camera_at.x, camera_at.y, drawn_zoom, hovered, walls, if paused || entrance { None } else { Some(players.list[me].mason.selected) }, get_time() as f32);
+        //(except the little runners, who are taller than the circle was and would lose their heads to a wall they stand under)
+        if show > 0.0 {
+            for (i, (other, runner)) in players.list.iter().zip(&feedback.runners).enumerate() {
+                if !is_gone(i) {
+                    draw_runner(runner, other.position, other.color, show);
+                }
+            }
+        }
         draw_beams(&fx.beams);
         draw_rings(&fx.rings);
         draw_popups(&fx.popups, drawn_zoom);
