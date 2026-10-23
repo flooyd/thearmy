@@ -237,8 +237,87 @@ pub(crate) fn steer_along(position: Vec2, goal: Vec2, clearance: f32, mover: Mov
     route.first().map_or(Steer::Player, |&tile| Steer::Point(tile_center(tile)))
 }
 
-//the routes everything follows to the player, kept up to date a bit each frame: one for the army and one for the enemies,
-//which differ in the walls they can't get through. each is built in `building` while the last finished one is followed
+//a route being kept up to date a bit each frame: the last one finished (`done`) is followed while the next is built in `building`.
+//it starts again when walls changed, which makes the one being built out of date, or when the target has moved `far` grid
+//squares from where the last one led and the one being built is done. `budget` is the most time the frame spends on it
+fn refresh(done: &mut FlowField, building: &mut FlowField, target: Vec2, walls: &Walls, walls_changed: bool, mover: Mover, far: i32, budget: Duration) {
+    let tile = tile_of(target.x, target.y);
+    let moved = |from: (i32, i32)| (from.0 - tile.0).abs().max((from.1 - tile.1).abs()) >= far;
+    if walls_changed || (!building.is_building() && moved(done.target)) {
+        building.start_for(target, walls, mover);
+    }
+    if building.is_building() && building.work(budget) {
+        std::mem::swap(done, building);
+    }
+}
+
+//finish the route being built, so a test doesn't depend on how fast the machine is
+#[cfg(test)]
+fn finish(done: &mut FlowField, building: &mut FlowField) {
+    if building.is_building() {
+        building.work(Duration::MAX);
+        std::mem::swap(done, building);
+    }
+}
+
+//the route a player's army follows to them, which it can walk through its own walls but not the enemies'. each player has one
+pub(crate) struct ArmyRoute {
+    pub(crate) field: FlowField,
+    building: FlowField,
+}
+
+impl ArmyRoute {
+    //a route that leads nowhere, for a player that is only being watched, whose army is somewhere else
+    pub(crate) fn blank() -> ArmyRoute {
+        ArmyRoute { field: FlowField::new(), building: FlowField::new() }
+    }
+
+    //built in full, for the player where they are
+    pub(crate) fn new(player: Vec2, walls: &Walls) -> ArmyRoute {
+        let mut route = ArmyRoute { field: FlowField::new(), building: FlowField::new() };
+        route.field.start_for(player, walls, Mover::Ally);
+        route.field.work(Duration::MAX);
+        route
+    }
+
+    //the player has to move to another grid square for the route to start again
+    pub(crate) fn update(&mut self, player: Vec2, walls: &Walls, walls_changed: bool, budget: Duration) {
+        refresh(&mut self.field, &mut self.building, player, walls, walls_changed, Mover::Ally, 1, budget);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn finish(&mut self) {
+        finish(&mut self.field, &mut self.building);
+    }
+}
+
+//the route the enemies follow to the player, which they can't walk through walls to make. two grid squares of the player moving will
+//do for them, who can do with less exact directions
+pub(crate) struct FoeRoute {
+    pub(crate) field: FlowField,
+    building: FlowField,
+}
+
+impl FoeRoute {
+    pub(crate) fn blank() -> FoeRoute {
+        FoeRoute { field: FlowField::new(), building: FlowField::new() }
+    }
+
+    pub(crate) fn new(player: Vec2, walls: &Walls) -> FoeRoute {
+        let mut route = FoeRoute { field: FlowField::new(), building: FlowField::new() };
+        route.field.start_for(player, walls, Mover::Enemy);
+        route.field.work(Duration::MAX);
+        route
+    }
+
+    //`budget` is the most time the frame spends on it (the players have the frame's share of it between them)
+    pub(crate) fn update(&mut self, player: Vec2, walls: &Walls, walls_changed: bool, budget: Duration) {
+        refresh(&mut self.field, &mut self.building, player, walls, walls_changed, Mover::Enemy, 2, budget);
+    }
+}
+
+//both routes to a player, for the tests that have one player and an enemy
+#[cfg(test)]
 pub(crate) struct Routes {
     pub(crate) army: FlowField,
     pub(crate) foes: FlowField,
@@ -246,48 +325,22 @@ pub(crate) struct Routes {
     building_foes: FlowField,
 }
 
+#[cfg(test)]
 impl Routes {
     //both routes built in full, for the player where they are
     pub(crate) fn new(player: Vec2, walls: &Walls) -> Routes {
-        let mut routes = Routes { army: FlowField::new(), foes: FlowField::new(), building_army: FlowField::new(), building_foes: FlowField::new() };
-        routes.army.start_for(player, walls, Mover::Ally);
-        routes.army.work(Duration::MAX);
-        routes.foes.start_for(player, walls, Mover::Enemy);
-        routes.foes.work(Duration::MAX);
-        routes
+        let (army, foes) = (ArmyRoute::new(player, walls), FoeRoute::new(player, walls));
+        Routes { army: army.field, foes: foes.field, building_army: FlowField::new(), building_foes: FlowField::new() }
     }
 
-    //a route starts again when walls changed, which makes the one being built out of date, or when the player has moved
-    //to another grid square (two, for the enemies, who can do with less exact directions) and the last one is done
     pub(crate) fn update(&mut self, player: Vec2, walls: &Walls, walls_changed: bool) {
-        let tile = tile_of(player.x, player.y);
-        let far = |from: (i32, i32), limit: i32| (from.0 - tile.0).abs().max((from.1 - tile.1).abs()) >= limit;
-        if walls_changed || (!self.building_army.is_building() && far(self.army.target, 1)) {
-            self.building_army.start_for(player, walls, Mover::Ally);
-        }
-        if self.building_army.is_building() && self.building_army.work(FIELD_BUDGET) {
-            std::mem::swap(&mut self.army, &mut self.building_army);
-        }
-        if walls_changed || (!self.building_foes.is_building() && far(self.foes.target, 2)) {
-            self.building_foes.start_for(player, walls, Mover::Enemy);
-        }
-        if self.building_foes.is_building() && self.building_foes.work(FIELD_BUDGET / 2) {
-            std::mem::swap(&mut self.foes, &mut self.building_foes);
-        }
+        refresh(&mut self.army, &mut self.building_army, player, walls, walls_changed, Mover::Ally, 1, FIELD_BUDGET);
+        refresh(&mut self.foes, &mut self.building_foes, player, walls, walls_changed, Mover::Enemy, 2, FIELD_BUDGET / 2);
     }
-}
 
-#[cfg(test)]
-impl Routes {
     //finish whatever is being built, so a test doesn't depend on how fast the machine is
     pub(crate) fn finish(&mut self) {
-        if self.building_army.is_building() {
-            self.building_army.work(Duration::MAX);
-            std::mem::swap(&mut self.army, &mut self.building_army);
-        }
-        if self.building_foes.is_building() {
-            self.building_foes.work(Duration::MAX);
-            std::mem::swap(&mut self.foes, &mut self.building_foes);
-        }
+        finish(&mut self.army, &mut self.building_army);
+        finish(&mut self.foes, &mut self.building_foes);
     }
 }

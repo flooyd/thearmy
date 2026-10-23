@@ -9,13 +9,17 @@
 //! - `parallel`: sharing the army's work out over the processor's cores
 //! - `minimap`, `hud`, `screens`, `ui`: what is drawn on top of the world, and the fonts and panels it is drawn with
 //! - `sites`: nests and villages in the world, `defenses`, `building`: what the player raises against the enemies
-//! - `save`: a run kept in a file and read back; `game`: the frame loop; `tests`: only built by `cargo test`
+//! - `save`: a run kept in a file and read back; `game`: one run as the player at this keyboard has it (the menu, the saves, the camera, the drawing)
+//! - `sim`: the world and its step, which takes the players' `input` and gives back `events` (and nothing else leaves it), so it can be stepped without a window;
+//!   `feedback`: what is shown and heard of those events; `wire`: the bytes inputs and events are written in
+//! - `tests`: only built by `cargo test`
 
 //a release build on Windows is a window program, with no console beside it (that also means its `eprintln!` messages go nowhere: a
 //debug build, `cargo run`, keeps the console, and so does `cargo test`)
 #![cfg_attr(all(not(debug_assertions), not(test)), windows_subsystem = "windows")]
 
 mod prelude;
+mod armies;
 mod boss;
 mod building;
 mod champions;
@@ -24,31 +28,48 @@ mod discs;
 mod combat;
 mod config;
 mod defenses;
+mod directory;
 mod effects;
 mod enemy;
 mod enemy_ai;
+mod events;
+mod feedback;
 mod formation;
 mod game;
+mod handshake;
 mod hordes;
 mod hud;
+mod input;
+mod lobby;
 mod minimap;
 mod music;
+mod net;
+mod online;
 mod parallel;
 mod pause;
 mod pathing;
+mod players;
+mod prey;
+mod replica;
 mod polish;
 mod relics;
 mod save;
 mod score;
 mod settings;
 mod screens;
+mod sim;
 mod sites;
 mod sound;
 mod spawning;
 mod squads;
+mod sync;
+mod team;
+mod textfield;
 mod ui;
 mod units;
+mod viewer;
 mod walls;
+mod wire;
 mod world;
 
 use prelude::*;
@@ -93,11 +114,12 @@ async fn main() {
     prevent_quit();
     load_fonts();
     settings.apply();
-    let mut start = show_splash(&saves).await;
+    //a game being hosted (so that others can join it) is kept for as long as runs follow one another, and closed when the title screen is back
+    let (mut link, mut start) = show_splash(&saves, &mut settings, None).await.into_parts();
     let mut sounds = Sounds::load(1.0).await;
     settings.tune(&mut sounds);
     loop {
-        match play(&mut sounds, &saves, &mut settings, start.take()).await {
+        match play(&mut sounds, &saves, &mut settings, start.take(), &mut link).await {
             Ending::Fallen(run) => {
                 //a run that is over can't be gone back to, only the quick save the player made themselves
                 saves.delete(Slot::Auto);
@@ -118,7 +140,23 @@ async fn main() {
             Ending::Title => {
                 //the run was kept as the game's own save, which the title screen offers to carry on from
                 next_frame().await;
-                start = show_splash(&saves).await;
+                drop(std::mem::replace(&mut link, Link::Solo));
+                (link, start) = show_splash(&saves, &mut settings, None).await.into_parts();
+            }
+            Ending::Left(why) => {
+                //a stay in the game of another is over
+                next_frame().await;
+                drop(std::mem::replace(&mut link, Link::Solo));
+                (link, start) = show_splash(&saves, &mut settings, Some(why.to_uppercase())).await.into_parts();
+            }
+            Ending::Lost(reconnect, why) => {
+                //the connection went: the player is put back in the game, as the same player, if the host has it still
+                next_frame().await;
+                drop(std::mem::replace(&mut link, Link::Solo));
+                match reconnect_to(&reconnect, &why).await {
+                    Ok((client, lobby)) => link = Link::Guest(client, lobby),
+                    Err(why) => (link, start) = show_splash(&saves, &mut settings, Some(why.to_uppercase())).await.into_parts(),
+                }
             }
         }
     }

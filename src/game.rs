@@ -47,12 +47,24 @@ impl Stillness {
     }
 }
 
+//whether the world stands still: it does for one player while they choose a relic, see the victory or have the menu up. with others in it
+//it never does, as it would stop for them all
+pub(crate) fn world_stands_still(players: usize, modal: bool) -> bool {
+    modal && players <= 1
+}
+
 //how a run came to an end
 pub(crate) enum Ending {
     Fallen(Run),      //the army is gone
     Reload(Snapshot), //the player went back to their quick save
     Title,            //the player left for the title screen, the run kept as the game's own save
+    Left(String),     //a stay in the game of another is over, and why
+    Lost(Reconnect, String), //the connection to the game of another went, and why: the player is to be put back in it if it can be done
 }
+
+//how long a player with no army is left before they have a few units again, in a world that goes on without them
+pub(crate) const REVIVE_SECONDS: f32 = 4.0;
+const WORLD_WAIT_SECONDS: f32 = 20.0; //how long a joined player waits for the world before giving up
 
 //the world at the start of a run: the player in the middle of it, with a few units, in the starting house
 pub(crate) fn new_run() -> Snapshot {
@@ -78,82 +90,115 @@ pub(crate) fn new_run() -> Snapshot {
         choice: None,
         victory: false,
         hordes: Hordes::new(),
+        company: Vec::new(),
     }
 }
 
-//one run of the game, from the starting house (or from a save) until the army is gone
-pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Settings, start: Option<Snapshot>) -> Ending {
+//one run of the game, from the starting house (or from a save) until the army is gone. the world is a `Sim` that is stepped once a frame with what
+//the player at this keyboard asked for (`Controls`), and what comes out of the step (`Feedback`) is what is shown and heard. everything else here is
+//the player's own: the menu, the saves, the camera, the screens and what is drawn
+pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Settings, start: Option<Snapshot>, link: &mut Link) -> Ending {
     //without a seed every run gets the same random numbers
     rand::srand(miniquad::date::now() as u64);
-    let Snapshot { player: start_at, mut zoom, mut run, mut rerolls, mut upgrades, wall_kind, wall_points, mut director, mut units, mut babies, mut walls, mut sites, mut enemies, mut choice, victory: was_victory, hordes: saved_hordes } =
-        start.unwrap_or_else(new_run);
-    //the most units the army can have is the player's to choose, in the settings, so it is theirs and not the run's
-    upgrades.army_limit = settings.army_limit;
-    upgrades.foe_answer = settings.difficulty.relic_answer();
-    let (mut x, mut y) = (start_at.x, start_at.y);
-    let speed = 800.0; //pixels per second
+    //a game that is another's is played in a copy of its world, which the host keeps up to date
+    let mut guest = match std::mem::replace(link, Link::Solo) {
+        Link::Guest(client, lobby) => Some(Guest::new(client, lobby)),
+        other => {
+            *link = other;
+            None
+        }
+    };
+    //(`choice`, the relics on offer, is in the world: it stands still while they are, and comes from the save along with the rest)
+    //victory: how long the victory screen has been up, the world stands still while it is
+    let (mut sim, mut zoom, mut victory): (Sim, f32, Option<f32>) = if guest.is_some() {
+        (Sim::mirror(), 1.0, None)
+    } else {
+        let snapshot = start.unwrap_or_else(new_run);
+        let (zoom, victory) = (snapshot.zoom, snapshot.victory.then_some(0.0));
+        (Sim::from_snapshot(snapshot, Rules::of(settings)), zoom, victory)
+    };
+    if let Some(seat) = guest.as_mut() {
+        if let Err(why) = await_world(seat, &mut sim).await {
+            return Ending::Left(why);
+        }
+    }
+    //the players at other machines that are in the game already
+    let mut table = Table::new();
+    if let Link::Host(host) = &*link {
+        let members = host.members();
+        sim.name_host(&members[0].name);
+        for member in members.iter().skip(1) {
+            if table.seat(&mut sim, member.slot, &member.name).is_err() {
+                host.kick(member.slot);
+            }
+        }
+    }
+    let mut empty_for = [0.0f32; MAX_PLAYERS]; //how long each player has had no army, in a world with others in it
+    //the player at this keyboard
+    let mut me = guest.as_ref().map_or(0, |guest| guest.me());
+    let mut controls = Controls::new();
+    let mut feedback = Feedback::new();
     let mut frame_time = 1.0 / 60.0; //smoothed so the number on the HUD can be read
-    let mut player_velocity = Vec2::ZERO;
-    let mut particles = Vec::new();
-    let mut mason = Mason::new();
-    mason.selected = wall_kind;
-    mason.points = wall_points;
-    let mut shots = Vec::new();
-    let mut hazards: Vec<Hazard> = Vec::new();
-    let mut pulls: Vec<Pull> = Vec::new();
-    let mut squads = Squads::new();
-    let mut fx = Effects::default();
-    //(`choice` is the relics on offer, the world stands still while they are, and comes from the save along with the rest)
-    let mut victory: Option<f32> = was_victory.then_some(0.0); //how long the victory screen has been up, the world stands still while it is
     let mut intro: Option<Intro> = None; //a boss's entrance
     //the family of the last boss that had an entrance, which one already in the world when a save is loaded has had
-    let mut shown_boss: Option<u32> = current_boss(&enemies).and_then(|boss| boss.boss.as_ref().map(|state| state.family));
+    let mut shown_boss: Option<u32> = current_boss(&sim.enemies).and_then(|boss| boss.boss.as_ref().map(|state| state.family));
     let mut stillness = Stillness::default();
-    let mut salvo_wait = 0.0; //seconds until an opening salvo can go off again
-    let mut walls_dirty = false; //walls went up or came down in the middle of the last frame
-    let mut milestone = next_milestone(units.len(), upgrades.army_limit);
-    let mut milestone_limit = upgrades.army_limit; //the limit it was worked out for
+    let mut milestone = next_milestone(sim.units.len(), sim.players.list[me].upgrades.army_limit);
+    let mut milestone_limit = sim.players.list[me].upgrades.army_limit; //the limit it was worked out for
     let mut banners = Banners::new();
     let mut fallen_for = 0.0; //how long there has been no army and nothing to make one from
+    let mut down_for = 0.0; //how long the player has had no army in a game with others, which goes on
     let mut map_view = MapView::Near;
     let mut autosave_in = AUTOSAVE_SECONDS; //seconds until the game saves by itself
-    let mut combo = Combo::default();
-    let mut ground: Vec<Mark> = Vec::new(); //scorch marks and what is left of enemies, which fade
-    let mut shards: Vec<Shard> = Vec::new(); //pieces of the enemies that have just been destroyed
     let mut heartbeat_in = 0.0; //seconds until the next beat while the army is failing
     let mut beat = 0.0; //1 as the heart beats, fading
     let mut pause: Option<Pause> = None; //the menu, while it is up
-    let mut hordes = saved_hordes;
     let best = saves.load_high_scores().best(); //the score to beat
-    let mut facing = Vec2::new(0.0, -1.0); //the way the army's formation is turned
-    //the army and the enemies follow routes to the player that are built a bit each frame
-    let mut routes = Routes::new(Vec2::new(x, y), &walls);
     //the run as it is now, to be kept
     macro_rules! capture {
         () => {
-            Snapshot::capture(Vec2::new(x, y), zoom, &run, rerolls, &upgrades, &mason, &director, &units, &babies, &walls, &sites, &enemies, choice.as_ref(), victory.is_some(), &hordes)
+            sim.capture(me, zoom, victory.is_some())
         };
+    }
+    //the game is closed, and so is the one that is hosted (the players in it are told) or the one that was joined (the host is told)
+    macro_rules! quit_game {
+        () => {{
+            drop(guest.take());
+            *link = Link::Solo;
+            std::process::exit(0)
+        }};
     }
 
     loop {
-        upgrades.army_limit = settings.army_limit;
-        upgrades.foe_answer = settings.difficulty.relic_answer();
+        let rules = Rules::of(settings);
         let real_dt = get_frame_time().min(MAX_FRAME_TIME);
         frame_time += (get_frame_time() - frame_time) * 0.05;
+        //what the host has said since the last frame, which is the world as it is now (a game that is another's is its host's to step)
+        if let Some(seat) = guest.as_mut() {
+            if let Err(lost) = seat.hear(&mut sim) {
+                return if lost.retry { Ending::Lost(seat.reconnection(), lost.why) } else { Ending::Left(lost.why) };
+            }
+            me = seat.me();
+        }
+        //a world with others in it is not saved: it is the host's, and goes on without them
+        let multi = sim.players.len() > 1;
+        //a game with others in it is kept in a save of its own, by the host (whose world it is, with everyone's army in it)
+        let keeps = guest.is_none();
+        let (quick_slot, auto_slot) = if multi { (Slot::Party, Slot::Party) } else { (Slot::Quick, Slot::Auto) };
         //the game is saved when the window is closed, when the player asks (F5), and by itself now and then and each time a
         //relic is taken. F9 goes back to what F5 saved. none of it while the army is falling, as there would be nothing to go
         //back to
         let quitting = is_quit_requested();
-        let by_hand = is_key_pressed(KeyCode::F5);
+        let by_hand = keeps && is_key_pressed(KeyCode::F5);
         autosave_in -= real_dt;
-        if fallen_for == 0.0 && (quitting || by_hand || autosave_in <= 0.0) {
+        if keeps && fallen_for == 0.0 && (quitting || by_hand || autosave_in <= 0.0) {
             let snapshot = capture!();
             if quitting || by_hand {
-                let slot = if quitting { Slot::Auto } else { Slot::Quick };
+                let slot = if quitting { auto_slot } else { quick_slot };
                 match saves.write(slot, &snapshot.to_text()) {
                     Ok(()) if !quitting => {
                         banners.push("GAME SAVED".to_owned(), CYAN);
-                        fx.cue(Cue::Pop);
+                        feedback.fx.cue(Cue::Pop);
                     }
                     Ok(()) => {}
                     Err(error) => {
@@ -162,14 +207,14 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                     }
                 }
             } else {
-                saves.write_in_background(Slot::Auto, snapshot);
+                saves.write_in_background(auto_slot, snapshot);
             }
             autosave_in = AUTOSAVE_SECONDS;
         }
         if quitting {
-            std::process::exit(0);
+            quit_game!();
         }
-        if is_key_pressed(KeyCode::F9) {
+        if !multi && is_key_pressed(KeyCode::F9) {
             match saves.read(Slot::Quick) {
                 Ok(snapshot) => return Ending::Reload(snapshot),
                 Err(error) => {
@@ -179,9 +224,39 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                 }
             }
         }
+        //people joining and leaving a game that is being hosted, and what the ones in it ask
+        if let Link::Host(host) = &*link {
+            for event in host.poll() {
+                match event {
+                    HostEvent::Joined { slot, name, .. } => match table.seat(&mut sim, slot, &name) {
+                        Ok(_) => banners.push(format!("{} JOINED", name.to_uppercase()), CYAN),
+                        Err(why) => {
+                            banners.push(format!("{} COULD NOT JOIN: {}", name.to_uppercase(), why.to_uppercase()), ALERT);
+                            host.kick(slot);
+                        }
+                    },
+                    HostEvent::Left { slot, name, .. } => {
+                        table.unseat(&mut sim, slot);
+                        banners.push(format!("{} LEFT", name.to_uppercase()), MUTED);
+                    }
+                    HostEvent::TurnedAway { .. } => {}
+                }
+            }
+            table.hear(host.take_inputs());
+            //(a game that is on the lobby list says who is in it now, and the player is told if it falls off)
+            host.announce(true);
+            for news in host.listing_news() {
+                if let DirectoryEvent::Unlisted(problem) = news {
+                    eprintln!("the game is not on the lobby list: {problem}");
+                    banners.push("NOT ON THE LOBBY LIST".to_owned(), ALERT);
+                }
+            }
+        }
         //the world stands still while a relic is being chosen or the victory is shown, crawls while a boss makes its entrance,
-        //and freezes for a moment when one falls
-        let paused = choice.is_some() || victory.is_some() || pause.is_some();
+        //and freezes for a moment when one falls, with one player to wait for. with others in it nothing stops the world for one of them
+        let paused = sim.players.list[me].choice.is_some() || victory.is_some() || pause.is_some();
+        let solo = sim.players.len() == 1;
+        let stands_still = guest.is_none() && world_stands_still(sim.players.len(), paused);
         if is_key_pressed(KeyCode::F11) {
             settings.fullscreen = !settings.fullscreen;
             miniquad::window::set_fullscreen(settings.fullscreen);
@@ -189,7 +264,10 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         }
         //(Esc opens the menu on a frame the world is running, so the key that opens it is not also taken to close it)
         if !paused && fallen_for == 0.0 && is_key_pressed(KeyCode::Escape) {
-            pause = Some(Pause::new(saves.info(Slot::Quick), Vec2::from(mouse_position())));
+            pause = Some(Pause::new(if multi { None } else { saves.info(Slot::Quick) }, Vec2::from(mouse_position())));
+        }
+        if let Some(menu) = pause.as_mut() {
+            menu.mode = if guest.is_some() { MenuMode::Guest } else if multi { MenuMode::Hosting } else { MenuMode::Solo };
         }
         if let Some(menu) = pause.as_mut().filter(|_| paused) {
             let input = MenuInput::read(&mut menu.last_mouse);
@@ -197,16 +275,18 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             match menu.update(settings, &input, Vec2::new(screen_width(), screen_height()), real_dt) {
                 PauseEvent::Nothing => {}
                 PauseEvent::Resume => pause = None,
+                PauseEvent::Load if multi => menu.tell("loading is switched off while others are in the game", ALERT),
+                PauseEvent::Save if !keeps => menu.tell("only the host can save the game", ALERT),
                 PauseEvent::Save => {
                     let snapshot = capture!();
-                    match saves.write(Slot::Quick, &snapshot.to_text()) {
+                    match saves.write(quick_slot, &snapshot.to_text()) {
                         Ok(()) => {
                             menu.tell("game saved", CYAN);
-                            fx.cue(Cue::Pop);
+                            feedback.fx.cue(Cue::Pop);
                             menu.saved = saves.info(Slot::Quick);
                         }
                         Err(error) => {
-                            eprintln!("could not save the game to {}: {error}", saves.path(Slot::Quick).display());
+                            eprintln!("could not save the game to {}: {error}", saves.path(quick_slot).display());
                             menu.tell("could not save the game, see the console for why", ALERT);
                         }
                     }
@@ -220,13 +300,18 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                 },
                 leaving @ (PauseEvent::Title | PauseEvent::Quit) => {
                     //the run is kept as the game's own save, which the title screen offers to carry on from
-                    let snapshot = capture!();
-                    if let Err(error) = saves.write(Slot::Auto, &snapshot.to_text()) {
-                        eprintln!("could not save the game to {}: {error}", saves.path(Slot::Auto).display());
+                    if keeps {
+                        let snapshot = capture!();
+                        if let Err(error) = saves.write(auto_slot, &snapshot.to_text()) {
+                            eprintln!("could not save the game to {}: {error}", saves.path(auto_slot).display());
+                        }
                     }
                     saves.save_settings(settings);
                     if leaving == PauseEvent::Quit {
-                        std::process::exit(0);
+                        quit_game!();
+                    }
+                    if let Some(seat) = guest.as_mut() {
+                        seat.leave();
                     }
                     return Ending::Title;
                 }
@@ -244,7 +329,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         if !paused {
             stillness.tick(real_dt);
         }
-        let pace = if paused {
+        let pace = if stands_still {
             0.0
         } else if entrance {
             INTRO_PACE
@@ -254,7 +339,6 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         let dt = real_dt * pace;
         //the player is held still for the entrance, and can skip it
         let player_dt = if entrance { 0.0 } else { dt };
-        run.seconds += dt;
         if let Some(shown) = intro.as_mut() {
             shown.age += real_dt;
         }
@@ -264,13 +348,8 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         if !entrance {
             handle_zoom(&mut zoom);
         }
-        //the bigger the army the faster everyone is, and relics speed up the player and the army but not the enemies
-        let enemy_boost = speed_multiplier(units.len());
-        //champions can add to what the relics do: faster, babies from further, more babies dropped
-        let perks = Perks::of(&units);
-        let perked = perks.applied(&upgrades);
-        let boost = perked.army_boost(units.len());
-        //a left click on an enemy sends the closest units at it, and doesn't build a wall
+
+        //what the player at this keyboard asks for: the keys that are about the screen and the sound are taken here, the rest are the world's
         if is_key_pressed(KeyCode::Tab) {
             map_view = map_view.other();
         }
@@ -281,253 +360,122 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             sounds.music.on = !sounds.music.on;
         }
         let screen = Vec2::new(screen_width(), screen_height());
-        let map = Minimap::new(screen, map_view, Vec2::new(x, y));
+        let at = sim.players.list[me].position; //where the player starts the frame
+        let map = Minimap::new(screen, map_view, at);
         let over_map = map.contains(Vec2::from(mouse_position()));
-        if let Some(open) = choice.as_mut() {
-            open.age += get_frame_time();
-            if open.age >= RELIC_LOCKOUT && rerolls > 0 && is_key_pressed(KeyCode::R) {
-                rerolls -= 1;
-                open.reroll();
-                fx.cue(Cue::Pop);
-            }
-            let key = [KeyCode::Key1, KeyCode::Key2, KeyCode::Key3].iter().position(|&key| is_key_pressed(key));
-            let click = if is_mouse_button_pressed(MouseButton::Left) { relic_card_at(screen, Vec2::from(mouse_position())) } else { None };
-            if let Some(picked) = key.or(click).filter(|_| open.age >= RELIC_LOCKOUT) {
-                let relic = open.options[picked];
-                upgrades.take(relic);
-                if relic == Relic::Muster {
-                    spread_babies(&mut babies, Vec2::new(x, y), (units.len() / 8).max(10), units.len(), upgrades.unit_cap(), TILE_SIZE * 3.0);
-                }
-                fx.cue(Cue::Relic);
-                fx.add_punch(0.3);
-                autosave_in = 0.0;
-                fx.popup(Vec2::new(x, y), RADIUS * 2.0, 0.0, format!("{}!", relic.name()), relic.color());
-                choice = None;
-            }
-        }
         if let Some(age) = victory.as_mut() {
             *age += get_frame_time();
             if *age >= VICTORY_LOCKOUT && get_last_key_pressed().is_some() {
                 //the run goes on, with a rare relic for having won
                 victory = None;
-                choice = Some(RelicChoice::rare());
+                sim.players.list[me].offer(RelicChoice::rare());
             }
         }
         let acting = !paused && !entrance;
         if acting && is_key_pressed(KeyCode::F) {
             settings.formation = settings.formation.next();
             saves.save_settings(settings);
-            fx.cue(Cue::Pop);
-            fx.popup(Vec2::new(x, y), RADIUS * 3.0, 0.0, format!("{} FORMATION", settings.formation.name().to_uppercase()), CYAN);
+            feedback.fx.cue(Cue::Pop);
+            feedback.fx.popup(at, RADIUS * 3.0, 0.0, format!("{} FORMATION", settings.formation.name().to_uppercase()), CYAN);
         }
-        if acting && is_key_pressed(KeyCode::R) {
-            recall_squads(&mut units, &mut squads, Vec2::new(x, y), &mut fx);
-        }
-        let clicked_enemy = acting && click_on_enemy(x, y, zoom, &map, &enemies, &mut units, &mut squads, &mut fx);
-        //what hit the walls last frame is spent, then the player builds
-        let mut walls_changed = update_walls(&mut walls, &mut units, dt, &mut fx);
-        walls_changed |= std::mem::take(&mut walls_dirty);
-        if acting && !over_map && is_key_pressed(KeyCode::G) {
-            if let Some(tile) = hovered_tile(x, y, zoom) {
-                man_tower(&mut walls, &mut units, tile, &mut fx);
-            }
-        }
-        let army = units.len();
-        walls_changed |= acting && edit_walls(&mut mason, &mut walls, &mut units, &babies, Vec2::new(x, y), zoom, clicked_enemy, over_map, dt, army, &upgrades, &mut fx);
-        let player_was = Vec2::new(x, y);
-        handle_input(&mut x, &mut y, speed * boost, player_dt, &walls);
-        //a gravity well drags the army, and the player less
-        let dragged = update_pulls(&mut pulls, &mut units, Vec2::new(x, y), &walls, dt);
-        (x, y) = (dragged.x, dragged.y);
-        let player = Vec2::new(x, y);
-        player_velocity = smoothed_velocity(player_velocity, player_was, player, player_dt);
-        facing = turn_to_face(facing, player_velocity, player_dt);
-        let drill = Drill { formation: settings.formation, facing };
-        //what the run is worth now, and the best there has been (the best run kept, or this one if it is better already)
-        let score = score_of(&run, settings.difficulty);
-        //the enemies are made for an army this big: the player's, with the bosses they have slain and the difficulty chosen
-        let pressure = ((enemy_pressure(units.len(), run.bosses) as f32 * settings.difficulty.pressure()) as usize).max(1);
-        if !paused {
-            let boss_busy = current_boss(&enemies).is_some();
-            //a horde is announced, and then it is there
-            match hordes.update(&mut enemies, player, units.len(), pressure, boss_busy, dt) {
-                Some(HordeBeat::Warned { name, from }) => {
-                    fx.announce(format!("{} FROM THE {from}", name.to_uppercase()), Color::new(1.0, 0.6, 0.2, 1.0));
-                    fx.cue(Cue::Warning);
-                }
-                Some(HordeBeat::Arrived { name, count }) => {
-                    fx.popup(player, RADIUS * 5.0, 60.0, format!("{} ({count})", name.to_uppercase()), Color::new(1.0, 0.6, 0.2, 1.0));
-                    fx.add_shake(0.3);
-                    fx.cue(Cue::PhaseShift);
-                }
-                Some(HordeBeat::Broken { name, tier }) => {
-                    let hold = CHEST_HOLD_SECONDS[(tier.clamp(1, 3) - 1) as usize];
-                    let hold = if hold > 0.0 { format!(": HOLD IT {hold:.0}s") } else { String::new() };
-                    fx.announce(format!("{} BROKEN: A {} CHEST LIES WHERE IT FELL{hold}", name.to_uppercase(), tier_name(tier)), tier_color(tier));
-                    fx.cue(Cue::Milestone);
-                    fx.add_punch(0.25);
-                }
-                None => {}
-            }
-            //a chest the army has got to is opened (the world stands still for relics, so they wait if a choice is up already)
-            if choice.is_none() {
-                for chest in take_reached(&mut hordes.chests, player, &units, &enemies, dt) {
-                    if choice.is_some() {
-                        hordes.chests.push(chest);
-                    } else if open_chest(&chest, units.len(), upgrades.unit_cap(), &mut babies, &mut fx) {
-                        choice = Some(RelicChoice::from_chest(chest.tier));
-                        autosave_in = 0.0;
-                    }
-                }
-            }
-            let news = update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, player, dt, boss_busy, upgrades.unit_cap(), run.citadels as u32, &mut fx);
-            walls_changed |= news.walls_changed;
-            if news.citadel_woke {
-                if let Some(lord) = enemies.iter_mut().find(|enemy| enemy.boss.is_some() && enemy.site.is_some()) {
-                    lord.harden(settings.difficulty.boss_rounds());
-                }
-            }
-            run.nests += news.nests;
-            run.villages += news.villages;
-            if news.citadel {
-                run.bosses += 1;
-                run.citadels += 1;
-                victory = Some(0.0);
-                stillness = Stillness::after_a_boss();
-                hazards.clear();
-                shots.clear();
-                pulls.clear();
-                fx.cue(Cue::Victory);
-                fx.add_punch(1.0);
-                fx.announce("THE CITADEL HAS FALLEN".to_owned(), Color::new(1.0, 0.85, 0.3, 1.0));
-                fx.recruits.push((player, Odds::Citadel));
-            }
-        }
-        //the routes only change when the player moves to another grid square or a wall changes
-        routes.update(player, &walls, walls_changed);
-        //a squad whose units have all died is a sad moment
-        for lost_at in update_squads(&mut squads, &enemies, &mut units, &walls, walls_changed) {
-            fx.cue(Cue::SquadLost);
-            fx.popup(lost_at, RADIUS * 3.0, 0.0, "SQUAD LOST".to_owned(), ALERT);
-        }
-        update_units_in(&mut units, x, y, dt, &walls, &routes.army, boost, &squads, &drill);
-        //the champions' might and wards, auras and healing for the frame
-        apply_champions(&mut units, dt);
+        let input = if acting {
+            controls.read(&ControlView { position: at, zoom, screen, formation: settings.formation, map: &map, enemies: &sim.enemies })
+        } else {
+            PlayerInput::idle(settings.formation, screen)
+        };
+        //(choosing a relic is all they can do until they have)
+        let relic = if sim.players.list[me].choice.is_some() { read_relic_act(screen) } else { None };
 
-        //the fighting: enemies walk, run at the player, dash, heal, summon or shoot, bosses wind up their attacks, the
-        //shots fly and the hazards go off, everything touching an enemy hurts and is hurt, and whatever has run out of
-        //health is gone
-        terrain_effects(&mut enemies, &walls, dt, &mut fx);
-        champion_acts(&mut units, &mut enemies, &mut babies, &perked, upgrades.unit_cap(), dt, &mut fx);
-        spring_ambushes(&mut enemies, player, &mut fx);
-        rally_followers(&mut enemies);
-        patrol_enemies(&mut enemies, player, dt, enemy_boost, &walls, &routes.foes, &mut fx);
-        chew_walls(&enemies, &walls, dt, &mut fx);
-        enemy_abilities(&mut enemies, &units, player, dt, &mut fx);
-        boss_act(&mut enemies, &units, player, dt, &mut shots, &mut fx);
-        walls_dirty |= raise_walls(&mut walls, &mut fx.raise);
-        pulls.append(&mut fx.pulls);
-        shoot_enemies(&mut enemies, &units, &mut shots, dt, &mut fx);
-        fire_towers(&mut walls, &mut enemies, &upgrades, dt, &mut fx);
-        chew_hostile_walls(&units, &walls, &upgrades, dt, &mut fx);
-        hazards.append(&mut fx.hazards);
-        update_shots(&mut shots, &mut units, &walls, dt, &upgrades, &mut fx);
-        update_hazards(&mut hazards, &mut units, &upgrades, dt, &mut fx);
-        heal_units(&mut units, dt, &upgrades);
-        let destroyed = fight(&mut enemies, &mut units, &mut babies, dt, &perked, &mut fx);
-        call_for_help(&mut enemies, std::mem::take(&mut fx.alarms), &mut fx);
-        run.destroyed += destroyed;
-        train_champions(&mut units, std::mem::take(&mut fx.xp), &mut fx);
-        if let Some((size, name)) = combo.add(destroyed) {
-            fx.cue(Cue::Combo);
-            fx.add_punch(0.25);
-            fx.popup(player, RADIUS * 4.0, 30.0, format!("{name}!  x{size}"), TROPHY);
-        }
-        combo.update(dt);
-        hazards.append(&mut fx.hazards);
-        tick_enemy_numbers(&mut enemies, dt, &mut fx);
-        run.lost += bury_units(&mut units, &mut fx);
-        martyr_blasts(&mut enemies, &std::mem::take(&mut fx.fallen), &upgrades);
-        opening_salvo(&mut enemies, player, &mut salvo_wait, dt, &upgrades, &mut fx);
-        heal_everyone(&mut units, std::mem::take(&mut fx.heal_all));
-        mason.earn(std::mem::take(&mut fx.points) * upgrades.quarry);
-        mason.earn(perks.points * dt);
-        respawn_enemies(&mut enemies, x, y, pressure);
-        let pickup_range = baby_pickup_range(units.len(), Vec2::new(screen_width(), screen_height())) * perked.pickup;
-        grow_babies(&mut babies, &mut units, x, y, dt, pickup_range, upgrades.unit_cap(), &mut fx);
-
-        //bosses come and go
-        if !paused {
-            match director.update(&mut enemies, player, units.len(), dt) {
-                Some(Beat::Warning) => {
-                    fx.announce(format!("{} APPROACHES", director.next_def().name.to_uppercase()), Color::new(1.0, 0.6, 0.2, 1.0));
-                    fx.cue(Cue::Warning);
+        //the world: stepped here, or by the host of a game that is another's
+        let input = PlayerInput { relic, ..input };
+        let Step { events, report } = match guest.as_mut() {
+            Some(seat) => Step { events: seat.frame(&mut sim, &input, zoom, real_dt), report: seat.report(&sim) },
+            None => {
+                let step = sim.step(table.inputs(&sim, input, real_dt), Pace { real_dt, dt, player_dt, stands_still }, rules);
+                if let Link::Host(host) = &*link {
+                    table.tell(host, &mut sim, &step.events, &step.report, real_dt);
                 }
-                Some(Beat::Arrived(name)) => {
-                    if let Some(boss) = enemies.iter_mut().find(|enemy| director.boss == Some(enemy.id)) {
-                        boss.harden(settings.difficulty.boss_rounds());
-                    }
-                    fx.announce(name.to_uppercase(), Color::new(1.0, 0.3, 0.25, 1.0));
-                    fx.add_shake(0.6);
-                    fx.add_punch(0.6);
-                    fx.cue(Cue::PhaseShift);
-                }
-                Some(Beat::Slain { name, tier }) => {
-                    run.bosses += 1;
-                    //whatever it had thrown is gone with it, the babies it dropped shouldn't grow up into its fire
-                    hazards.clear();
-                    shots.clear();
-                    pulls.clear();
-                    fx.announce(format!("{} IS SLAIN", name.to_uppercase()), Color::new(1.0, 0.85, 0.3, 1.0));
-                    fx.cue(Cue::Milestone);
-                    stillness = Stillness::after_a_boss();
-                    fx.add_punch(1.0);
-                    //another reroll for every third boss
-                    if run.bosses % 3 == 0 {
-                        rerolls += 1;
-                    }
-                    choice = Some(RelicChoice::new());
-                    if boss_drops_champion(run.bosses, rand::gen_range(0.0, 1.0)) {
-                        fx.recruits.push((player, Odds::Boss(tier)));
-                    }
-                }
-                None => {}
+                step
             }
-            //a boss that has just turned up is shown off, once
-            if let Some(boss) = current_boss(&enemies) {
+        };
+        let player = sim.players.list[me].position;
+        feedback.absorb(events, me, player);
+        if report.save_soon {
+            autosave_in = 0.0;
+        }
+        if solo && report.citadel {
+            victory = Some(0.0);
+        }
+        if solo && (report.citadel || report.boss_slain) {
+            stillness = Stillness::after_a_boss();
+        }
+        //a boss that has just turned up is shown off, once
+        if !stands_still {
+            if let Some(boss) = current_boss(&sim.enemies) {
                 let family = boss.boss.as_ref().map(|state| state.family);
                 if family != shown_boss {
                     shown_boss = family;
-                    intro = Some(Intro::new(boss));
+                    //(an entrance slows the world, and there is no slowing it for one of several)
+                    if solo {
+                        intro = Some(Intro::new(boss));
+                    }
                 }
             }
         }
-
-        award_recruits(&mut units, &mut babies, upgrades.unit_cap(), &mut fx);
+        let boost = report.boosts[me];
+        let pickup_range = report.pickup_ranges[me];
 
         //round army sizes get a message, once. the army being gone is the end, but not while there are babies to be picked up
-        run.peak_army = run.peak_army.max(units.len());
-        if upgrades.army_limit != milestone_limit {
+        let sizes = army_sizes(&sim.units);
+        let my_army = sizes[me];
+        //(how big every army is: the host tells the others, who are not sent the units that are out of their sight)
+        let army_list: Vec<usize> = match &guest {
+            Some(seat) if seat.replica.armies.len() == sim.players.len() => seat.replica.armies.clone(),
+            _ => sizes[..sim.players.len()].to_vec(),
+        };
+        let members = match &*link {
+            Link::Host(host) => host.members(),
+            _ => guest.as_ref().map(|seat| seat.lobby.members.clone()).unwrap_or_default(),
+        };
+        let mates = if multi { mates_of(&sim.players, &army_list, &members, me) } else { Vec::new() };
+        list_players(mates.len());
+        let colors = team_colors(&sim.players);
+        let team_tint = multi.then_some(&colors[..]); //what the armies are tinted towards, in a game with others
+        let team = team_tint.map(|colors| Team { colors, mates: &mates });
+        down_for = if multi && my_army == 0 { down_for + real_dt } else { 0.0 };
+        //(in a world with others in it a player with no army has a few units again after a while, and the world goes on)
+        if multi && guest.is_none() {
+            for (player, empty) in empty_for.iter_mut().enumerate().take(sim.players.len()) {
+                *empty = if sizes[player] == 0 && !sim.players.list[player].is_away() { *empty + real_dt } else { 0.0 };
+                if *empty >= REVIVE_SECONDS {
+                    sim.revive(player);
+                    *empty = 0.0;
+                    banners.push(if player == me { "YOUR ARMY FELL: A FEW UNITS COME TO YOUR SIDE".to_owned() } else { format!("{}'S ARMY FELL", sim.players.list[player].name.to_uppercase()) }, ALERT);
+                }
+            }
+        }
+        let limit = sim.players.list[me].upgrades.army_limit;
+        if limit != milestone_limit {
             //the limit was changed in the settings: the sizes ahead are worked out again
-            milestone_limit = upgrades.army_limit;
-            milestone = next_milestone(units.len(), milestone_limit);
+            milestone_limit = limit;
+            milestone = next_milestone(my_army, milestone_limit);
         }
-        while units.len() >= milestone {
-            let text = if milestone == upgrades.army_limit { format!("FULL STRENGTH: {milestone} UNITS") } else { format!("ARMY OF {milestone}!") };
+        while my_army >= milestone {
+            let text = if milestone == limit { format!("FULL STRENGTH: {milestone} UNITS") } else { format!("ARMY OF {milestone}!") };
             banners.push(text, Color::new(1.0, 0.9, 0.4, 1.0));
-            fx.cue(Cue::Milestone);
-            fx.add_shake(0.25);
-            fx.add_punch(0.5);
-            milestone = next_milestone(milestone, upgrades.army_limit);
+            feedback.fx.cue(Cue::Milestone);
+            feedback.fx.add_shake(0.25);
+            feedback.fx.add_punch(0.5);
+            milestone = next_milestone(milestone, limit);
         }
-        for (text, color) in fx.announcements.drain(..) {
+        for (text, color) in feedback.fx.announcements.drain(..) {
             banners.push(text, color);
         }
         banners.update(real_dt);
-        if units.is_empty() && babies.is_empty() {
+        if !multi && my_army == 0 && sim.babies.is_empty() {
             if fallen_for == 0.0 {
-                fx.cue(Cue::Defeat);
-                fx.add_shake(0.8);
+                feedback.fx.cue(Cue::Defeat);
+                feedback.fx.add_shake(0.8);
             }
             fallen_for += dt;
         } else {
@@ -535,27 +483,23 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         }
 
         //a failing army has a heart that beats faster the closer it is to the end
-        let in_peril = peril(units.len(), run.peak_army);
+        let in_peril = peril(my_army, sim.run.peak_army);
         beat = (beat - real_dt * 3.0f32).max(0.0);
         if in_peril > 0.0 && !paused {
             heartbeat_in -= real_dt;
             if heartbeat_in <= 0.0 {
-                fx.cue(Cue::Heartbeat);
+                feedback.fx.cue(Cue::Heartbeat);
                 beat = 1.0;
                 heartbeat_in = 1.15 - 0.65 * in_peril;
             }
         } else {
             heartbeat_in = 0.3;
         }
-        fx.update(dt, player);
-        fx.spawn_bursts(&mut particles);
-        update_marks(&mut ground, &mut fx.marks, dt);
-        throw_shards(&mut shards, &mut fx.shards);
-        update_shards(&mut shards, dt);
-        sounds.play(&fx.take_cues(), player, get_time());
+        feedback.update(dt, player);
+        sounds.play(&feedback.fx.take_cues(), player, get_time());
         //the music follows the size of the army and how much danger there is: enemies that have noticed the player and are near
-        let chasing = enemies.iter().filter(|enemy| enemy.chasing && enemy.position.distance(player) < MUSIC_DANGER_RANGE).count();
-        sounds.tune_music(&Mood { army: units.len(), danger: (chasing as f32 / MUSIC_DANGER_ENEMIES).min(1.0), boss: current_boss(&enemies).is_some(), peril: in_peril }, real_dt);
+        let chasing = sim.enemies.iter().filter(|enemy| enemy.chasing && enemy.position.distance(player) < MUSIC_DANGER_RANGE).count();
+        sounds.tune_music(&Mood { army: my_army, danger: (chasing as f32 / MUSIC_DANGER_ENEMIES).min(1.0), boss: current_boss(&sim.enemies).is_some(), peril: in_peril }, real_dt);
         //the camera goes to the boss and back during its entrance
         let (camera_at, camera_zoom) = match &intro {
             Some(shown) if entrance => (player.lerp(shown.at, shown.ease()), zoom * (1.0 - 0.35 * shown.ease())),
@@ -563,14 +507,25 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         };
         //units off screen don't leave trails, nobody would see them
         let view = visible_area(camera_at.x, camera_at.y, camera_zoom);
-        emit_trail(&mut particles, player, player_velocity, speed * boost, dt, BLUE);
-        for unit in &units {
+        for other in &sim.players.list {
+            emit_trail(&mut feedback.particles, other.position, other.velocity, PLAYER_SPEED * boost, dt, other.color);
+        }
+        for unit in &sim.units {
             let position = Vec2::new(unit.x, unit.y);
             if view.contains(position) {
-                emit_trail(&mut particles, position, unit.velocity, unit.speed * boost, dt, unit_color(unit));
+                emit_trail(&mut feedback.particles, position, unit.velocity, unit.speed * boost, dt, unit_color_in(unit, team_tint));
             }
         }
-        update_particles(&mut particles, dt);
+        update_particles(&mut feedback.particles, dt);
+
+        //what the run is worth now, and the best there has been (the best run kept, or this one if it is better already)
+        let score = score_of(&sim.run, settings.difficulty);
+        //(the enemies near the player at this keyboard are as fast as their army makes them)
+        let enemy_boost = speed_multiplier(my_army);
+        let ranges = sim.arrange();
+        let Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots, hazards, pulls, .. } = &sim;
+        let fx = &feedback.fx;
+        let drill = players.list[me].drill();
 
         clear_background(BLACK);
         //the camera jumps in a little for big moments
@@ -579,58 +534,69 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         let camera = follow_camera(shaken.x, shaken.y, drawn_zoom);
         set_camera(&camera);
         let drawn = visible_area(shaken.x, shaken.y, drawn_zoom);
-        let hovered = if over_map || paused || entrance { None } else { hovered_tile(x, y, zoom) };
+        let hovered = if over_map || paused || entrance { None } else { hovered_tile(player.x, player.y, zoom) };
         draw_world(camera_at.x, camera_at.y, drawn_zoom, hovered);
-        draw_floor(camera_at.x, camera_at.y, drawn_zoom, &walls, get_time() as f32);
-        draw_formation_outline(drill.formation, player, drill.facing, units.len(), drawn_zoom);
-        draw_discs(Layer::Marks,&mark_discs(&ground, drawn), &camera);
-        draw_sites(&sites, view, get_time() as f32);
-        draw_discs(Layer::Puffs, &particle_discs(&particles), &camera);
-        draw_enemies(&enemies, &squads, get_time() as f32, enemy_boost);
-        draw_shards(&shards, drawn);
-        draw_hazards(&hazards, get_time() as f32);
-        draw_pulls(&pulls, get_time() as f32);
+        draw_floor(camera_at.x, camera_at.y, drawn_zoom, walls, get_time() as f32);
+        draw_formation_outline(drill.formation, player, drill.facing, my_army, drawn_zoom);
+        draw_discs(Layer::Marks, &mark_discs(&feedback.ground, drawn), &camera);
+        draw_sites(sites, view, get_time() as f32);
+        draw_discs(Layer::Puffs, &particle_discs(&feedback.particles), &camera);
+        draw_enemies(enemies, &players.list[me].squads, get_time() as f32, enemy_boost);
+        draw_shards(&feedback.shards, drawn);
+        draw_hazards(hazards, get_time() as f32);
+        draw_pulls(pulls, get_time() as f32);
         draw_chests(&hordes.chests, drawn, get_time() as f32);
-        draw_discs(Layer::Army, &unit_discs(&units, drawn), &camera);
-        draw_discs(Layer::Babies, &baby_discs(&babies, drawn), &camera);
-        draw_champions(&units, drawn, drawn_zoom, get_time() as f32);
-        draw_shots(&shots);
-        draw_discs(Layer::Player, &[Disc::new(x, y, RADIUS, BLUE).edged(UNIT_BORDER)], &camera);
+        draw_discs(Layer::Army, &unit_discs_in(units, drawn, team_tint, settings.unit_shape), &camera);
+        draw_discs(Layer::Babies, &baby_discs(babies, drawn), &camera);
+        draw_champions(units, drawn, drawn_zoom, get_time() as f32);
+        if let Some(colors) = team_tint {
+            draw_champion_rings(units, colors, drawn, drawn_zoom);
+        }
+        draw_shots(shots);
+        //(one that has gone is a faint mark of where they will find their army)
+        let avatars: Vec<Disc> = players.list.iter().enumerate().map(|(i, other)| {
+            let gone = mates.get(i).is_some_and(|mate| mate.away);
+            let color = if gone { Color::new(other.color.r, other.color.g, other.color.b, 0.3) } else { other.color };
+            Disc::new(other.position.x, other.position.y, RADIUS, color).edged(if gone { 0.0 } else { UNIT_BORDER })
+        }).collect();
+        draw_discs(Layer::Player, &avatars, &camera);
         draw_chest_holds(&hordes.chests, drawn);
         //the walls go on top of everything in the world, the numbers and the screen over them are for reading
-        draw_walls(camera_at.x, camera_at.y, drawn_zoom, hovered, &walls, if paused || entrance { None } else { Some(mason.selected) }, get_time() as f32);
+        draw_walls(camera_at.x, camera_at.y, drawn_zoom, hovered, walls, if paused || entrance { None } else { Some(players.list[me].mason.selected) }, get_time() as f32);
         draw_beams(&fx.beams);
         draw_rings(&fx.rings);
         draw_popups(&fx.popups, drawn_zoom);
         set_default_camera();
+        draw_tags(&mates, shaken, drawn_zoom);
         draw_vignette(in_peril, beat);
-        draw_roster(&units, if pause.is_some() { Vec2::splat(-1000.0) } else { Vec2::from(mouse_position()) });
-        draw_hud(x, y, frame_time, units.len(), &run, boost, pickup_range, sounds.muted, sounds.music.on, settings.formation, &director, &sites, upgrades.unit_cap(), hordes.status(&enemies), &upgrades.damage_text(), score, best);
+        let my_units = &units[ranges[me].clone()];
+        draw_roster(my_units, if pause.is_some() { Vec2::splat(-1000.0) } else { Vec2::from(mouse_position()) });
+        draw_hud(player.x, player.y, frame_time, my_army, run, boost, pickup_range, sounds.muted, sounds.music.on, settings.formation, director, sites, players.list[me].upgrades.unit_cap(), hordes.status(enemies), &players.list[me].upgrades.damage_text(), score, best);
         if settings.hints && !paused && run.seconds < HINT_SECONDS {
             draw_hints(run.seconds);
         }
-        if let Some(warning) = blast_warning(&hazards, Vec2::new(x, y), &units) {
+        if let Some(warning) = blast_warning(hazards, player, my_units) {
             draw_blast_warning(&warning, get_time() as f32);
         }
-        draw_build_bar(&mason, get_time() as f32);
-        if choice.is_none() {
-            draw_combo(&combo);
+        draw_build_bar(&players.list[me].mason, get_time() as f32);
+        if players.list[me].choice.is_none() {
+            draw_combo(&feedback.combo);
         }
         //the player has moved since the map was made, so make it again to draw
         let map = Minimap::new(screen, map_view, player);
         let mouse = Vec2::from(mouse_position());
         if !paused && !entrance {
-            draw_relic_bar(&upgrades, mouse);
+            draw_relic_bar(&players.list[me].upgrades, mouse);
         }
         //the enemy under the mouse, in the world or as a dot on the map
         let under_mouse = if paused || entrance {
             None
         } else if over_map {
-            minimap_enemy_at(&map, mouse, &enemies)
+            minimap_enemy_at(&map, mouse, enemies)
         } else {
-            enemy_at(mouse_world(x, y, zoom), &enemies, ENEMY_CLICK_MARGIN / zoom)
+            enemy_at(mouse_world(player.x, player.y, zoom), enemies, ENEMY_CLICK_MARGIN / zoom)
         };
-        draw_minimap(&map, map_view, player, view, if over_map { under_mouse } else { None }, &units, &enemies, &babies, &squads, &walls, &hazards, &sites, get_time() as f32);
+        draw_minimap(&map, map_view, player, view, if over_map { under_mouse } else { None }, units, enemies, babies, &players.list[me].squads, walls, hazards, sites, team.as_ref(), get_time() as f32);
         if let Some(coming) = &hordes.coming {
             for at in [Some(coming.at), coming.other].into_iter().flatten() {
                 draw_horde_ping(&map, at, get_time() as f32);
@@ -638,41 +604,82 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         }
         draw_chest_marks(&map, &hordes.chests, get_time() as f32);
         if let Some(enemy) = under_mouse.map(|i| &enemies[i]) {
-            draw_enemy_tooltip(enemy, units.iter().filter(|unit| unit.target.is_none()).count(), map.rect);
+            draw_enemy_tooltip(enemy, my_units.iter().filter(|unit| unit.target.is_none()).count(), map.rect);
         }
-        for at in hordes.headings(&enemies, player) {
+        for at in hordes.headings(enemies, player) {
             draw_horde_arrow(at, camera_at, camera_zoom, hordes.coming.map(|coming| coming.left));
         }
-        draw_captain_arrows(&enemies, camera_at, camera_zoom);
+        draw_captain_arrows(enemies, camera_at, camera_zoom);
+        draw_mate_arrows(&mates, camera_at, camera_zoom);
+        draw_team_panel(&mates);
+        //(a player with no army in a world that goes on has a few units again in a moment)
+        if down_for > 0.3 {
+            draw_fallen((REVIVE_SECONDS - down_for).max(0.0), down_for - 0.3);
+        }
         draw_chest_arrow(&hordes.chests, player, camera_at, camera_zoom);
-        if let Some(boss) = current_boss(&enemies) {
+        if let Some(boss) = current_boss(enemies) {
             let alive = enemies.iter().filter(|other| other.boss.as_ref().zip(boss.boss.as_ref()).is_some_and(|(a, b)| a.family == b.family)).count();
-            draw_boss_bar(boss, family_health(&enemies, boss), alive);
+            draw_boss_bar(boss, family_health(enemies, boss), alive);
             draw_boss_arrow(boss, camera_at, camera_zoom);
         }
         if let Some(shown) = intro.as_ref().filter(|_| entrance) {
             draw_intro(shown);
         }
+        if let Some(quiet) = guest.as_ref().map(|seat| seat.silence()).filter(|&quiet| quiet > QUIET_SECONDS) {
+            draw_trouble(quiet);
+        }
         if let Some(menu) = &pause {
-            menu.draw(settings, miniquad::date::now());
+            let hosting = match &*link {
+                Link::Host(host) => Some(match sim.players.away_names().as_slice() {
+                    [] => hosting_line(host),
+                    away => format!("{} (AWAY: {})", hosting_line(host), away.join(", ")),
+                }),
+                _ => guest.as_ref().map(|seat| joined_line(&seat.lobby.members)),
+            };
+            menu.draw(settings, miniquad::date::now(), hosting.as_deref());
         }
         //the relic choice has the screen to itself
-        if let (Some(banner), None, None, None) = (&banners.shown, &choice, &victory, &pause) {
+        if let (Some(banner), None, None, None) = (&banners.shown, &players.list[me].choice, &victory, &pause) {
             draw_banner(banner);
         }
-        if let Some(open) = &choice {
-            draw_relic_choice(open, &upgrades, rerolls);
+        if let Some(open) = &players.list[me].choice {
+            draw_relic_choice(open, &players.list[me].upgrades, players.list[me].rerolls);
         }
         if let Some(age) = victory {
-            draw_victory(age, &run, score);
+            draw_victory(age, run, score);
         }
         if fallen_for > 0.0 {
             let fade = (fallen_for / FALL_SECONDS).min(1.0);
             draw_rectangle(0.0, 0.0, screen_width(), screen_height(), Color::new(0.0, 0.0, 0.0, 0.85 * fade));
             if fallen_for >= FALL_SECONDS {
-                return Ending::Fallen(run);
+                return Ending::Fallen(run.clone());
             }
         }
+        next_frame().await;
+    }
+}
+
+//the wait for the host to say enough of the world to show it, which is the first message it sends a player. Esc gives up
+async fn await_world(seat: &mut Guest, sim: &mut Sim) -> Result<(), String> {
+    let mut time = 0.0;
+    loop {
+        quit_if_asked();
+        seat.hear(sim)?;
+        if seat.ready() {
+            return Ok(());
+        }
+        if is_key_pressed(KeyCode::Escape) {
+            return Err("you left the game".to_owned());
+        }
+        if time > WORLD_WAIT_SECONDS {
+            return Err("the host never sent the world".to_owned());
+        }
+        draw_backdrop(time);
+        let (w, h) = (screen_width(), screen_height());
+        let line = format!("JOINING THE HOST'S WORLD{}", ".".repeat(1 + (time * 2.0) as usize % 3));
+        draw_label_centered(&line, w / 2.0, h * 0.5, fit_size(&line, (h * 0.04).round(), w * 0.9, Face::Bold), CYAN, Face::Bold);
+        draw_label_centered("Esc to leave", w / 2.0, h * 0.5 + h * 0.06, (h * 0.026).round(), MUTED, Face::Body);
+        time += get_frame_time();
         next_frame().await;
     }
 }

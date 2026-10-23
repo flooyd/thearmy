@@ -79,44 +79,54 @@ pub(crate) fn spawn_warband(player_x: f32, player_y: f32, army: usize) -> Vec<En
     band
 }
 
-//enemies are never used up: whenever there are fewer than ENEMY_COUNT, new ones turn up in a random place, alone or in a group.
-//the world is far bigger than they can be spread over, so the ones that have been left more than ENEMY_LEASH_TILES behind are
-//let go: the population keeps up with the player instead of staying where the run began. a group starts at the emptiest of a
-//few places in the ring, otherwise the ones left behind would pile up at the player's back while the ground ahead stayed bare
+//the same for one player, at a place, with enemies made for an army of `army`
 pub(crate) fn respawn_enemies(enemies: &mut Vec<Enemy>, player_x: f32, player_y: f32, army: usize) {
-    let player = Vec2::new(player_x, player_y);
+    respawn_enemies_among(enemies, &[(Vec2::new(player_x, player_y), army)]);
+}
+
+//enemies are never used up: whenever there are fewer than ENEMY_COUNT round a player, new ones turn up in a random place, alone or in a
+//group, made for the army the second number of a player says (what their fight is for). the world is far bigger than they can be spread
+//over, so the ones that have been left more than ENEMY_LEASH_TILES behind every player are let go: the population keeps up with the
+//players instead of staying where the run began.
+//a group starts at the emptiest of a few places in the ring, otherwise the ones left behind would pile up at the player's back while the
+//ground ahead stayed bare. players who are near each other have the same enemies round them, so there are no more of them than for one
+pub(crate) fn respawn_enemies_among(enemies: &mut Vec<Enemy>, players: &[(Vec2, usize)]) {
     let leash = ENEMY_LEASH_TILES * TILE_SIZE;
-    enemies.retain(|enemy| !is_wild(enemy) || enemy.position.distance_squared(player) <= leash * leash);
+    enemies.retain(|enemy| !is_wild(enemy) || players.iter().any(|(player, _)| enemy.position.distance_squared(*player) <= leash * leash));
     let mut crowd: Vec<Vec2> = enemies.iter().filter(|enemy| is_wild(enemy)).map(|enemy| enemy.position).collect();
     //ambushers stay put until the player comes by, so they would pile up if every group that turned up could be one
     let mut lurkers = enemies.iter().filter(|enemy| enemy.lurking() && is_wild(enemy)).count();
-    let most_lurkers = ENEMY_COUNT / MAX_LURKERS_SHARE;
-    while crowd.len() < ENEMY_COUNT {
-        let mut group = spawn_group(player_x, player_y, army);
-        for _ in 0..8 {
-            if group[0].lurking() && lurkers + group.len() > most_lurkers {
-                group = spawn_group(player_x, player_y, army);
-            } else {
-                break;
+    let most_lurkers = ENEMY_COUNT / MAX_LURKERS_SHARE * players.len();
+    for &(player, army) in players {
+        let mut round_them = crowd.iter().filter(|at| at.distance_squared(player) <= leash * leash).count();
+        while round_them < ENEMY_COUNT {
+            let mut group = spawn_group(player.x, player.y, army);
+            for _ in 0..8 {
+                if group[0].lurking() && lurkers + group.len() > most_lurkers {
+                    group = spawn_group(player.x, player.y, army);
+                } else {
+                    break;
+                }
             }
-        }
-        lurkers += group.iter().filter(|member| member.lurking()).count();
-        let reach = group[0].size * 0.6;
-        let room = |at: Vec2| crowd.iter().map(|other| other.distance_squared(at)).fold(f32::MAX, f32::min);
-        let mut best = group[0].position;
-        let mut most_room = room(best);
-        for _ in 1..SPAWN_CANDIDATES {
-            let at = random_position_around(player_x, player_y, ENEMY_SPAWN_MIN_TILES * TILE_SIZE + reach, ENEMY_SPAWN_MAX_TILES * TILE_SIZE + reach);
-            if room(at) > most_room {
-                best = at;
-                most_room = room(at);
+            lurkers += group.iter().filter(|member| member.lurking()).count();
+            let reach = group[0].size * 0.6;
+            let room = |at: Vec2| crowd.iter().map(|other| other.distance_squared(at)).fold(f32::MAX, f32::min);
+            let mut best = group[0].position;
+            let mut most_room = room(best);
+            for _ in 1..SPAWN_CANDIDATES {
+                let at = random_position_around(player.x, player.y, ENEMY_SPAWN_MIN_TILES * TILE_SIZE + reach, ENEMY_SPAWN_MAX_TILES * TILE_SIZE + reach);
+                if room(at) > most_room {
+                    best = at;
+                    most_room = room(at);
+                }
             }
+            let step = best - group[0].position;
+            for member in &mut group {
+                member.shift(step);
+            }
+            round_them += group.len();
+            crowd.extend(group.iter().map(|member| member.position));
+            enemies.extend(group);
         }
-        let step = best - group[0].position;
-        for member in &mut group {
-            member.shift(step);
-        }
-        crowd.extend(group.iter().map(|member| member.position));
-        enemies.extend(group);
     }
 }

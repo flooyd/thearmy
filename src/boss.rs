@@ -324,6 +324,7 @@ impl Enemy {
             grudge: Vec2::ZERO,
             rout: 0.0,
             rallied: false,
+            credit: 0,
         }
     }
 }
@@ -499,16 +500,27 @@ pub(crate) fn cast_pattern(enemy: &mut Enemy, state: &mut BossState, pattern: Pa
     }
 }
 
-//every boss: it changes phase as its health runs down, makes a last stand at the end, and uses the attacks of its phase
-//when their timers run out (one at a time, never while it is dashing or already in the middle of one)
+//the same for one player, whose army is `units`: what the tests that have just the one player use
+#[cfg(test)]
 pub(crate) fn boss_act(enemies: &mut Vec<Enemy>, units: &[Unit], player: Vec2, dt: f32, shots: &mut Vec<Shot>, fx: &mut Effects) {
-    let army = units.len();
+    let field = FlowField::new();
+    let prey = [Prey { position: player, units, team: units.len(), pressure: units.len(), boost: 1.0, cap: DEFAULT_ARMY_LIMIT, field: &field }];
+    boss_act_among(enemies, &prey, dt, shots, fx);
+}
+
+//every boss: it changes phase as its health runs down, makes a last stand at the end, and uses the attacks of its phase
+//when their timers run out (one at a time, never while it is dashing or already in the middle of one). it turns on the player nearest
+//to it, and what it throws is thrown at that player's army, and sized for it
+pub(crate) fn boss_act_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt: f32, shots: &mut Vec<Shot>, fx: &mut Effects) {
     let mut born: Vec<Enemy> = Vec::new();
     for i in 0..enemies.len() {
         let Some(mut state) = enemies[i].boss.take() else {
             continue;
         };
         let id = enemies[i].id;
+        let hunted = nearest(prey, enemies[i].position);
+        let (player, units) = (hunted.position, hunted.units);
+        let army = units.len();
         let owned = enemies.iter().filter(|other| other.owner == Some(id)).count() + born.len();
         let enemy = &mut enemies[i];
         let def = state.def;
@@ -748,10 +760,9 @@ pub(crate) struct Pull {
     pub(crate) total: f32,
 }
 
-//drag the units, and the player less, within each pull towards its middle. a wall in the way stops them, and one near the
-//middle is as far as they get. returns the player's new position
-pub(crate) fn update_pulls(pulls: &mut Vec<Pull>, units: &mut [Unit], player: Vec2, walls: &Walls, dt: f32) -> Vec2 {
-    let mut player = player;
+//drag the units, and the players less, within each pull towards its middle. a wall in the way stops them, and one near the
+//middle is as far as they get. `players` are where the players are, which are moved
+pub(crate) fn update_pulls_among(pulls: &mut Vec<Pull>, units: &mut [Unit], players: &mut [Vec2], walls: &Walls, dt: f32) {
     for pull in pulls.iter() {
         let step = PULL_SPEED * dt;
         for unit in units.iter_mut().filter(|unit| unit.garrison.is_none()) {
@@ -765,17 +776,26 @@ pub(crate) fn update_pulls(pulls: &mut Vec<Pull>, units: &mut [Unit], player: Ve
             unit.x = moved.x;
             unit.y = moved.y;
         }
-        let to_middle = pull.position - player;
-        let distance = to_middle.length();
-        if distance <= pull.radius && distance >= RADIUS {
-            player = move_clear(player, player + to_middle / distance * (step * PULL_PLAYER_SHARE).min(distance), RADIUS, Mover::Ally, walls);
+        for player in players.iter_mut() {
+            let to_middle = pull.position - *player;
+            let distance = to_middle.length();
+            if distance <= pull.radius && distance >= RADIUS {
+                *player = move_clear(*player, *player + to_middle / distance * (step * PULL_PLAYER_SHARE).min(distance), RADIUS, Mover::Ally, walls);
+            }
         }
     }
     pulls.retain_mut(|pull| {
         pull.left -= dt;
         pull.left > 0.0
     });
-    player
+}
+
+//the same with one player. returns their new position
+#[cfg(test)]
+pub(crate) fn update_pulls(pulls: &mut Vec<Pull>, units: &mut [Unit], player: Vec2, walls: &Walls, dt: f32) -> Vec2 {
+    let mut players = [player];
+    update_pulls_among(pulls, units, &mut players, walls, dt);
+    players[0]
 }
 
 //rings that shrink towards the middle of each pull, faster as it goes
@@ -825,9 +845,17 @@ impl Director {
         self.slain / BOSSES.len() as u32
     }
 
-    //count down, and when it is time put a boss in `enemies`, coming from far out. a boss only comes once the army is big
-    //enough for it, and the warning with it. returns what happened, if anything
+    //the same for one player, whose army is `army` big: what the tests that have just the one player use
+    #[cfg(test)]
     pub(crate) fn update(&mut self, enemies: &mut Vec<Enemy>, player: Vec2, army: usize, dt: f32) -> Option<Beat> {
+        let field = FlowField::new();
+        let prey = [Prey { position: player, units: &[], team: army, pressure: army, boost: 1.0, cap: DEFAULT_ARMY_LIMIT, field: &field }];
+        self.update_among(enemies, &prey, dt)
+    }
+
+    //count down, and when it is time put a boss in `enemies`, coming from far out at one of the players, made for the fight they are in.
+    //a boss only comes once a fight is big enough for it, and the warning with it. returns what happened, if anything
+    pub(crate) fn update_among(&mut self, enemies: &mut Vec<Enemy>, prey: &[Prey], dt: f32) -> Option<Beat> {
         if let Some(id) = self.boss {
             if enemies.iter().any(|enemy| enemy.boss.as_ref().is_some_and(|state| state.family == id)) {
                 return None;
@@ -845,13 +873,15 @@ impl Director {
             return None;
         }
         let def = self.next_def();
-        //the countdown waits for an army big enough to be worth a boss
-        if army < def.min_army {
+        //the countdown waits for an army big enough to be worth a boss, and it is sent at one of the players who have one
+        let worth_it: Vec<&Prey> = prey.iter().filter(|player| player.team >= def.min_army).collect();
+        if worth_it.is_empty() {
             return None;
         }
         self.next_boss_in = (self.next_boss_in - dt).max(0.0);
         if self.next_boss_in <= 0.0 {
-            let boss = spawn_boss(player, army, def, self.next_tier());
+            let target = worth_it[rand::gen_range(0, worth_it.len())];
+            let boss = spawn_boss(target.position, target.team, def, self.next_tier());
             self.boss = Some(boss.id);
             enemies.push(boss);
             return Some(Beat::Arrived(def.name));

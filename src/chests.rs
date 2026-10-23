@@ -80,17 +80,28 @@ pub(crate) fn contested_by(at: Vec2, enemies: &[Enemy]) -> bool {
     enemies.iter().any(|enemy| enemy.contests() && enemy.position.distance(at) <= reach + enemy.size / 2.0)
 }
 
-//the chests that the player or a unit has held for long enough, taken out of the world. one that is being held fills up for the
-//`dt` seconds that have gone by, and one that is not gives its hold up faster than it was made. while enemies are near one that has to
-//be held it is contested, and the hold stands still: it does not fill, but it is not given up either, as long as someone stays
+//the same for one player, whose army is `units`: what the tests that have just the one player use
+#[cfg(test)]
 pub(crate) fn take_reached(chests: &mut Vec<Chest>, player: Vec2, units: &[Unit], enemies: &[Enemy], dt: f32) -> Vec<Chest> {
+    let field = FlowField::new();
+    let prey = [Prey { position: player, units, team: units.len(), pressure: units.len(), boost: 1.0, cap: DEFAULT_ARMY_LIMIT, field: &field }];
+    take_reached_among(chests, &prey, enemies, dt).into_iter().map(|(chest, _)| chest).collect()
+}
+
+//the chests that a player or a unit has held for long enough, taken out of the world, each with the player who opened it: of the players
+//who are at one, the one whose avatar is nearest. one that is being held fills up for the `dt` seconds that have gone by (by any of
+//them), and one that is not gives its hold up faster than it was made. while enemies are near one that has to be held it is
+//contested, and the hold stands still: it does not fill, but it is not given up either, as long as someone stays
+pub(crate) fn take_reached_among(chests: &mut Vec<Chest>, prey: &[Prey], enemies: &[Enemy], dt: f32) -> Vec<(Chest, usize)> {
     if chests.is_empty() {
         return Vec::new();
     }
     let reach = CHEST_REACH * CHEST_REACH;
     let mut opened = Vec::new();
     chests.retain_mut(|chest| {
-        let reached = player.distance_squared(chest.at) <= reach || units.iter().any(|unit| Vec2::new(unit.x, unit.y).distance_squared(chest.at) <= reach);
+        let at_it = |player: &Prey| player.position.distance_squared(chest.at) <= reach || player.units.iter().any(|unit| Vec2::new(unit.x, unit.y).distance_squared(chest.at) <= reach);
+        let holder = prey.iter().enumerate().filter(|(_, player)| at_it(player)).min_by(|a, b| a.1.position.distance_squared(chest.at).total_cmp(&b.1.position.distance_squared(chest.at))).map(|(i, _)| i);
+        let reached = holder.is_some();
         chest.contested = chest.hold() > 0.0 && contested_by(chest.at, enemies);
         chest.stalled = reached && chest.contested;
         if reached && !chest.stalled {
@@ -99,25 +110,25 @@ pub(crate) fn take_reached(chests: &mut Vec<Chest>, player: Vec2, units: &[Unit]
             chest.held = (chest.held - dt * CHEST_HOLD_DRAIN).max(0.0);
         }
         let open = reached && !chest.stalled && chest.held >= chest.hold();
-        if open {
-            opened.push(*chest);
+        if let (true, Some(holder)) = (open, holder) {
+            opened.push((*chest, holder));
         }
         !open
     });
     opened
 }
 
-//open a chest: its points are earned, its recruits turn up round it, and the champion, if there is one, is won where it lay.
-//returns whether a choice of relics is to be offered as well
-pub(crate) fn open_chest(chest: &Chest, army: usize, cap: usize, babies: &mut Vec<Baby>, fx: &mut Effects) -> bool {
+//open a chest for the player who held it: its points are earned, its recruits turn up round it, and the champion, if there is one, is
+//won where it lay. `army` and `cap` are how big their army is and can be. returns whether a choice of relics is to be offered as well
+pub(crate) fn open_chest(owner: usize, chest: &Chest, army: usize, cap: usize, babies: &mut Vec<Baby>, fx: &mut Effects) -> bool {
     let loot = chest.loot(army);
     let color = chest.color();
-    fx.points += loot.points;
+    fx.earn(owner, loot.points);
     let before = babies.len();
     spread_babies(babies, chest.at, loot.recruits, army, cap, TILE_SIZE * 2.5);
     let recruits = babies.len() - before;
     if loot.champion {
-        fx.recruits.push((chest.at, Odds::Horde(chest.tier)));
+        fx.recruits.push((chest.at, Odds::Horde(chest.tier), owner));
     }
     let mut what = format!("+{} POINTS", loot.points.round() as i64);
     if recruits > 0 {

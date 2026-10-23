@@ -53,6 +53,8 @@ jobs:
             'Windows may say "Windows protected your PC" because the program is not signed. Click "More info", then "Run anyway".',
             'If you would rather not see that, right-click the zip you downloaded, choose Properties, tick Unblock, and extract it after that.',
             '',
+            'To play with others: Multiplayer on the title screen. To host, forward UDP port 47821 on your router and allow the game through the firewall when Windows asks.',
+            '',
             'Saves and settings are in %APPDATA%\TheArmy.'
           )
           Set-Content -Path dist/TheArmy/README.txt -Value $notes
@@ -71,6 +73,8 @@ jobs:
             '' \
             'It needs the usual desktop libraries: ALSA (sound), X11 and OpenGL. On Arch and CachyOS:' \
             '  sudo pacman -S --needed alsa-lib libx11 libxi mesa' \
+            '' \
+            'To play with others: Multiplayer on the title screen. To host, forward UDP port 47821 on your router and open it in your firewall (sudo ufw allow 47821/udp).' \
             '' \
             'Saves and settings are in ~/.local/share/TheArmy.' \
             > dist/TheArmy/README.txt

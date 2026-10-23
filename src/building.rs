@@ -67,32 +67,21 @@ pub(crate) fn dragged_squares(button: MouseButton, drag: &mut Option<Drag>, hove
     }
 }
 
-//the player's building: what is chosen to build, the wall points saved up, and the two drags in progress
+//the player's building: what is chosen to build and the wall points saved up
 pub(crate) struct Mason {
     pub(crate) selected: WallKind,
     pub(crate) points: f32,
-    pub(crate) place_drag: Option<Drag>,
-    pub(crate) delete_drag: Option<Drag>,
     pub(crate) nag_in: f32, //seconds until it can say again that there aren't enough points
 }
 
 impl Mason {
     pub(crate) fn new() -> Mason {
-        Mason { selected: WallKind::Wall, points: START_WALL_POINTS, place_drag: None, delete_drag: None, nag_in: 0.0 }
+        Mason { selected: WallKind::Wall, points: START_WALL_POINTS, nag_in: 0.0 }
     }
 
     //points earned, up to the most that can be saved
     pub(crate) fn earn(&mut self, points: f32) {
         self.points = (self.points + points).min(MAX_WALL_POINTS);
-    }
-
-    //the number keys choose what a left click builds
-    pub(crate) fn choose(&mut self) {
-        for (key, kind) in [KeyCode::Key1, KeyCode::Key2, KeyCode::Key3, KeyCode::Key4, KeyCode::Key5].into_iter().zip(BUILDABLE) {
-            if is_key_pressed(key) {
-                self.selected = kind;
-            }
-        }
     }
 }
 
@@ -159,31 +148,30 @@ pub(crate) fn delete_wall(mason: &mut Mason, walls: &mut Walls, units: &mut [Uni
     true
 }
 
-//left click (or drag) builds and right click (or drag) deletes the player's walls, giving back part of what they cost. a
-//left click that is on an enemy (the caller has sent a squad at it) builds nothing, and the drag it would have started
-//doesn't happen. nor does anything happen while the mouse is over the minimap, which isn't the world. returns whether any
-//wall changed
+//what a player built in a frame: the kind they chose to build (if they chose another), the squares they placed walls on (a left click or
+//drag) and the squares they deleted from (a right click or drag), each in the order they were reached. a hurt wall of theirs that is placed
+//on is mended, and deleting gives back part of what a wall cost. returns whether any wall changed
 pub(crate) fn edit_walls(
     mason: &mut Mason,
     walls: &mut Walls,
     units: &mut [Unit],
     babies: &[Baby],
     player: Vec2,
-    zoom: f32,
-    clicked_enemy: bool,
-    over_minimap: bool,
+    select: Option<WallKind>,
+    place: &[(i32, i32)],
+    delete: &[(i32, i32)],
     dt: f32,
     army: usize,
     upgrades: &Upgrades,
     fx: &mut Effects,
 ) -> bool {
     mason.nag_in -= dt;
-    mason.choose();
-    let hovered = if over_minimap { None } else { hovered_tile(player.x, player.y, zoom) };
+    if let Some(kind) = select {
+        mason.selected = kind;
+    }
     let mut changed = false;
-    let place_at = if clicked_enemy { None } else { hovered };
     let kind = mason.selected;
-    for (col, row) in dragged_squares(MouseButton::Left, &mut mason.place_drag, place_at) {
+    for &(col, row) in place {
         match build(walls, kind, col, row, player, units, babies, &mut mason.points, army, upgrades) {
             Built::Placed | Built::Repaired => {
                 changed = true;
@@ -195,8 +183,8 @@ pub(crate) fn edit_walls(
             _ => {}
         }
     }
-    for (col, row) in dragged_squares(MouseButton::Right, &mut mason.delete_drag, hovered) {
-        changed |= delete_wall(mason, walls, units, (col, row));
+    for &tile in delete {
+        changed |= delete_wall(mason, walls, units, tile);
     }
     changed
 }

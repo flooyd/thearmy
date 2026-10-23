@@ -60,25 +60,13 @@ pub(crate) fn send_squad(units: &mut [Unit], squads: &mut Squads, enemy: &Enemy,
     count
 }
 
-//a left click on an enemy, in the world or as a dot on the minimap, sends a squad at it. returns whether the click was on an
-//enemy or on the minimap, which makes it not a click for walls
-pub(crate) fn click_on_enemy(player_x: f32, player_y: f32, zoom: f32, map: &Minimap, enemies: &[Enemy], units: &mut [Unit], squads: &mut Squads, fx: &mut Effects) -> bool {
-    if !is_mouse_button_pressed(MouseButton::Left) {
-        return false;
+//a player's click on an enemy, which they name by its id: sends a squad at it. nothing happens if there is no such enemy any more, or it is
+//an ambusher lying in wait, which can't be clicked on. returns how many were sent
+pub(crate) fn send_squad_at(units: &mut [Unit], squads: &mut Squads, enemies: &[Enemy], id: u32, fx: &mut Effects) -> usize {
+    match enemies.iter().find(|enemy| enemy.id == id && !enemy.lurking()) {
+        Some(enemy) => send_squad(units, squads, enemy, fx),
+        None => 0,
     }
-    let mouse = Vec2::from(mouse_position());
-    if map.contains(mouse) {
-        //the minimap covers the world under it, so a click that misses every dot does nothing
-        if let Some(clicked) = minimap_enemy_at(map, mouse, enemies) {
-            send_squad(units, squads, &enemies[clicked], fx);
-        }
-        return true;
-    }
-    let Some(clicked) = enemy_at(mouse_world(player_x, player_y, zoom), enemies, ENEMY_CLICK_MARGIN / zoom) else {
-        return false;
-    };
-    send_squad(units, squads, &enemies[clicked], fx);
-    true
 }
 
 //call every squad back: the units sent at enemies go back to following the player, which is how an army gets out of the way
@@ -100,7 +88,13 @@ pub(crate) fn recall_squads(units: &mut [Unit], squads: &mut Squads, player: Vec
 
 //keep the squads up to date. each follows its enemy, and works out its route again once the enemy has moved on a few grid
 //squares. one whose enemy has been destroyed is disbanded, and its units go back to following the player
+#[cfg(test)]
 pub(crate) fn update_squads(squads: &mut Squads, enemies: &[Enemy], units: &mut [Unit], walls: &Walls, walls_changed: bool) -> Vec<Vec2> {
+    update_squads_within(squads, enemies, units, walls, walls_changed, SQUAD_ROUTE_BUDGET)
+}
+
+//the same with a limit on the time spent working out the squads' routes (a frame has SQUAD_ROUTE_BUDGET for the squads of all the players)
+pub(crate) fn update_squads_within(squads: &mut Squads, enemies: &[Enemy], units: &mut [Unit], walls: &Walls, walls_changed: bool, budget: Duration) -> Vec<Vec2> {
     let started = Instant::now();
     //a squad with nobody left in it (they all died) is no more, either. where the enemy that wiped one out is gets returned
     let manned: HashSet<u32> = units.iter().filter_map(|unit| unit.target).collect();
@@ -121,7 +115,7 @@ pub(crate) fn update_squads(squads: &mut Squads, enemies: &[Enemy], units: &mut 
         if walls_changed || (!squad.next_field.is_building() && moved) {
             squad.next_field.start(enemy.position, walls);
         }
-        if squad.next_field.is_building() && squad.next_field.work(SQUAD_ROUTE_BUDGET.saturating_sub(started.elapsed())) {
+        if squad.next_field.is_building() && squad.next_field.work(budget.saturating_sub(started.elapsed())) {
             std::mem::swap(&mut squad.field, &mut squad.next_field);
         }
         true

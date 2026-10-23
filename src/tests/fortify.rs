@@ -311,13 +311,13 @@ fn wall_points_are_capped_and_kills_earn_them() {
     minion.babies = 0;
     let mut enemies = vec![plain, rich, minion];
     resolve_deaths(&mut enemies, &mut babies, 10, &up, &mut fx);
-    assert!((fx.points - (POINTS_PER_KILL + POINTS_PER_BABY) - (POINTS_PER_KILL + 20.0 * POINTS_PER_BABY)).abs() < 0.001, "{}", fx.points);
+    assert!((fx.spoils[0].points - (POINTS_PER_KILL + POINTS_PER_BABY) - (POINTS_PER_KILL + 20.0 * POINTS_PER_BABY)).abs() < 0.001, "{}", fx.spoils[0].points);
     let mut boss = Enemy::boss(&BOSSES[0], 100, 0, FAR);
     boss.health = 0.0;
     let babies_of_boss = boss.babies as f32;
     let mut fx = Effects::default();
     resolve_deaths(&mut vec![boss], &mut babies, 100, &up, &mut fx);
-    assert!((fx.points - (POINTS_PER_KILL + babies_of_boss * POINTS_PER_BABY + BOSS_POINTS)).abs() < 0.001);
+    assert!((fx.spoils[0].points - (POINTS_PER_KILL + babies_of_boss * POINTS_PER_BABY + BOSS_POINTS)).abs() < 0.001);
 }
 
 #[test]
@@ -483,12 +483,12 @@ fn units_pressed_against_a_lair_wall_wear_it_down_in_proportion_to_how_many() {
 fn wall_points_a_kill_earns_are_spent_by_main_with_the_quarry_bonus() {
     let mut mason = Mason::new();
     let mut fx = Effects::default();
-    fx.points = 10.0;
+    fx.spoils[0].points = 10.0;
     let mut up = Upgrades::default();
     up.quarry = 1.5;
-    mason.earn(std::mem::take(&mut fx.points) * up.quarry);
+    mason.earn(std::mem::take(&mut fx.spoils[0].points) * up.quarry);
     assert_eq!(mason.points, START_WALL_POINTS + 15.0);
-    assert_eq!(fx.points, 0.0);
+    assert_eq!(fx.spoils[0].points, 0.0);
 }
 
 #[test]

@@ -103,12 +103,12 @@ pub(crate) fn terrain_effects(enemies: &mut [Enemy], walls: &Walls, dt: f32, fx:
     }
 }
 
-//hostile walls that units are pressed against wear down: every unit touching one does UNIT_CHEW_SHARE of its damage to it
-pub(crate) fn chew_hostile_walls(units: &[Unit], walls: &Walls, upgrades: &Upgrades, dt: f32, fx: &mut Effects) {
+//hostile walls that units are pressed against wear down: every unit touching one does UNIT_CHEW_SHARE of the damage it does to it, with the relics of its player
+pub(crate) fn chew_hostile_walls<R: Relics + ?Sized>(units: &[Unit], walls: &Walls, relics: &R, dt: f32, fx: &mut Effects) {
     if !walls.values().any(|wall| wall.side == Side::Hostile) {
         return;
     }
-    let each = UNIT_DAMAGE * UNIT_CHEW_SHARE * upgrades.damage * dt;
+    let each: [f32; MAX_PLAYERS] = std::array::from_fn(|owner| UNIT_DAMAGE * UNIT_CHEW_SHARE * relics.of(owner as u8).damage * dt);
     let mut taken: HashMap<(i32, i32), f32> = HashMap::new();
     for unit in units.iter().filter(|unit| unit.garrison.is_none()) {
         let (col, row) = tile_of(unit.x, unit.y);
@@ -119,7 +119,7 @@ pub(crate) fn chew_hostile_walls(units: &[Unit], walls: &Walls, upgrades: &Upgra
                 };
                 //a unit resting against a wall is exactly RADIUS away, so the reach is a little more
                 if wall.overlaps_circle(unit.x, unit.y, RADIUS + 3.0) {
-                    *taken.entry((wall_col, wall_row)).or_default() += each;
+                    *taken.entry((wall_col, wall_row)).or_default() += each[owner_index(unit.owner)];
                 }
             }
         }

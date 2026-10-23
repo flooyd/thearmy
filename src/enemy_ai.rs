@@ -19,13 +19,20 @@ pub(crate) fn patrol_route(start: Vec2, size: f32) -> Vec<Vec2> {
 
 pub(crate) const HEALER_STAY: f32 = 150.0; //pixels, a healer goes to the nearest enemy that is not one and stays this close to it
 
-//walk every enemy along its route, at its own speed times the multiplier the army's size gives. one that has noticed the
-//player (they came within its aggro distance) runs at them instead, faster, until they get too far away. a charger stops and
-//shows where it will dash instead, a healer goes to the nearest other enemy, and anything in the middle of a dash or a cast
-//carries on with that. none of them can walk through the player's walls: the ones that chase follow the route the field
-//gives them round the walls, and chew through the ones that are in the way, and the others slide along a wall until they
-//give up on the waypoint they were heading for
+//the same for one player and a speed that is a number: what the tests that have just the one player and an enemy use
+#[cfg(test)]
 pub(crate) fn patrol_enemies(enemies: &mut [Enemy], player: Vec2, dt: f32, speed_multiplier: f32, walls: &Walls, field: &FlowField, fx: &mut Effects) {
+    let prey = [Prey { position: player, units: &[], team: 0, pressure: 0, boost: speed_multiplier, cap: DEFAULT_ARMY_LIMIT, field }];
+    patrol_enemies_among(enemies, &prey, dt, walls, fx);
+}
+
+//walk every enemy along its route, at its own speed times the multiplier the size of the army it is near gives. one that has noticed a
+//player (they came within its aggro distance; the one it goes after is the one nearest to it) runs at them instead, faster, until they
+//get too far away. a charger stops and shows where it will dash instead, a healer goes to the nearest other enemy, and anything in the
+//middle of a dash or a cast carries on with that. none of them can walk through the player's walls: the ones that chase follow the
+//route the field of the player they are after gives them round the walls, and chew through the ones that are in the way, and the others
+//slide along a wall until they give up on the waypoint they were heading for
+pub(crate) fn patrol_enemies_among(enemies: &mut [Enemy], prey: &[Prey], dt: f32, walls: &Walls, fx: &mut Effects) {
     //a healer goes to the others, so where they are is needed while one of them is borrowed
     let others: Vec<Vec2> = if enemies.iter().any(|enemy| enemy.behavior == Behavior::Healer) {
         enemies.iter().filter(|enemy| enemy.behavior != Behavior::Healer).map(|enemy| enemy.position).collect()
@@ -34,6 +41,8 @@ pub(crate) fn patrol_enemies(enemies: &mut [Enemy], player: Vec2, dt: f32, speed
     };
     let no_route = FlowField::new();
     for enemy in enemies {
+        let hunted = nearest(prey, enemy.position);
+        let (player, speed_multiplier, field) = (hunted.position, hunted.boost, hunted.field);
         enemy.pressing = None;
         enemy.provoked = (enemy.provoked - dt).max(0.0);
         if enemy.routed() {
@@ -212,10 +221,18 @@ pub(crate) fn chew_walls(enemies: &[Enemy], walls: &Walls, dt: f32, fx: &mut Eff
     }
 }
 
-//the things enemies do on a timer: shields grow back, a bomber's fuse burns down, a healer mends the enemies near it, a
-//summoner calls up imps while the player is close, a mortar lobs a shell at the army
+//the same for one player, whose army is `units`: what the tests that have just the one player use
+#[cfg(test)]
 pub(crate) fn enemy_abilities(enemies: &mut Vec<Enemy>, units: &[Unit], player: Vec2, dt: f32, fx: &mut Effects) {
-    let army = units.len();
+    let field = FlowField::new();
+    let prey = [Prey { position: player, units, team: units.len(), pressure: units.len(), boost: 1.0, cap: DEFAULT_ARMY_LIMIT, field: &field }];
+    enemy_abilities_among(enemies, &prey, dt, fx);
+}
+
+//the things enemies do on a timer: shields grow back, a bomber's fuse burns down, a healer mends the enemies near it, a
+//summoner calls up imps while a player is close, a mortar lobs a shell at the army of the player nearest to it. what depends on how
+//big an army is (the blasts, the broods of a nest) is for the army of the player nearest to the enemy
+pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt: f32, fx: &mut Effects) {
     let mut owned: HashMap<u32, usize> = HashMap::new();
     for owner in enemies.iter().filter_map(|enemy| enemy.owner) {
         *owned.entry(owner).or_default() += 1;
@@ -223,6 +240,8 @@ pub(crate) fn enemy_abilities(enemies: &mut Vec<Enemy>, units: &[Unit], player: 
     let mut born: Vec<Enemy> = Vec::new();
     let mut pulses: Vec<Vec2> = Vec::new();
     for enemy in enemies.iter_mut() {
+        let hunted = nearest(prey, enemy.position);
+        let (player, units, army) = (hunted.position, hunted.units, hunted.army());
         enemy.flash = (enemy.flash + dt).min(10.0);
         if enemy.max_shield > 0.0 {
             enemy.shield_idle += dt;
@@ -347,10 +366,18 @@ pub(crate) fn enemy_abilities(enemies: &mut Vec<Enemy>, units: &[Unit], player: 
 }
 
 
-//ambushers lying in wait spring when the player comes close, and the ones beside them spring too (so do the ones beside an ambusher
-//that has only just sprung, whatever set it off: a unit that stumbled on it). a spring is a rush at the player, and the
-//one popup and sound that says so. returns how many sprang
+//the same for one player: what the tests that have just the one player use
+#[cfg(test)]
 pub(crate) fn spring_ambushes(enemies: &mut [Enemy], player: Vec2, fx: &mut Effects) -> usize {
+    let field = FlowField::new();
+    let prey = [Prey { position: player, units: &[], team: 0, pressure: 0, boost: 1.0, cap: DEFAULT_ARMY_LIMIT, field: &field }];
+    spring_ambushes_among(enemies, &prey, fx)
+}
+
+//ambushers lying in wait spring when a player comes close, and the ones beside them spring too (so do the ones beside an ambusher
+//that has only just sprung, whatever set it off: a unit that stumbled on it). a spring is a rush at the player nearest to it, and the
+//one popup and sound that says so. returns how many sprang
+pub(crate) fn spring_ambushes_among(enemies: &mut [Enemy], prey: &[Prey], fx: &mut Effects) -> usize {
     if !enemies.iter().any(|enemy| enemy.behavior == Behavior::Ambusher) {
         return 0;
     }
@@ -360,6 +387,7 @@ pub(crate) fn spring_ambushes(enemies: &mut [Enemy], player: Vec2, fx: &mut Effe
     let together = AMBUSH_ALARM_TILES * TILE_SIZE;
     let mut count = 0;
     for enemy in enemies.iter_mut().filter(|enemy| enemy.lurking()) {
+        let player = nearest(prey, enemy.position).position;
         if player.distance(enemy.position) <= trigger + enemy.size / 2.0 {
             enemy.spring(player, fx);
             sprung.push(enemy.position);
@@ -368,6 +396,7 @@ pub(crate) fn spring_ambushes(enemies: &mut [Enemy], player: Vec2, fx: &mut Effe
     }
     //the rest of a pack goes with the first of it
     for enemy in enemies.iter_mut().filter(|enemy| enemy.lurking()) {
+        let player = nearest(prey, enemy.position).position;
         if sprung.iter().any(|at| at.distance_squared(enemy.position) <= together * together) {
             enemy.spring(player, fx);
             count += 1;

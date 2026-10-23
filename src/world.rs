@@ -2,8 +2,8 @@
 
 use crate::prelude::*;
 
-//speed is in pixels per second and dt is the frame time in seconds so the game plays the same at any frame rate
-pub(crate) fn handle_input(x: &mut f32, y: &mut f32, speed: f32, dt: f32, walls: &Walls) {
+//the way the movement keys say to go: a unit vector, or zero when none is held (or they cancel out)
+pub(crate) fn keyboard_direction() -> Vec2 {
     let mut direction = Vec2::ZERO;
     if is_key_down(KeyCode::W) {
         direction.y -= 1.0;
@@ -17,14 +17,16 @@ pub(crate) fn handle_input(x: &mut f32, y: &mut f32, speed: f32, dt: f32, walls:
     if is_key_down(KeyCode::S) {
         direction.y += 1.0;
     }
-    if direction.length() != 0.0 {
-        direction = direction.normalize();
-    }
-    let to = Vec2::new(*x, *y) + direction * speed * dt;
-    let moved = move_clear_of_walls(Vec2::new(*x, *y), to, walls);
-    *x = moved.x;
-    *y = moved.y;
-    clamp_to_world(x, y);
+    direction.normalize_or_zero()
+}
+
+//speed is in pixels per second and dt is the frame time in seconds so the game plays the same at any frame rate. where someone walking from a position in a direction (a unit vector, or zero) gets to in dt seconds: round the walls, and not out of
+//the world
+pub(crate) fn walk_player(from: Vec2, direction: Vec2, speed: f32, dt: f32, walls: &Walls) -> Vec2 {
+    let moved = move_clear_of_walls(from, from + direction * speed * dt, walls);
+    let (mut x, mut y) = (moved.x, moved.y);
+    clamp_to_world(&mut x, &mut y);
+    Vec2::new(x, y)
 }
 
 pub(crate) fn clamp_to_world(x: &mut f32, y: &mut f32) {

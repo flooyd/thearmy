@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>The Army lobby</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; background: #0b0f14; color: #d8e2ec; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; color: #5fe0ff; }
+  code { background: #17202a; padding: .1em .35em; border-radius: 4px; }
+  li { margin: .3em 0; }
+</style>
+<h1>The Army lobby</h1>
+<p>This is the game list for <em>The Army</em>. It only holds who is hosting; players connect to the host directly.</p>
+<p>In the game, open <strong>Multiplayer</strong> and put this page's address in <strong>Lobby server</strong>. The list itself is at <code>/api/games</code>.</p>
+<ul id="games"><li>loading…</li></ul>
+<script>
+  fetch('/api/games').then(r => r.json()).then(({ games }) => {
+    const list = document.getElementById('games');
+    list.textContent = '';
+    if (!games.length) list.innerHTML = '<li>nobody is hosting right now</li>';
+    for (const g of games) {
+      const li = document.createElement('li');
+      li.textContent = `${g.name} — ${g.players}/${g.max} players${g.locked ? ', password' : ''}${g.started ? ', in progress' : ''}`;
+      list.append(li);
+    }
+  }).catch(() => { document.getElementById('games').innerHTML = '<li>the list could not be read</li>'; });
+</script>

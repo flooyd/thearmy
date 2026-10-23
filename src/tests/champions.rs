@@ -23,13 +23,13 @@ fn damage_taken(enemy: &Enemy) -> f32 {
 //the champions' powers for `seconds`, in frames of a sixtieth
 fn act_for(units: &mut Vec<Unit>, enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, seconds: f32, fx: &mut Effects) {
     for _ in 0..(seconds * 60.0).round() as usize {
-        champion_acts(units, enemies, babies, &Upgrades::default(), DEFAULT_ARMY_LIMIT, 1.0 / 60.0, fx);
+        champion_acts(units, enemies, babies, &Upgrades::default(), 1.0 / 60.0, fx);
     }
 }
 
 fn act_once(units: &mut Vec<Unit>, enemies: &mut Vec<Enemy>) -> Effects {
     let mut fx = Effects::default();
-    champion_acts(units, enemies, &mut Vec::new(), &Upgrades::default(), DEFAULT_ARMY_LIMIT, 1.0 / 60.0, &mut fx);
+    champion_acts(units, enemies, &mut Vec::new(), &Upgrades::default(), 1.0 / 60.0, &mut fx);
     fx
 }
 
@@ -275,7 +275,7 @@ fn an_army_with_no_champions_is_not_changed_by_them() {
     units[10].health = 40.0;
     let before: Vec<(f32, f32, f32)> = units.iter().map(|unit| (unit.x, unit.health, unit.guard)).collect();
     apply_champions(&mut units, 1.0);
-    champion_acts(&mut units, &mut vec![dummy(MIDDLE)], &mut Vec::new(), &Upgrades::default(), DEFAULT_ARMY_LIMIT, 1.0, &mut Effects::default());
+    champion_acts(&mut units, &mut vec![dummy(MIDDLE)], &mut Vec::new(), &Upgrades::default(), 1.0, &mut Effects::default());
     assert_eq!(before, units.iter().map(|unit| (unit.x, unit.health, unit.guard)).collect::<Vec<_>>());
     assert!(units.iter().all(|unit| unit.might == 1.0 && unit.ward == 1.0));
 }
@@ -430,7 +430,7 @@ fn a_drummer_calls_recruits_when_there_is_room_and_waits_when_there_is_not() {
     units[0].power = 0.0;
     let mut babies = Vec::new();
     let mut fx = Effects::default();
-    champion_acts(&mut units, &mut Vec::new(), &mut babies, &Upgrades::default(), DEFAULT_ARMY_LIMIT, 1.0 / 60.0, &mut fx);
+    champion_acts(&mut units, &mut Vec::new(), &mut babies, &Upgrades::default(), 1.0 / 60.0, &mut fx);
     assert_eq!(babies.len(), 4);
     assert!(babies.iter().all(|baby| baby.position.distance(MIDDLE) <= RADIUS * 5.0 + 1.0));
     //not again for a while
@@ -441,7 +441,8 @@ fn a_drummer_calls_recruits_when_there_is_room_and_waits_when_there_is_not() {
     //an army that is as big as it can be is not given more, and the drummer tries again soon
     units[0].power = 0.0;
     let mut none = Vec::new();
-    champion_acts(&mut units, &mut Vec::new(), &mut none, &Upgrades::default(), 1, 1.0 / 60.0, &mut fx);
+    let full = Upgrades { army_limit: 1, ..Upgrades::default() };
+    champion_acts(&mut units, &mut Vec::new(), &mut none, &full, 1.0 / 60.0, &mut fx);
     assert!(none.is_empty() && units[0].power > 0.0 && units[0].power <= 1.0);
 }
 
@@ -458,7 +459,7 @@ fn a_phoenix_rises_once_and_then_has_to_wait_before_it_can_again() {
     assert!(fx.announcements.is_empty());
     //it blazes on the next frame, hurting the enemies near it and none far away
     let mut enemies = vec![dummy(Vec2::new(MIDDLE.x + 200.0, MIDDLE.y)), dummy(Vec2::new(MIDDLE.x + 2000.0, MIDDLE.y))];
-    champion_acts(&mut units, &mut enemies, &mut Vec::new(), &Upgrades::default(), DEFAULT_ARMY_LIMIT, 1.0 / 60.0, &mut fx);
+    champion_acts(&mut units, &mut enemies, &mut Vec::new(), &Upgrades::default(), 1.0 / 60.0, &mut fx);
     assert!(damage_taken(&enemies[0]) > 1.0e8 && damage_taken(&enemies[1]) == 0.0);
     assert!(fx.rebirths.is_empty() && fx.cues.contains(&Cue::Explosion));
     //it can't again straight away
@@ -497,7 +498,7 @@ fn nothing_goes_off_while_the_world_is_standing_still() {
     let mut enemies = vec![dummy(Vec2::new(MIDDLE.x + 200.0, MIDDLE.y)), dummy(Vec2::new(MIDDLE.x + 300.0, MIDDLE.y))];
     let mut babies = Vec::new();
     let mut fx = Effects::default();
-    champion_acts(&mut units, &mut enemies, &mut babies, &Upgrades::default(), DEFAULT_ARMY_LIMIT, 0.0, &mut fx);
+    champion_acts(&mut units, &mut enemies, &mut babies, &Upgrades::default(), 0.0, &mut fx);
     assert!(fx.cues.is_empty() && babies.is_empty() && enemies.iter().all(|enemy| damage_taken(enemy) == 0.0));
 }
 
@@ -513,7 +514,7 @@ fn every_kind_of_champion_can_act_for_a_minute_among_enemies_without_trouble() {
         for enemy in &mut enemies {
             enemy.slow = 1.0;
         }
-        champion_acts(&mut units, &mut enemies, &mut babies, &Upgrades::default(), DEFAULT_ARMY_LIMIT, 1.0 / 60.0, &mut fx);
+        champion_acts(&mut units, &mut enemies, &mut babies, &Upgrades::default(), 1.0 / 60.0, &mut fx);
         fx.cues.clear();
         fx.cue_spots.clear();
         fx.beams.clear();
@@ -637,7 +638,7 @@ fn a_champion_that_is_won_joins_the_army_with_a_fanfare() {
     let mut units: Vec<Unit> = (0..20).map(|i| unit_at(MIDDLE.x + i as f32 * 5.0, MIDDLE.y)).collect();
     let mut babies = Vec::new();
     let mut fx = Effects::default();
-    let kind = award_champion(&mut units, &mut babies, MIDDLE, Odds::Barracks, DEFAULT_ARMY_LIMIT, &mut fx).expect("there is room");
+    let kind = award_champion_for(0, &mut units, &mut babies, MIDDLE, Odds::Barracks, DEFAULT_ARMY_LIMIT, &mut fx).expect("there is room");
     assert_eq!(units.len(), 21);
     assert_eq!(champions_held(&units), 1);
     let joined = units.last().unwrap();
@@ -649,7 +650,7 @@ fn a_champion_that_is_won_joins_the_army_with_a_fanfare() {
     assert!(babies.is_empty());
     //it counts against the army like any unit, even one that is as big as it can be, which the roster does not have to wait for
     let mut full: Vec<Unit> = (0..10).map(|i| unit_at(i as f32, 0.0)).collect();
-    assert!(award_champion(&mut full, &mut babies, MIDDLE, Odds::Boss(0), 10, &mut fx).is_some());
+    assert!(award_champion_for(0, &mut full, &mut babies, MIDDLE, Odds::Boss(0), 10, &mut fx).is_some());
     assert_eq!(full.len(), 11);
 }
 
@@ -660,7 +661,7 @@ fn the_roster_has_room_for_a_dozen_and_a_champion_past_that_gives_recruits() {
     let mut fx = Effects::default();
     //(a dozen won all find a place, either of their own or by joining one of the kind they already have)
     for _ in 0..MAX_CHAMPIONS {
-        assert!(award_champion(&mut units, &mut babies, MIDDLE, Odds::Boss(2), DEFAULT_ARMY_LIMIT, &mut fx).is_some());
+        assert!(award_champion_for(0, &mut units, &mut babies, MIDDLE, Odds::Boss(2), DEFAULT_ARMY_LIMIT, &mut fx).is_some());
     }
     assert!(champions_held(&units) <= MAX_CHAMPIONS && babies.is_empty());
     //a dozen that have risen as far as they can leave nowhere for another, of any kind
@@ -673,7 +674,7 @@ fn the_roster_has_room_for_a_dozen_and_a_champion_past_that_gives_recruits() {
     assert_eq!(champions_held(&units), MAX_CHAMPIONS);
     let army = units.len();
     let mut fx = Effects::default();
-    assert!(award_champion(&mut units, &mut babies, MIDDLE, Odds::Boss(2), DEFAULT_ARMY_LIMIT, &mut fx).is_none());
+    assert!(award_champion_for(0, &mut units, &mut babies, MIDDLE, Odds::Boss(2), DEFAULT_ARMY_LIMIT, &mut fx).is_none());
     assert_eq!(units.len(), army);
     assert_eq!(babies.len(), CHAMPION_RECRUITS);
     assert!(fx.announcements.iter().any(|(text, _)| text.contains("ROSTER FULL")));
@@ -690,7 +691,7 @@ fn a_second_champion_of_a_kind_merges_into_the_first_and_raises_it_a_level() {
     //(champions are won by chance, so go on until it is a juggernaut that is won, putting aside any other that joins)
     let mut won = None;
     for _ in 0..500 {
-        won = award_champion(&mut units, &mut babies, MIDDLE, Odds::Boss(2), DEFAULT_ARMY_LIMIT, &mut fx);
+        won = award_champion_for(0, &mut units, &mut babies, MIDDLE, Odds::Boss(2), DEFAULT_ARMY_LIMIT, &mut fx);
         if won == Some(kind) {
             break;
         }
@@ -765,14 +766,14 @@ fn kills_teach_the_champions_and_each_level_takes_more_than_the_last() {
 fn the_champions_a_frame_won_are_all_handed_out_once() {
     let mut units: Vec<Unit> = (0..10).map(|i| unit_at(i as f32, 0.0)).collect();
     let mut fx = Effects::default();
-    fx.recruits.push((MIDDLE, Odds::Elite));
-    fx.recruits.push((MIDDLE + Vec2::new(500.0, 0.0), Odds::Barracks));
+    fx.recruits.push((MIDDLE, Odds::Elite, 0));
+    fx.recruits.push((MIDDLE + Vec2::new(500.0, 0.0), Odds::Barracks, 0));
     //each is a new champion or, if the army has one of that kind by chance, a level for it: either way two are won, once
     let won = |units: &[Unit]| units.iter().filter(|unit| unit.champion != 0).map(|unit| unit.level as usize).sum::<usize>();
-    award_recruits(&mut units, &mut Vec::new(), DEFAULT_ARMY_LIMIT, &mut fx);
+    award_recruits(&mut units, &mut Vec::new(), &Upgrades::default(), &mut fx);
     assert_eq!(won(&units), 2);
     assert!(fx.recruits.is_empty());
-    award_recruits(&mut units, &mut Vec::new(), DEFAULT_ARMY_LIMIT, &mut fx);
+    award_recruits(&mut units, &mut Vec::new(), &Upgrades::default(), &mut fx);
     assert_eq!(won(&units), 2);
     //a new one joins where it was won, which is where the enemy fell or the barracks stood
     if champions_held(&units) == 2 {
@@ -815,7 +816,7 @@ fn an_elite_enemy_now_and_then_leaves_a_champion_and_an_ordinary_one_never_does(
             .collect();
         let mut fx = Effects::default();
         resolve_deaths(&mut enemies, &mut Vec::new(), 100, &Upgrades::default(), &mut fx);
-        assert!(fx.recruits.iter().all(|(_, odds)| *odds == Odds::Elite));
+        assert!(fx.recruits.iter().all(|(_, odds, _)| *odds == Odds::Elite));
         fx.recruits.len()
     };
     assert_eq!(kills(false, 1000), 0);
@@ -967,7 +968,7 @@ fn a_big_army_with_champions_in_it_is_fast_to_work_out() {
     let mut fx = Effects::default();
     for _ in 0..20 {
         apply_champions(&mut units, 1.0 / 60.0);
-        champion_acts(&mut units, &mut enemies, &mut Vec::new(), &Upgrades::default(), DEFAULT_ARMY_LIMIT, 1.0 / 60.0, &mut fx);
+        champion_acts(&mut units, &mut enemies, &mut Vec::new(), &Upgrades::default(), 1.0 / 60.0, &mut fx);
     }
     let each = started.elapsed().as_secs_f32() * 1000.0 / 20.0;
     println!("champions work out in {each:.2} ms a frame with {DEFAULT_ARMY_LIMIT} units");

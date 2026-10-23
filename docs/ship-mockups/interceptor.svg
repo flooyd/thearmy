@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-32 -32 64 64" width="256" height="256">
+<title>Interceptor</title>
+<style>
+  .h { fill: #ffffff; stroke: #06090d; stroke-width: 5; stroke-linejoin: round; paint-order: stroke; }
+  .p { fill: none; stroke: #06090d; stroke-opacity: .38; stroke-width: 1.1; stroke-linecap: round; }
+  .g { fill: #10202b; }
+  .gl { fill: #9cecff; opacity: .85; }
+  .e { fill: #ffa63d; }
+</style>
+<path class="e" d="M-2.6 21 L0 29 L2.6 21 Z"/>
+<path class="h" d="M3.2 -4 L24.5 17 L24.5 23 L12 21.5 L3.2 16 Z"/>
+<path class="h" d="M-3.2 -4 L-24.5 17 L-24.5 23 L-12 21.5 L-3.2 16 Z"/>
+<path class="h" d="M3.2 -15 L10 -9 L3.2 -8 Z"/>
+<path class="h" d="M-3.2 -15 L-10 -9 L-3.2 -8 Z"/>
+<path class="h" d="M0 -29 C2.8 -23 3.8 -15 3.8 -6 L3.8 18 L0 23.5 L-3.8 18 L-3.8 -6 C-3.8 -15 -2.8 -23 0 -29 Z"/>
+<path class="p" d="M0 -1 L0 18 M7.5 5 L14.5 12.5 M-7.5 5 L-14.5 12.5"/>
+<path class="g" d="M0 -17 C1.8 -14.5 2 -10 0 -6 C-2 -10 -1.8 -14.5 0 -17 Z"/>
+<path class="gl" d="M0 -15.5 C0.7 -14 0.8 -12.5 0.3 -11.5 C-0.2 -12.5 -0.3 -14 0 -15.5 Z"/>
+</svg>

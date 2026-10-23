@@ -1,6 +1,6 @@
 # The Army
 
-A top-down game about a growing army. You are one dot at the centre of a few thousand of them, and the world is a
+A top-down game about a growing army, alone or with up to three others over the internet. You are one dot at the centre of a few thousand of them, and the world is a
 1000 x 1000 tile field full of things that want to stop you: nests, raiding hordes, and eight bosses (the last one, the Sovereign,
 comes back after you fell it). Pick up the babies that enemies drop, grow the army to the thousands, point it at whatever is
 in the way, and wall in whatever you can't fight.
@@ -28,8 +28,8 @@ are the fonts.
 - **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter into shards) and many more stack across the run.
 - **Combos.** Chain kills for a MASSACRE, then a RAMPAGE, and watch the numbers climb.
 
-The game is built for a lot of units: 15,000 by default (the settings take it anywhere from 5,000 to 50,000), drawn as instanced circles with the army's
-work shared over all your processor cores. It runs at your display's refresh rate (it was developed on a 120 Hz screen).
+The game is built for a lot of units: 15,000 by default (the settings take it anywhere from 5,000 to 50,000), drawn as instanced ships (small darts that point the way they are going, drawn in the shader, with plain
+circles as a setting) with the army's work shared over all your processor cores. It runs at your display's refresh rate (it was developed on a 120 Hz screen).
 
 | | |
 |---|---|
@@ -60,6 +60,35 @@ work shared over all your processor cores. It runs at your display's refresh rat
 | `Esc` | menu (settings, controls, save, load) |
 
 The game also saves on its own, and the title screen offers to carry on from where you left off.
+
+## Playing with others
+
+Up to four players share one world over the internet. One of you hosts: the host's game runs the world, and everyone else sees and plays in it
+with their own army of up to 12,500 units, their own relics and their own walls. Each player's colour tints their army, their names float over
+them, and an arrow at the edge of the screen points at whoever is off it. Nothing is needed but the host's address and the password.
+
+**Hosting.** Press `M` on the title screen for *Multiplayer*, then *Host a game*: pick your name, a password (4 characters or more) and a port (47821 unless you
+change it), and *Start hosting*. Friends who join appear in the lobby; press *New run* (or *Continue party*, below) when everyone is in. Players can still join after the run has started.
+
+- **Forward the port.** The game uses **UDP**, not TCP. On your router, forward UDP port 47821 (or the port you chose) to the machine that is hosting.
+  Friends then join your public address (search "what is my ip"). Players on the same network can use the machine's local address and need no forwarding.
+- **Firewall.** The first time you host, Windows asks whether to let the game through its firewall: allow it (private networks is enough for the same network,
+  tick public for the internet). On Linux, open the port, for example `sudo ufw allow 47821/udp`.
+- **The password** is never sent: a joiner proves they know it, and the host keeps no more of it than that proof needs. The connection is encrypted, but it can't prove it is the
+  host you meant (there is no certificate authority for it), so use a password you do not use anywhere else.
+
+**Joining.** `M` on the title screen, then *Join a game*: the host's address (add `:port` if it is not the usual one), your name and the password. Or press *Find games*
+to pick from the lobby list below.
+
+**Coming and going.** A player who drops (or closes the game) has their army held where it was, out of reach of everything, and shows as AWAY in the list.
+Joining again with the same name gets it back, and a guest whose connection is lost tries to rejoin for a minute by itself. The host saves the whole party
+(`F5`, the menu, or on its own); next time the host's lobby offers *Continue party*, and each friend takes their army up again by joining with their name.
+Only the host saves and loads. If the host ends the game, it ends for everyone.
+
+**The lobby list.** Typing an address is fine, but there is also an optional list of open games. It is a tiny web service (in [`lobby-server`](lobby-server/README.md),
+written for Vercel and a free Redis database) that only holds the list: the games themselves are still played straight with the host. A host turns it on with
+*Show my game on the list*; everyone who should see each other's games puts the same address in the *Lobby server* box. [`lobby-server/README.md`](lobby-server/README.md)
+has the steps to set one up.
 
 ## Download
 
@@ -98,6 +127,8 @@ instead of filling the screen.
 ```sh
 cargo test --release
 ```
+
+The multiplayer tests open real connections on this machine (they need loopback networking, nothing else).
 
 The code is one file for each part of the game; `src/main.rs` has the map of them, and every tuning constant is in
 `src/config.rs`. Pushing a tag like `v0.1.0` makes GitHub Actions build the Windows and Linux downloads and publish a release.

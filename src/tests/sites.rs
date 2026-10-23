@@ -166,7 +166,7 @@ fn a_destroyed_nest_takes_its_walls_and_brood_with_it_and_pays() {
     assert_eq!(scene.sites[0].state, SiteState::Cleared);
     assert!(scene.walls.is_empty(), "the lair comes down");
     assert!(news.walls_changed);
-    assert!((scene.fx.points - NEST_REWARD_POINTS).abs() < 0.01);
+    assert!((scene.fx.spoils[0].points - NEST_REWARD_POINTS).abs() < 0.01);
     assert_eq!(scene.babies.len(), NEST_REWARD_BABIES + 40 / NEST_BABIES_PER);
     //a nest that has been destroyed stays that way
     let before = scene.babies.len();
@@ -208,7 +208,7 @@ fn a_village_has_guards_and_is_liberated_when_they_are_all_gone() {
     assert_eq!(news.villages, 1);
     assert_eq!(scene.sites[0].state, SiteState::Cleared);
     assert_eq!(scene.babies.len(), VILLAGE_VILLAGERS + 120 / VILLAGERS_PER);
-    assert!((scene.fx.points - VILLAGE_REWARD_POINTS).abs() < 0.01);
+    assert!((scene.fx.spoils[0].points - VILLAGE_REWARD_POINTS).abs() < 0.01);
     let again = scene.step(near, 0.016);
     assert_eq!(again.villages, 0, "a village is only liberated once");
 }
@@ -308,7 +308,7 @@ fn a_barracks_is_taken_when_its_soldiers_are_all_gone_and_pays_once() {
     assert_eq!(scene.sites[0].state, SiteState::Cleared);
     assert!(scene.walls.is_empty(), "the walls come down");
     assert!(news.walls_changed);
-    assert!((scene.fx.points - BARRACKS_REWARD_POINTS).abs() < 0.01);
+    assert!((scene.fx.spoils[0].points - BARRACKS_REWARD_POINTS).abs() < 0.01);
     assert_eq!(scene.babies.len(), BARRACKS_RECRUITS + 120 / BARRACKS_RECRUITS_PER);
     let again = scene.step(near, 0.016);
     assert_eq!((again.barracks, again.barracks_champions), (0, 0), "it is only taken once");

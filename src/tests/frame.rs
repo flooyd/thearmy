@@ -80,8 +80,7 @@ fn where_a_whole_frame_goes() {
             });
             timed!(totals[5], {
                 fx.fallen.clear();
-                fx.heal_all = 0.0;
-                fx.points = 0.0;
+                fx.spoils = Default::default();
                 respawn_enemies(&mut enemies, player.x, player.y, units.len());
                 grow_babies(&mut babies, &mut units, player.x, player.y, dt, 200.0, DEFAULT_ARMY_LIMIT, &mut fx);
                 fx.update(dt, player);

@@ -3,7 +3,7 @@
 use super::*;
 
 fn changed() -> Settings {
-    Settings { master: 0.35, effects: 0.8, music: 0.0, shake: 0.5, fullscreen: false, colourblind: true, difficulty: Difficulty::Hard, hints: false, formation: Formation::Wedge, army_limit: 32000 }
+    Settings { master: 0.35, effects: 0.8, music: 0.0, shake: 0.5, fullscreen: false, colourblind: true, difficulty: Difficulty::Hard, hints: false, formation: Formation::Wedge, unit_shape: UnitShape::Circles, army_limit: 32000, player_name: "Ann Marie".to_owned(), join_address: "203.0.113.7:50000".to_owned(), host_port: 50000, lobby_server: "https://army.example.com".to_owned(), list_game: false }
 }
 
 #[test]

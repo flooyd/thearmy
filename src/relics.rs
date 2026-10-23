@@ -294,6 +294,31 @@ impl Upgrades {
     }
 }
 
+//whose relics count for a unit. everything that hurts or helps units asks for the relics of the unit's owner: with one set of
+//`Upgrades` that is the same for all of them, with a list (one for each player, in the order of the players) each army has its own
+pub(crate) trait Relics {
+    fn of(&self, owner: u8) -> &Upgrades;
+}
+
+impl Relics for Upgrades {
+    fn of(&self, _: u8) -> &Upgrades {
+        self
+    }
+}
+
+//(a unit whose owner is not in the list is taken to be the last player's, rather than nobody's)
+impl Relics for [Upgrades] {
+    fn of(&self, owner: u8) -> &Upgrades {
+        &self[(owner as usize).min(self.len() - 1)]
+    }
+}
+
+impl Relics for Vec<Upgrades> {
+    fn of(&self, owner: u8) -> &Upgrades {
+        self.as_slice().of(owner)
+    }
+}
+
 //three different relics out of a pool, at random, the common ones more often than the rare ones
 pub(crate) fn weighted_choices(pool: &[Relic]) -> [Relic; 3] {
     let mut left = pool.to_vec();
@@ -470,13 +495,15 @@ pub(crate) fn opening_salvo(enemies: &mut [Enemy], player: Vec2, wait: &mut f32,
 }
 
 //a unit that died inside an enemy hurts it
-pub(crate) fn martyr_blasts(enemies: &mut [Enemy], fallen: &[Vec2], upgrades: &Upgrades) {
-    if upgrades.martyr <= 0.0 {
-        return;
-    }
-    for at in fallen.iter().take(400) {
+pub(crate) fn martyr_blasts<R: Relics + ?Sized>(enemies: &mut [Enemy], fallen: &[(Vec2, u8)], relics: &R) {
+    for &(at, owner) in fallen.iter().take(400) {
+        let martyr = relics.of(owner).martyr;
+        if martyr <= 0.0 {
+            continue;
+        }
         if let Some(enemy) = enemies.iter_mut().find(|enemy| enemy.health > 0.0 && enemy.overlaps_circle(at.x, at.y, RADIUS)) {
-            enemy.hurt += enemy.take_damage(MARTYR_DAMAGE * upgrades.martyr);
+            enemy.hurt += enemy.take_damage(MARTYR_DAMAGE * martyr);
+            enemy.credit = owner;
         }
     }
 }

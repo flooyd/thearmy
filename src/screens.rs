@@ -5,7 +5,7 @@ use crate::prelude::*;
 const BACKDROP: Color = Color::new(0.015, 0.025, 0.05, 1.0); //behind the splash and defeat screens: a very dark blue
 
 //a faint grid of the accent colour that drifts, so a screen with nothing moving on it still isn't flat
-fn draw_backdrop(time: f32) {
+pub(crate) fn draw_backdrop(time: f32) {
     clear_background(BACKDROP);
     let spacing = 56.0;
     let drift = (time * 6.0) % spacing;
@@ -23,7 +23,7 @@ fn draw_backdrop(time: f32) {
 }
 
 //a heading in the header font with a glow of the accent colour behind it, centred on x
-fn draw_glowing_heading(text: &str, x: f32, y: f32, size: f32, color: Color, alpha: f32) {
+pub(crate) fn draw_glowing_heading(text: &str, x: f32, y: f32, size: f32, color: Color, alpha: f32) {
     let width = text_width(text, size, Face::Header);
     let glow = Color::new(CYAN.r, CYAN.g, CYAN.b, 0.22 * alpha);
     let reach = (size / 28.0).max(2.0);
@@ -79,13 +79,16 @@ pub(crate) fn draw_splash(time: f32, saved: Option<&SaveInfo>, problem: Option<&
     let fade = 0.6 + 0.4 * (time * 3.0).sin();
     let pulse = Color::new(CYAN.r, CYAN.g, CYAN.b, fade);
     match saved {
-        None => draw_label_centered("PRESS ANY KEY TO CONTINUE", center_x, screen_height() * 0.8, prompt_size, pulse, Face::Bold),
+        None => {
+            draw_label_centered("PRESS ANY KEY TO CONTINUE", center_x, screen_height() * 0.8, prompt_size, pulse, Face::Bold);
+            draw_label_centered("OR M FOR MULTIPLAYER", center_x, screen_height() * 0.87, (prompt_size * 0.7).round(), MUTED, Face::Bold);
+        }
         Some(info) => {
             draw_label_centered("PRESS ENTER TO CONTINUE", center_x, screen_height() * 0.76, prompt_size, pulse, Face::Bold);
             let detail = format!("army of {}   {} played   bosses slain {}", grouped(info.army), clock(info.seconds), info.bosses);
             let detail_size = fit_size(&detail, (screen_height() * 0.034).round(), screen_width() * 0.9, Face::Body);
             draw_label_centered(&detail, center_x, screen_height() * 0.82, detail_size, INK, Face::Body);
-            draw_label_centered("PRESS N FOR A NEW RUN", center_x, screen_height() * 0.89, (prompt_size * 0.7).round(), MUTED, Face::Bold);
+            draw_label_centered("PRESS N FOR A NEW RUN     M FOR MULTIPLAYER", center_x, screen_height() * 0.89, (prompt_size * 0.7).round(), MUTED, Face::Bold);
         }
     }
     if let Some(problem) = problem {
@@ -120,11 +123,28 @@ pub(crate) fn quit_if_asked() {
     }
 }
 
-//show the title screen until a key is pressed. when there is a save to go on from, Enter picks it up and N starts afresh.
-//returns the run to carry on with, None for a new one
-pub(crate) async fn show_splash(saves: &Saves) -> Option<Snapshot> {
+//what the title screen leads to: a run on this machine alone, one that others can join, or one that is another's. each of the first two is the run to
+//carry on with, None for a new one
+pub(crate) enum Start {
+    Solo(Option<Snapshot>),
+    Hosting(NetHost, Option<Snapshot>),
+    Joined(NetClient, Lobby),
+}
+
+impl Start {
+    pub(crate) fn into_parts(self) -> (Link, Option<Snapshot>) {
+        match self {
+            Start::Solo(snapshot) => (Link::Solo, snapshot),
+            Start::Hosting(host, snapshot) => (Link::Host(host), snapshot),
+            Start::Joined(client, lobby) => (Link::Guest(client, lobby), None),
+        }
+    }
+}
+
+//show the title screen until a key is pressed. when there is a save to go on from, Enter picks it up and N starts afresh. M is the multiplayer screens
+pub(crate) async fn show_splash(saves: &Saves, settings: &mut Settings, notice: Option<String>) -> Start {
     let mut saved = saves.newest();
-    let mut problem: Option<String> = None;
+    let mut problem: Option<String> = notice;
     let best = saves.load_high_scores().best();
     let mut time = 0.0;
     loop {
@@ -137,9 +157,27 @@ pub(crate) async fn show_splash(saves: &Saves) -> Option<Snapshot> {
         }
         if let Some(key) = get_last_key_pressed() {
             match (&saved, key) {
-                (None, _) | (Some(_), KeyCode::N) => return None,
+                (_, KeyCode::M) => {
+                    problem = None;
+                    match show_multiplayer(settings, saves).await {
+                        Some(Multi::Host(host, slot)) => {
+                            match slot.map(|slot| saves.read(slot)) {
+                                None => return Start::Hosting(host, None),
+                                Some(Ok(snapshot)) => return Start::Hosting(host, Some(snapshot)),
+                                Some(Err(error)) => {
+                                    eprintln!("could not load the save: {error}");
+                                    problem = Some("THAT SAVE COULD NOT BE READ".to_owned());
+                                    saved = None;
+                                }
+                            }
+                        }
+                        Some(Multi::Guest(client, lobby)) => return Start::Joined(client, lobby),
+                        None => {}
+                    }
+                }
+                (None, _) | (Some(_), KeyCode::N) => return Start::Solo(None),
                 (Some((slot, _)), KeyCode::Enter | KeyCode::KpEnter | KeyCode::C | KeyCode::Space) => match saves.read(*slot) {
-                    Ok(snapshot) => return Some(snapshot),
+                    Ok(snapshot) => return Start::Solo(Some(snapshot)),
                     Err(error) => {
                         eprintln!("could not load the save: {error}");
                         problem = Some("THAT SAVE COULD NOT BE READ".to_owned());

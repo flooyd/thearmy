@@ -53,6 +53,19 @@ fn settle_unit(unit: &mut Unit, from: Vec2, dt: f32, walls: &Walls, near: &NearW
     unit.y = settled.y;
     clamp_to_world(&mut unit.x, &mut unit.y);
     unit.velocity = smoothed_velocity(unit.velocity, from, Vec2::new(unit.x, unit.y), dt);
+    unit.nose = turned_nose(unit.nose, unit.velocity, dt);
+}
+
+//the way a unit's nose points after a frame: turned a little towards the way the unit is going, or as it was if it is going slowly (so a unit standing in a
+//crowd keeps the way it was pointing, and the shoving does not make it twitch). no trig, since every unit does this every frame
+pub(crate) fn turned_nose(nose: Vec2, velocity: Vec2, dt: f32) -> Vec2 {
+    let speed_squared = velocity.length_squared();
+    if dt <= 0.0 || speed_squared < UNIT_TURN_MIN_SPEED * UNIT_TURN_MIN_SPEED {
+        return nose;
+    }
+    let wanted = velocity / speed_squared.sqrt();
+    let turn = (UNIT_TURN * dt).min(1.0);
+    (nose * (1.0 - turn) + wanted * turn).try_normalize().unwrap_or(wanted)
 }
 
 //the velocity of something that moved from one position to another in dt seconds, blended into its last velocity so
@@ -284,7 +297,16 @@ pub(crate) fn unit_base_color(unit: &Unit) -> Color {
 
 //a unit's colour, going red the more it is hurt
 pub(crate) fn unit_color(unit: &Unit) -> Color {
+    unit_color_in(unit, None)
+}
+
+//a unit's colour in a game with others, where the army of each player is tinted towards the colour of the player (a champion is not: it has its own, and a ring
+//in its player's, see team.rs)
+pub(crate) fn unit_color_in(unit: &Unit, team: Option<&[Color]>) -> Color {
     let mut base = unit_base_color(unit);
+    if let Some(colors) = team.filter(|_| unit.champion == 0) {
+        base = team_color(base, colors[owner_index(unit.owner).min(colors.len() - 1)]);
+    }
     if unit.guard > 0.0 {
         //a shield tints it towards the accent colour
         base = Color::new(base.r + (CYAN.r - base.r) * 0.45, base.g + (CYAN.g - base.g) * 0.45, base.b + (CYAN.b - base.b) * 0.45, 1.0);
@@ -332,6 +354,8 @@ pub(crate) fn baby_pickup_range(army: usize, screen: Vec2) -> f32 {
     BABY_PICKUP_RANGE * (screen_reach / BABY_PICKUP_RANGE).powf(progress)
 }
 
+pub(crate) static NEXT_UNIT_ID: AtomicU32 = AtomicU32::new(0);
+
 #[derive(Clone)]
 pub(crate) struct Unit {
     pub(crate) x: f32,
@@ -340,6 +364,7 @@ pub(crate) struct Unit {
     pub(crate) steer: Steer,       //where it is heading
     pub(crate) steer_in: f32,      //seconds until it works out where to head again
     pub(crate) velocity: Vec2,     //pixels per second, how it has actually been moving, slower than speed when something is in the way
+    pub(crate) nose: Vec2,         //a unit vector, the way it points when it is drawn as a ship: it turns to the way the unit is going and is left alone while it is hardly moving
     pub(crate) target: Option<u32>, //the enemy (its id) it was sent at, None when it is following the player
     pub(crate) health: f32,        //it dies at 0, and heals up to UNIT_HEALTH
     pub(crate) garrison: Option<(i32, i32)>, //the tower (its grid square) it is inside, where it stays safe and shoots
@@ -353,6 +378,8 @@ pub(crate) struct Unit {
     pub(crate) level: u8,          //0 for an ordinary unit, otherwise the champion's level, from 1
     pub(crate) xp: f32,            //a champion's experience towards its next level
     pub(crate) slot: u32,          //where it stands in a formation, as two random numbers (see `slot_coords`) that it keeps for good
+    pub(crate) id: u32,           //different for every unit ever made, which is how a machine that is shown the army (see `Viewer`) tells one from another as they come and go
+    pub(crate) owner: u8,          //which player's army it is in (their index in `Players`), 0 when there is only one
 }
 
 //where a unit is heading
@@ -382,6 +409,7 @@ impl Unit {
             steer: Steer::Player,
             steer_in: rand::gen_range(0.0, STEERING_INTERVAL),
             velocity: Vec2::ZERO,
+            nose: Vec2::new(0.0, -1.0),
             target: None,
             health: UNIT_HEALTH,
             garrison: None,
@@ -395,7 +423,14 @@ impl Unit {
             level: 0,
             xp: 0.0,
             slot: rand::rand(),
+            id: NEXT_UNIT_ID.fetch_add(1, Ordering::Relaxed),
+            owner: 0,
         }
+    }
+
+    //the same unit in another player's army
+    pub(crate) fn owned_by(self, owner: usize) -> Unit {
+        Unit { owner: owner as u8, ..self }
     }
 }
 
@@ -429,7 +464,7 @@ pub(crate) fn bury_units(units: &mut Vec<Unit>, fx: &mut Effects) -> usize {
                     unit.health = unit.max_health();
                     unit.guard = 0.0;
                     unit.power = recharge;
-                    fx.rebirths.push((Vec2::new(unit.x, unit.y), unit.champion, unit.level));
+                    fx.rebirths.push((Vec2::new(unit.x, unit.y), unit.champion, unit.level, unit.owner));
                     return true;
                 }
             }
@@ -438,7 +473,7 @@ pub(crate) fn bury_units(units: &mut Vec<Unit>, fx: &mut Effects) -> usize {
             fx.add_shake(0.3);
         }
         fx.burst(Vec2::new(unit.x, unit.y), unit_base_color(unit), 6, 200.0);
-        fx.fallen.push(Vec2::new(unit.x, unit.y));
+        fx.fallen.push((Vec2::new(unit.x, unit.y), unit.owner));
         somewhere = Some(Vec2::new(unit.x, unit.y));
         false
     });
@@ -456,24 +491,50 @@ pub(crate) struct Baby {
     pub(crate) age: f32, //seconds since it dropped
 }
 
-//babies the player is within range of grow into units, once they have been there a moment and while the army is smaller than
-//`cap`. one that has waited BABY_LIFE seconds is gone, whether or not there was room for it
-pub(crate) fn grow_babies(babies: &mut Vec<Baby>, units: &mut Vec<Unit>, player_x: f32, player_y: f32, dt: f32, range: f32, cap: usize, fx: &mut Effects) {
-    let player = Vec2::new(player_x, player_y);
+//a player who babies can grow for: where they are, how far they reach, and how big their army is now and can be
+pub(crate) struct Picker {
+    pub(crate) position: Vec2,
+    pub(crate) range: f32,
+    pub(crate) army: usize,
+    pub(crate) cap: usize,
+}
+
+//babies grow into units of the army of the nearest player they are within range of (and whose army has room), once they have been
+//there a moment. a baby that no one can take, because it is out of reach or the armies in reach are full, waits, and one that has waited
+//BABY_LIFE seconds is gone. the new units are put at the end of the list, so the units are out of order of owner until they are
+//sorted again (see `sort_by_owner`)
+pub(crate) fn grow_babies_among(babies: &mut Vec<Baby>, units: &mut Vec<Unit>, pickers: &mut [Picker], dt: f32, fx: &mut Effects) {
     babies.retain_mut(|baby| {
         baby.age += dt;
         if baby.age >= BABY_LIFE {
             return false;
         }
-        if baby.age < BABY_PICKUP_DELAY || baby.position.distance(player) > range || units.len() >= cap {
+        if baby.age < BABY_PICKUP_DELAY {
             return true;
         }
-        units.push(new_unit(baby.position));
-        fx.picked_up += 1;
+        let taker = pickers
+            .iter()
+            .enumerate()
+            .filter(|(_, picker)| picker.army < picker.cap && baby.position.distance(picker.position) <= picker.range)
+            .min_by(|a, b| baby.position.distance_squared(a.1.position).total_cmp(&baby.position.distance_squared(b.1.position)))
+            .map(|(i, _)| i);
+        let Some(owner) = taker else {
+            return true;
+        };
+        units.push(new_unit(baby.position).owned_by(owner));
+        pickers[owner].army += 1;
+        fx.grown[owner.min(MAX_PLAYERS - 1)] += 1;
         fx.burst(baby.position, pickup_color(), 5, 140.0);
         fx.cue(Cue::Pop);
         false
     });
+}
+
+//the same for one player, whose army is all the units there are
+#[cfg(test)]
+pub(crate) fn grow_babies(babies: &mut Vec<Baby>, units: &mut Vec<Unit>, player_x: f32, player_y: f32, dt: f32, range: f32, cap: usize, fx: &mut Effects) {
+    let mut picker = [Picker { position: Vec2::new(player_x, player_y), range, army: units.len(), cap }];
+    grow_babies_among(babies, units, &mut picker, dt, fx);
 }
 
 //babies are small circles (green, unless the colours are changed) with a ring round them. they are drawn over the units, which are standing on the
@@ -506,3 +567,34 @@ pub(crate) fn baby_blink(age: f32) -> f32 {
     1.0 - (1.0 - beat) * (0.5 + 0.4 * closing)
 }
 
+
+impl Unit {
+    //a unit as another machine shows it: what it is and where, and nothing of what it is doing (which only the host's world needs). it takes nothing from
+    //the random numbers or the ids, so showing an army does not change what the host's world does
+    pub(crate) fn replica(id: u32, owner: usize, at: Vec2) -> Unit {
+        Unit {
+            x: at.x,
+            y: at.y,
+            speed: (UNIT_MIN_SPEED + UNIT_MAX_SPEED) / 2.0,
+            steer: Steer::Player,
+            steer_in: 0.0,
+            velocity: Vec2::ZERO,
+            nose: Vec2::new(0.0, -1.0),
+            target: None,
+            health: UNIT_HEALTH,
+            garrison: None,
+            guard: 0.0,
+            calm: 99.0,
+            age: 99.0,
+            champion: 0,
+            power: 0.0,
+            might: 1.0,
+            ward: 1.0,
+            level: 0,
+            xp: 0.0,
+            slot: 0,
+            id,
+            owner: owner as u8,
+        }
+    }
+}

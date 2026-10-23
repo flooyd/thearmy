@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-32 -32 64 64" width="256" height="256">
+<title>Scout pod</title>
+<style>
+  .h { fill: #ffffff; stroke: #06090d; stroke-width: 5; stroke-linejoin: round; paint-order: stroke; }
+  .p { fill: none; stroke: #06090d; stroke-opacity: .38; stroke-width: 1.1; stroke-linecap: round; }
+  .g { fill: #10202b; }
+  .gl { fill: #9cecff; opacity: .85; }
+  .e { fill: #ffa63d; }
+</style>
+<path class="e" d="M-3 14 L0 27 L3 14 Z"/>
+<path class="e" d="M18 19 L20.5 25.5 L23 19 Z"/>
+<path class="e" d="M-23 19 L-20.5 25.5 L-18 19 Z"/>
+<path class="h" d="M12 4 L18 7 L18 13 L12 11 Z"/>
+<path class="h" d="M-12 4 L-18 7 L-18 13 L-12 11 Z"/>
+<ellipse class="h" cx="20.5" cy="10" rx="4" ry="9.5"/>
+<ellipse class="h" cx="-20.5" cy="10" rx="4" ry="9.5"/>
+<path class="h" d="M-5 -6 L0 -27 L5 -6 Z"/>
+<circle class="h" cx="0" cy="3" r="13.5"/>
+<circle class="p" cx="0" cy="3" r="9.6"/>
+<circle class="g" cx="0" cy="1" r="5.8"/>
+<path class="gl" d="M-3.6 -1.6 C-2.4 -3.4 -0.6 -4 1 -3.9 C-0.6 -3.4 -2.2 -2.4 -3 -0.8 Z"/>
+</svg>

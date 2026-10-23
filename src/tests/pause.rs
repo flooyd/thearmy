@@ -5,7 +5,7 @@ use super::*;
 const SCREEN: Vec2 = Vec2::new(1280.0, 720.0);
 
 fn saved() -> Option<SaveInfo> {
-    Some(SaveInfo { saved_at: 1000.0, army: 1234, seconds: 60.0, bosses: 1 })
+    Some(SaveInfo { saved_at: 1000.0, army: 1234, seconds: 60.0, bosses: 1, party: 1 })
 }
 
 fn press(menu: &mut Pause, settings: &mut Settings, input: MenuInput) -> PauseEvent {
@@ -28,7 +28,7 @@ fn every_row_is_on_a_page_and_says_what_it_is() {
     let settings = Settings::default();
     let all = [
         Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit, Act::Back, Act::Master, Act::Effects, Act::Music, Act::Shake,
-        Act::Fullscreen, Act::Colours, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit,
+        Act::Fullscreen, Act::Colours, Act::UnitShape, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit,
     ];
     for act in all {
         assert!([Page::Main, Page::Settings, Page::Controls].iter().any(|&page| page_rows(page).contains(&act)), "{act:?} is on no page");

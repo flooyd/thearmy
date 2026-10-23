@@ -2,6 +2,16 @@
 
 use crate::prelude::*;
 
+//whose game the menu is in: a player's own, one that others have joined (which is not saved, and which going from ends for all of them), or one that
+//the player has joined (which they can leave, and which goes on without them)
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub(crate) enum MenuMode {
+    #[default]
+    Solo,
+    Hosting,
+    Guest,
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum Page {
     Main,
@@ -26,6 +36,7 @@ pub(crate) enum Act {
     Shake,
     Fullscreen,
     Colours,
+    UnitShape,
     Hints,
     Difficulty,
     Formation,
@@ -55,18 +66,36 @@ pub(crate) enum Look {
     Choice(String),
 }
 
+#[cfg(test)]
 //the rows on a page, top to bottom
 pub(crate) fn page_rows(page: Page) -> &'static [Act] {
+    page_rows_in(page, MenuMode::Solo)
+}
+
+//(a game that others are in is saved by its host, and there is no going back to an earlier save in it)
+pub(crate) fn page_rows_in(page: Page, mode: MenuMode) -> &'static [Act] {
     match page {
+        Page::Main if mode == MenuMode::Hosting => &[Act::Resume, Act::Save, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
+        Page::Main if mode == MenuMode::Guest => &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
         Page::Main => &[Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
-        Page::Settings => &[Act::Master, Act::Effects, Act::Music, Act::Shake, Act::Fullscreen, Act::Colours, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit, Act::Back],
+        Page::Settings => &[Act::Master, Act::Effects, Act::Music, Act::Shake, Act::Fullscreen, Act::Colours, Act::UnitShape, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit, Act::Back],
         Page::Controls => &[Act::Back],
     }
 }
 
+#[cfg(test)]
 //the words on a row and what sort of row it is
 pub(crate) fn describe(act: Act, settings: &Settings) -> (&'static str, Look) {
+    describe_in(act, settings, MenuMode::Solo)
+}
+
+pub(crate) fn describe_in(act: Act, settings: &Settings, mode: MenuMode) -> (&'static str, Look) {
     match act {
+        Act::Title if mode == MenuMode::Hosting => ("Save and end the game for everyone", Look::Button),
+        Act::Quit if mode == MenuMode::Hosting => ("Save, end the game for everyone and quit", Look::Button),
+        Act::Save if mode == MenuMode::Hosting => ("Save the game", Look::Button),
+        Act::Title if mode == MenuMode::Guest => ("Leave the game", Look::Button),
+        Act::Quit if mode == MenuMode::Guest => ("Leave the game and quit", Look::Button),
         Act::Resume => ("Resume", Look::Button),
         Act::Save => ("Save game", Look::Button),
         Act::Load => ("Load game", Look::Button),
@@ -81,6 +110,7 @@ pub(crate) fn describe(act: Act, settings: &Settings) -> (&'static str, Look) {
         Act::Shake => ("Screen shake", Look::Slider(settings.shake)),
         Act::Fullscreen => ("Fullscreen", Look::Toggle(settings.fullscreen)),
         Act::Colours => ("Colour-blind colours", Look::Toggle(settings.colourblind)),
+        Act::UnitShape => ("Unit shape", Look::Choice(settings.unit_shape.name().to_owned())),
         Act::Hints => ("Hints", Look::Toggle(settings.hints)),
         Act::Difficulty => ("Enemy difficulty", Look::Choice(settings.difficulty.name().to_owned())),
         Act::Formation => ("Army formation", Look::Choice(settings.formation.name().to_owned())),
@@ -90,8 +120,11 @@ pub(crate) fn describe(act: Act, settings: &Settings) -> (&'static str, Look) {
 }
 
 //a line that says more about the row the player is on
-pub(crate) fn explain(act: Act, settings: &Settings) -> &'static str {
+pub(crate) fn explain_in(act: Act, settings: &Settings, mode: MenuMode) -> &'static str {
     match act {
+        Act::Title | Act::Quit if mode == MenuMode::Hosting => "saved for the party to carry on from, and everyone in it is sent back to their title screen",
+        Act::Save if mode == MenuMode::Hosting => "everyone's army is kept, and the players rejoin it by their names: F5 does the same",
+        Act::Title | Act::Quit if mode == MenuMode::Guest => "the game goes on without you, and you can join it again",
         Act::Resume => "back to the game",
         Act::Save => "the one save: F5 does the same",
         Act::Load => "go back to the save: F9 does the same",
@@ -99,6 +132,7 @@ pub(crate) fn explain(act: Act, settings: &Settings) -> &'static str {
         Act::Shake => "how far the screen shakes and the camera jumps in for big moments",
         Act::Fullscreen => "F11 does the same",
         Act::Colours => "blue and orange where the game uses green and red",
+        Act::UnitShape => settings.unit_shape.blurb(),
         Act::Hints => "tips at the start of a run",
         Act::Difficulty => settings.difficulty.blurb(),
         Act::Formation => settings.formation.blurb(),
@@ -122,6 +156,10 @@ pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32) -> bool {
         Act::Fullscreen => settings.fullscreen = !settings.fullscreen,
         Act::Colours => settings.colourblind = !settings.colourblind,
         Act::Hints => settings.hints = !settings.hints,
+        Act::UnitShape => {
+            let at = UNIT_SHAPES.iter().position(|&shape| shape == settings.unit_shape).unwrap_or(0) as i32;
+            settings.unit_shape = UNIT_SHAPES[(at + direction.signum()).rem_euclid(UNIT_SHAPES.len() as i32) as usize];
+        }
         Act::Difficulty => {
             let at = DIFFICULTIES.iter().position(|&difficulty| difficulty == settings.difficulty).unwrap_or(1) as i32;
             settings.difficulty = DIFFICULTIES[(at + direction.signum()).rem_euclid(DIFFICULTIES.len() as i32) as usize];
@@ -169,19 +207,30 @@ pub(crate) struct MenuLayout {
     pub(crate) panel: Rect,
     pub(crate) rows: Vec<Rect>,
     pub(crate) row_height: f32,
+    pub(crate) tight: bool, //a page with so many rows for so small a screen that the title and the lines at the foot are squeezed to make room
 }
+
+//the room the panel keeps above its rows (for the title) and below them (for the line about the row and the keys), and how little there is on a screen
+//with a page that would not otherwise fit. the rows are never less than MIN_ROW_HEIGHT, which is as small as a row is still easy to click
+const HEADER: f32 = 78.0;
+const FOOTER: f32 = 56.0;
+const TIGHT_HEADER: f32 = 62.0;
+const TIGHT_FOOTER: f32 = 44.0;
+const MIN_ROW_HEIGHT: f32 = 28.0;
 
 pub(crate) fn layout(page: Page, count: usize, screen: Vec2) -> MenuLayout {
     let width = (screen.x * 0.92).min(560.0);
     let extra = if page == Page::Controls { CONTROLS.len().div_ceil(2) as f32 * 28.0 + 20.0 } else { 0.0 };
     //rows are as tall as the screen has room for, down to 28 px: a page with a lot of them on a small screen has them squeezed
-    let room = (screen.y - 16.0 - 78.0 - extra - 56.0) / count as f32;
-    let row_height = (screen.y * 0.056).clamp(32.0, 46.0).min(room).max(28.0);
-    let height = 78.0 + extra + row_height * count as f32 + 56.0;
+    let tight = (screen.y - 16.0 - HEADER - extra - FOOTER) / (count as f32) < MIN_ROW_HEIGHT;
+    let (header, footer) = if tight { (TIGHT_HEADER, TIGHT_FOOTER) } else { (HEADER, FOOTER) };
+    let room = (screen.y - 16.0 - header - extra - footer) / count as f32;
+    let row_height = (screen.y * 0.056).clamp(32.0, 46.0).min(room).max(MIN_ROW_HEIGHT);
+    let height = header + extra + row_height * count as f32 + footer;
     let panel = Rect::new((screen.x - width) / 2.0, ((screen.y - height) / 2.0).max(8.0), width, height);
-    let first = panel.y + 74.0 + extra;
+    let first = panel.y + header - 4.0 + extra;
     let rows = (0..count).map(|i| Rect::new(panel.x + 16.0, first + row_height * i as f32, width - 32.0, row_height - 4.0)).collect();
-    MenuLayout { panel, rows, row_height }
+    MenuLayout { panel, rows, row_height, tight }
 }
 
 //where the bar of a slider is in its row
@@ -247,6 +296,8 @@ impl MenuInput {
 }
 
 pub(crate) struct Pause {
+    pub(crate) mode: MenuMode,
+    confirm: Option<Act>, //the way out that has been asked for once, in a game of others, and is waiting to be asked for again
     pub(crate) page: Page,
     pub(crate) selected: usize,
     pub(crate) age: f32,   //seconds it has been open
@@ -258,7 +309,12 @@ pub(crate) struct Pause {
 
 impl Pause {
     pub(crate) fn new(saved: Option<SaveInfo>, mouse: Vec2) -> Pause {
-        Pause { page: Page::Main, selected: 0, age: 0.0, dragging: None, last_mouse: mouse, saved, notice: None }
+        Pause { mode: MenuMode::Solo, confirm: None, page: Page::Main, selected: 0, age: 0.0, dragging: None, last_mouse: mouse, saved, notice: None }
+    }
+
+    //the rows of the page the menu is on
+    pub(crate) fn rows(&self) -> &'static [Act] {
+        page_rows_in(self.page, self.mode)
     }
 
     //say something in the menu itself, where the banner would be in the way
@@ -286,7 +342,7 @@ impl Pause {
         if self.notice.as_ref().is_some_and(|notice| notice.2 <= 0.0) {
             self.notice = None;
         }
-        let acts = page_rows(self.page);
+        let acts = self.rows();
         let frame = layout(self.page, acts.len(), screen);
         //the mouse chooses the row it is over, but never over a key pressed in the same frame: a mouse resting on one row that
         //jolts a little must not take the key's choice away
@@ -303,6 +359,10 @@ impl Pause {
             self.selected = (self.selected + 1) % acts.len();
         }
         self.selected = self.selected.min(acts.len() - 1);
+        //(a way out that was asked for is only asked for again on the same row)
+        if self.confirm.is_some_and(|asked| asked != acts[self.selected]) {
+            self.confirm = None;
+        }
         if input.back {
             return match self.page {
                 Page::Main => PauseEvent::Resume,
@@ -326,7 +386,7 @@ impl Pause {
             self.selected = i;
         }
         let act = acts[self.selected];
-        let (_, face) = describe(act, settings);
+        let (_, face) = describe_in(act, settings, self.mode);
         //left and right change a row's value, enter or a click does what the row says
         let direction = input.right as i32 - input.left as i32;
         if direction != 0 {
@@ -339,6 +399,12 @@ impl Pause {
             self.dragging = Some(act);
             let bar = slider_bar(frame.rows[i]);
             return if set_level(settings, act, (input.mouse.x - bar.x) / bar.w) { PauseEvent::Changed } else { PauseEvent::Nothing };
+        }
+        //a game that others are in is not ended by a slip: the way out has to be asked for twice
+        if matches!(act, Act::Title | Act::Quit) && self.mode == MenuMode::Hosting && self.confirm != Some(act) {
+            self.confirm = Some(act);
+            self.tell("press again to end the game for everyone", ALERT);
+            return PauseEvent::Nothing;
         }
         match act {
             Act::Resume => PauseEvent::Resume,
@@ -370,22 +436,32 @@ impl Pause {
         }
     }
 
-    //the menu over a darkened game. `now` is the time in seconds since 1970
-    pub(crate) fn draw(&self, settings: &Settings, now: f64) {
+    //the menu over a darkened game. `now` is the time in seconds since 1970, `hosting` what to say of the game being hosted
+    pub(crate) fn draw(&self, settings: &Settings, now: f64, hosting: Option<&str>) {
         let saved = self.saved;
         let screen = Vec2::new(screen_width(), screen_height());
         draw_rectangle(0.0, 0.0, screen.x, screen.y, Color::new(0.0, 0.01, 0.03, 0.62 * (self.age / 0.12).min(1.0)));
-        let acts = page_rows(self.page);
+        let acts = self.rows();
         let frame = layout(self.page, acts.len(), screen);
         let p = frame.panel;
         panel(p.x, p.y, p.w, p.h);
+        //(a game that others can join says who is in it, above the menu when there is room for that)
+        if let Some(hosting) = hosting.filter(|_| p.y >= 30.0) {
+            draw_label_centered(hosting, p.x + p.w / 2.0, p.y - 12.0, fit_size(hosting, 17.0, p.w, Face::Bold), CYAN, Face::Bold);
+        }
+        //(the game goes on while a menu is open in a game of others, which is said where it can be seen)
+        if self.mode != MenuMode::Solo {
+            draw_label_centered("THE GAME GOES ON", p.x + p.w / 2.0, p.y + if frame.tight { 14.0 } else { 17.0 }, if frame.tight { 12.0 } else { 13.0 }, TROPHY, Face::Bold);
+        }
         let title = match self.page {
+            Page::Main if self.mode != MenuMode::Solo => "MENU",
             Page::Main => "PAUSED",
             Page::Settings => "SETTINGS",
             Page::Controls => "CONTROLS",
         };
-        draw_label_centered(title, p.x + p.w / 2.0, p.y + 50.0, 34.0, INK, Face::Header);
-        draw_line(p.x + p.w / 2.0 - 60.0, p.y + 60.0, p.x + p.w / 2.0 + 60.0, p.y + 60.0, 2.0, CYAN);
+        let (title_at, title_size, line_at) = if frame.tight { (36.0, 26.0, 44.0) } else { (50.0, 34.0, 60.0) };
+        draw_label_centered(title, p.x + p.w / 2.0, p.y + title_at, title_size, INK, Face::Header);
+        draw_line(p.x + p.w / 2.0 - 60.0, p.y + line_at, p.x + p.w / 2.0 + 60.0, p.y + line_at, 2.0, CYAN);
         if self.page == Page::Controls {
             let column = (p.w - 40.0) / 2.0;
             for (i, (key, what)) in CONTROLS.iter().enumerate() {
@@ -396,7 +472,8 @@ impl Pause {
         }
         for (i, (&act, row)) in acts.iter().zip(&frame.rows).enumerate() {
             let chosen = i == self.selected;
-            let (label, face) = describe(act, settings);
+            let (label, face) = describe_in(act, settings, self.mode);
+            let label = if self.confirm == Some(act) { "Press again to end it" } else { label };
             let disabled = act == Act::Load && saved.is_none();
             draw_rectangle(row.x, row.y, row.w, row.h, if chosen { Color::new(CYAN.r, CYAN.g, CYAN.b, 0.16) } else { Color::new(1.0, 1.0, 1.0, 0.03) });
             if chosen {
@@ -429,10 +506,11 @@ impl Pause {
         }
         let (note, tint) = match &self.notice {
             Some((text, color, _)) => (text.as_str(), *color),
-            None => (acts.get(self.selected).map_or("", |&act| explain(act, settings)), MUTED),
+            None => (acts.get(self.selected).map_or("", |&act| explain_in(act, settings, self.mode)), MUTED),
         };
-        draw_label_centered(note, p.x + p.w / 2.0, p.y + p.h - 34.0, 16.0, tint, Face::Body);
-        draw_label_centered("up and down choose   left and right change   enter selects   esc goes back", p.x + p.w / 2.0, p.y + p.h - 12.0, 13.0, Color::new(MUTED.r, MUTED.g, MUTED.b, 0.6), Face::Body);
+        let (note_up, keys_up) = if frame.tight { (28.0, 9.0) } else { (34.0, 12.0) };
+        draw_label_centered(note, p.x + p.w / 2.0, p.y + p.h - note_up, 16.0, tint, Face::Body);
+        draw_label_centered("up and down choose   left and right change   enter selects   esc goes back", p.x + p.w / 2.0, p.y + p.h - keys_up, 13.0, Color::new(MUTED.r, MUTED.g, MUTED.b, 0.6), Face::Body);
     }
 }
 

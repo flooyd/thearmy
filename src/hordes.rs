@@ -221,13 +221,22 @@ impl Hordes {
         Hordes { next_in: HORDE_FIRST_SECONDS, coming: None, fight: None, chests: Vec::new() }
     }
 
-    //count down to the next horde, announce it, and bring it when the time is up. nothing comes while a boss is about, or while the
-    //army is too small to have anything to fear from a crowd. the ones left far behind are let go, and a horde that is gone,
-    //mostly destroyed, leaves its chest
+    //the same for one player, whose army is `army` big: what the tests that have just the one player use
+    #[cfg(test)]
     pub(crate) fn update(&mut self, enemies: &mut Vec<Enemy>, player: Vec2, army: usize, pressure: usize, boss_busy: bool, dt: f32) -> Option<HordeBeat> {
+        let field = FlowField::new();
+        let prey = [Prey { position: player, units: &[], team: army, pressure, boost: 1.0, cap: DEFAULT_ARMY_LIMIT, field: &field }];
+        self.update_among(enemies, &prey, boss_busy, dt)
+    }
+
+    //count down to the next horde, announce it, and bring it when the time is up. a horde is sent at one of the players (the ones whose fight
+    //is big enough to have anything to fear from a crowd), made for the fight they are in, and runs at whoever is nearest when it
+    //gets there. nothing comes while a boss is about. the ones left far behind every player are let go, and a horde that is gone,
+    //mostly destroyed, leaves its chest
+    pub(crate) fn update_among(&mut self, enemies: &mut Vec<Enemy>, prey: &[Prey], boss_busy: bool, dt: f32) -> Option<HordeBeat> {
         let leash = ENEMY_LEASH_TILES * TILE_SIZE;
         let before = enemies.len();
-        enemies.retain(|enemy| !in_a_horde(enemy) || enemy.position.distance_squared(player) <= leash * leash);
+        enemies.retain(|enemy| !in_a_horde(enemy) || prey.iter().any(|player| enemy.position.distance_squared(player.position) <= leash * leash));
         let let_go = before - enemies.len();
         for chest in &mut self.chests {
             chest.left -= dt;
@@ -256,9 +265,11 @@ impl Hordes {
             let coming = *coming;
             self.coming = None;
             self.next_in = rand::gen_range(HORDE_GAP_SECONDS.0, HORDE_GAP_SECONDS.1);
+            //(it is for the player it was sent at, who is the nearest to where it comes from)
+            let target = nearest(prey, coming.at);
             let horde = match coming.def.captain {
-                Some(_) => make_pincer(coming.def, coming.at, coming.other.unwrap_or_else(|| across(player, coming.at)), army, pressure),
-                None => make_horde(coming.def, coming.at, army, pressure),
+                Some(_) => make_pincer(coming.def, coming.at, coming.other.unwrap_or_else(|| across(target.position, coming.at)), target.team, target.pressure),
+                None => make_horde(coming.def, coming.at, target.team, target.pressure),
             };
             let count = horde.len();
             let worth: f32 = horde.iter().map(kill_points).sum();
@@ -276,18 +287,21 @@ impl Hordes {
             }
             return Some(HordeBeat::Arrived { name: coming.def.name, count });
         }
-        if boss_busy || army < HORDE_MIN_ARMY {
+        let worth_it: Vec<&Prey> = prey.iter().filter(|player| player.team >= HORDE_MIN_ARMY).collect();
+        if boss_busy || worth_it.is_empty() {
             return None;
         }
         self.next_in -= dt;
         if self.next_in > 0.0 {
             return None;
         }
+        let target = worth_it[rand::gen_range(0, worth_it.len())];
+        let player = target.position;
         let Some(mut at) = horde_spot(player) else {
             self.next_in = 3.0;
             return None;
         };
-        let def = random_horde(army);
+        let def = random_horde(target.team);
         //one with a captain comes from two sides, which have to fit in the world together
         let mut other = None;
         if def.sides() == 2 {
@@ -388,24 +402,45 @@ pub(crate) fn draw_horde_arrow(at: Vec2, player: Vec2, zoom: f32, seconds: Optio
 
 //an arrow in a colour at the edge of the screen pointing at a place that is off it, with a label beside it. `player` is where the
 //camera is
-pub(crate) fn draw_edge_arrow(at: Vec2, player: Vec2, zoom: f32, color: Color, label: &str) {
-    let half = Vec2::new(screen_width(), screen_height()) / 2.0;
-    let offset = (at - player) * zoom;
-    if offset.x.abs() < half.x - 40.0 && offset.y.abs() < half.y - 40.0 {
-        return;
+//a point that is on something drawn over the game, moved along the edge of the screen to a little outside it, whichever way is the shorter
+pub(crate) fn slid_clear_of(spot: Vec2, covered: Rect, screen: Vec2) -> Vec2 {
+    if !covered.contains(spot) {
+        return spot;
     }
+    let gap = 20.0;
+    [Vec2::new(covered.x - gap, spot.y), Vec2::new(covered.right() + gap, spot.y), Vec2::new(spot.x, covered.y - gap), Vec2::new(spot.x, covered.bottom() + gap)]
+        .into_iter()
+        .filter(|at| at.x >= 0.0 && at.y >= 0.0 && at.x <= screen.x && at.y <= screen.y)
+        .min_by(|a, b| a.distance(spot).total_cmp(&b.distance(spot)))
+        .unwrap_or(spot)
+}
+
+//whether something at a place is off the screen far enough for an arrow at the edge to point at it (`player` being where the middle of the screen is)
+fn is_off_screen(at: Vec2, player: Vec2, zoom: f32, screen: Vec2) -> bool {
+    let offset = (at - player) * zoom;
+    let half = screen / 2.0;
+    offset.x.abs() >= half.x - 40.0 || offset.y.abs() >= half.y - 40.0
+}
+
+//where the arrow for something that is off the screen goes, and the way it points: at the edge, towards it. one that would land on the panel with the army
+//in it, the minimap or the list of players slides along the edge, to the nearer side of it. None for something that is on the screen
+pub(crate) fn edge_spot(at: Vec2, player: Vec2, zoom: f32, screen: Vec2) -> Option<(Vec2, Vec2)> {
+    if !is_off_screen(at, player, zoom, screen) {
+        return None;
+    }
+    let half = screen / 2.0;
     let margin = 46.0;
-    let direction = offset.normalize_or_zero();
+    let direction = ((at - player) * zoom).normalize_or_zero();
     let along = ((half.x - margin) / direction.x.abs().max(0.0001)).min((half.y - margin) / direction.y.abs().max(0.0001));
     let mut spot = half + direction * along;
-    //one that would land on the panel with the army in it slides along the edge, to the nearer side of it
-    if spot.x < HUD_PANEL_RIGHT && spot.y < HUD_PANEL_BOTTOM {
-        if HUD_PANEL_RIGHT - spot.x < HUD_PANEL_BOTTOM - spot.y {
-            spot.x = HUD_PANEL_RIGHT + 20.0;
-        } else {
-            spot.y = HUD_PANEL_BOTTOM + 20.0;
-        }
+    for covered in [Rect::new(0.0, 0.0, HUD_PANEL_RIGHT, HUD_PANEL_BOTTOM), Minimap::new(screen, MapView::Near, Vec2::ZERO).rect].into_iter().chain(team_panel(screen)) {
+        spot = slid_clear_of(spot, covered, screen);
     }
+    Some((spot, direction))
+}
+
+pub(crate) fn draw_edge_arrow(at: Vec2, player: Vec2, zoom: f32, color: Color, label: &str) {
+    let Some((spot, direction)) = edge_spot(at, player, zoom, Vec2::new(screen_width(), screen_height())) else { return };
     let side = direction.perp();
     let pulse = 0.65 + 0.35 * (get_time() as f32 * 7.0).sin();
     let pulsing = Color::new(color.r, color.g, color.b, pulse);

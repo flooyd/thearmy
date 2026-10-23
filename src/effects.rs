@@ -140,6 +140,14 @@ pub(crate) enum Cue {
     Frost,     //a frost pulse from a champion
 }
 
+//what a player's army has earned in a frame from the enemies it destroyed, which the game hands out to that player
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
+pub(crate) struct Spoils {
+    pub(crate) points: f32,   //wall points
+    pub(crate) xp: f32,       //what the champions are taught
+    pub(crate) heal_all: f32, //health every unit is to be given
+}
+
 //what happened in a frame that is worth showing and hearing, collected by the functions that move and fight and then spent
 //by main: numbers float up, puffs become particles, the camera shakes and the sounds are played
 #[derive(Default)]
@@ -148,16 +156,16 @@ pub(crate) struct Effects {
     pub(crate) popups: Vec<Popup>,
     pub(crate) bursts: Vec<Burst>,
     pub(crate) cues: Vec<Cue>,
-    pub(crate) picked_up: usize,    //babies that have grown since the player last saw a number for them
+    pub(crate) picked_up: usize,    //babies that have grown since the player last saw a number for them (it is the watcher that counts them up, from the `grown` the world reports)
     pub(crate) picked_up_in: f32,   //seconds until they do
+    pub(crate) grown: [usize; MAX_PLAYERS], //babies each player's army has taken since the world last told whoever is watching
     pub(crate) hazards: Vec<Hazard>, //hazards started this frame, for main to add to the ones in play
     pub(crate) announcements: Vec<(String, Color)>, //messages for the banner
     pub(crate) wall_hits: Vec<((i32, i32), f32)>, //damage to walls this frame, by grid square, for main to apply
     pub(crate) blasts: Vec<Blast>,  //explosions that hurt the walls they reach
-    pub(crate) points: f32,         //wall points earned this frame
     pub(crate) beams: Vec<Beam>,
-    pub(crate) fallen: Vec<Vec2>,   //where units died this frame
-    pub(crate) heal_all: f32,       //health every unit is to be given, from the enemies destroyed this frame
+    pub(crate) fallen: Vec<(Vec2, u8)>, //where units died this frame, and whose they were
+    pub(crate) spoils: [Spoils; MAX_PLAYERS], //what each player's army earned this frame from the enemies it destroyed
     pub(crate) pulls: Vec<Pull>,    //gravity wells started this frame, for main to add to the ones in play
     pub(crate) raise: Vec<Wall>,    //walls a boss has raised this frame, for main to put in the world where there is room
     pub(crate) rings: Vec<Ring>,
@@ -165,13 +173,17 @@ pub(crate) struct Effects {
     pub(crate) marks: Vec<Mark>,             //marks to be left on the ground, which main takes
     pub(crate) shards: Vec<ShardBurst>,      //debris to be thrown, which main takes
     pub(crate) cue_spots: Vec<Option<Vec2>>, //where each of the cues was, if it was anywhere, in the same order
-    pub(crate) recruits: Vec<(Vec2, Odds)>,  //champions won this frame and where, for the game to hand out
-    pub(crate) rebirths: Vec<(Vec2, u8, u8)>, //champions (their kind, plus one, and their level) that rose from the dead this frame and where, for their blaze
-    pub(crate) xp: f32,                      //what the enemies destroyed this frame teach the champions, which the game hands out
+    pub(crate) recruits: Vec<(Vec2, Odds, usize)>,  //champions won this frame, where, and by which player, for the game to hand out
+    pub(crate) rebirths: Vec<(Vec2, u8, u8, u8)>, //champions (their kind, plus one, and their level, and whose they are) that rose from the dead this frame and where, for their blaze
     pub(crate) alarms: Vec<(Vec2, Vec2)>,    //enemies that were hurt by units for the first time in a while: where each is, and where those units are, for the game to call the enemies near it down on them
 }
 
 impl Effects {
+    //wall points a player earned from the world: a nest, a village, a chest. what the enemies their army destroyed were worth is added to their `spoils` as it happens
+    pub(crate) fn earn(&mut self, player: usize, points: f32) {
+        self.spoils[player.min(MAX_PLAYERS - 1)].points += points;
+    }
+
     pub(crate) fn announce(&mut self, text: String, color: Color) {
         self.announcements.push((text, color));
     }

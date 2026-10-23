@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-32 -32 64 64" width="256" height="256">
+<title>Dart</title>
+<style>
+  .h { fill: #ffffff; stroke: #06090d; stroke-width: 5; stroke-linejoin: round; paint-order: stroke; }
+  .p { fill: none; stroke: #06090d; stroke-opacity: .38; stroke-width: 1.1; stroke-linecap: round; }
+  .g { fill: #10202b; }
+  .gl { fill: #9cecff; opacity: .85; }
+  .e { fill: #ffa63d; }
+</style>
+<path class="e" d="M-4.5 15 L0 27 L4.5 15 Z"/>
+<path class="h" d="M0 -27 L19.5 21 L0 12.5 L-19.5 21 Z"/>
+<path class="p" d="M0 -15 L0 8 M-6.5 0 L-12 15 M6.5 0 L12 15"/>
+<path class="g" d="M0 -12 C3 -9 3.2 -3 0 1 C-3.2 -3 -3 -9 0 -12 Z"/>
+<path class="gl" d="M0 -10 C1 -8.5 1.1 -6.5 0.4 -5 C-0.3 -6.5 -0.4 -8.5 0 -10 Z"/>
+</svg>

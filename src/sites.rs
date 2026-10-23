@@ -227,10 +227,9 @@ pub(crate) struct SiteNews {
     pub(crate) walls_changed: bool, //walls went up or came down
 }
 
-//wake the sites the player has come to, put the ones they have left back to sleep, and see whether a nest has been destroyed or
-//a village liberated. a liberated village mends the units near it and now and then sends a volunteer. `boss_busy` keeps the
-//citadel shut while a boss is already alive. `citadels` is how many times the lord of the citadel has fallen, the next one is
-//that much stronger. a citadel that has fallen counts down to being armed again, wherever the player is
+//the same for one player, whose army is `units`, and can be `cap` big: what the tests that have just the one player use. the units
+//near a village that has been freed are mended too
+#[cfg(test)]
 pub(crate) fn update_sites(
     sites: &mut [Site],
     enemies: &mut Vec<Enemy>,
@@ -244,15 +243,43 @@ pub(crate) fn update_sites(
     citadels: u32,
     fx: &mut Effects,
 ) -> SiteNews {
-    let army = units.len();
+    let field = FlowField::new();
+    let news = {
+        let prey = [Prey { position: player, units: &*units, team: units.len(), pressure: units.len(), boost: 1.0, cap, field: &field }];
+        update_sites_among(sites, enemies, walls, babies, &prey, dt, boss_busy, citadels, fx)
+    };
+    mend_at_villages(sites, units, &[player], dt);
+    news
+}
+
+//wake the sites a player has come to, put the ones that none of them are near back to sleep, and see whether a nest has been destroyed
+//or a village liberated. a site is made for the fight of the player nearest to it, and the rewards for taking one are that player's.
+//a liberated village now and then sends a volunteer (and mends the units near it, see `mend_at_villages`). `boss_busy` keeps the
+//citadel shut while a boss is already alive. `citadels` is how many times the lord of the citadel has fallen, the next one is
+//that much stronger. a citadel that has fallen counts down to being armed again, wherever the players are
+pub(crate) fn update_sites_among(
+    sites: &mut [Site],
+    enemies: &mut Vec<Enemy>,
+    walls: &mut Walls,
+    babies: &mut Vec<Baby>,
+    prey: &[Prey],
+    dt: f32,
+    boss_busy: bool,
+    citadels: u32,
+    fx: &mut Effects,
+) -> SiteNews {
     let mut news = SiteNews::default();
     for site in sites.iter_mut() {
-        let distance = site.position.distance(player);
+        let earner = nearest_to(prey, site.position);
+        let near = &prey[earner];
+        let distance = site.position.distance(near.position);
+        //(what it is made for is the fight of the player nearest to it, what rewards make room for is that player's army)
+        let (army, cap, team) = (near.army(), near.cap, near.team);
         match site.state {
             SiteState::Dormant => {
-                let ready = army >= site.min_army() && !(site.kind == SiteKind::Citadel && boss_busy);
+                let ready = team >= site.min_army() && !(site.kind == SiteKind::Citadel && boss_busy);
                 if distance <= AWAKEN_TILES * TILE_SIZE && ready {
-                    awaken(site, enemies, walls, army, citadels, fx);
+                    awaken(site, enemies, walls, team, citadels, fx);
                     news.walls_changed |= !site.tiles.is_empty();
                     news.citadel_woke |= site.kind == SiteKind::Citadel;
                 }
@@ -278,27 +305,27 @@ pub(crate) fn update_sites(
                 match site.kind {
                     SiteKind::Nest(_) => {
                         news.nests += 1;
-                        fx.points += NEST_REWARD_POINTS;
-                        spread_babies(babies, site.position, NEST_REWARD_BABIES + army / NEST_BABIES_PER, army, cap, TILE_SIZE * 3.0);
+                        fx.earn(earner, NEST_REWARD_POINTS);
+                        spread_babies(babies, site.position, NEST_REWARD_BABIES + team / NEST_BABIES_PER, army, cap, TILE_SIZE * 3.0);
                         fx.announce(format!("{} DESTROYED", site.name().to_uppercase()), Color::new(1.0, 0.55, 0.4, 1.0));
                         fx.add_shake(0.4);
                     }
                     SiteKind::Village => {
                         news.villages += 1;
-                        fx.points += VILLAGE_REWARD_POINTS;
-                        spread_babies(babies, site.position, VILLAGE_VILLAGERS + army / VILLAGERS_PER, army, cap, TILE_SIZE * 2.5);
+                        fx.earn(earner, VILLAGE_REWARD_POINTS);
+                        spread_babies(babies, site.position, VILLAGE_VILLAGERS + team / VILLAGERS_PER, army, cap, TILE_SIZE * 2.5);
                         site.clock = VILLAGE_TRICKLE_SECONDS;
                         fx.announce("VILLAGE LIBERATED".to_owned(), CYAN);
                         fx.cue(Cue::Liberate);
                     }
                     SiteKind::Barracks => {
                         news.barracks += 1;
-                        fx.points += BARRACKS_REWARD_POINTS;
-                        spread_babies(babies, site.position, BARRACKS_RECRUITS + army / BARRACKS_RECRUITS_PER, army, cap, TILE_SIZE * 3.0);
+                        fx.earn(earner, BARRACKS_REWARD_POINTS);
+                        spread_babies(babies, site.position, BARRACKS_RECRUITS + team / BARRACKS_RECRUITS_PER, army, cap, TILE_SIZE * 3.0);
                         let champion = barracks_champion_dropped(rand::gen_range(0.0, 1.0));
                         news.barracks_champions += champion as usize;
                         if champion {
-                            fx.recruits.push((site.position, Odds::Barracks));
+                            fx.recruits.push((site.position, Odds::Barracks, earner));
                         }
                         let message = if champion {
                             "BARRACKS TAKEN: A CHAMPION JOINS!"
@@ -330,11 +357,7 @@ pub(crate) fn update_sites(
                 if site.kind != SiteKind::Village || distance > AWAKEN_TILES * TILE_SIZE {
                     continue;
                 }
-                //a liberated village mends the units round it and sends volunteers
-                let reach = VILLAGE_HEAL_TILES * TILE_SIZE;
-                for unit in units.iter_mut().filter(|unit| unit.health < unit.max_health() && Vec2::new(unit.x, unit.y).distance(site.position) <= reach) {
-                    unit.health = (unit.health + VILLAGE_HEAL_RATE * dt).min(unit.max_health());
-                }
+                //a liberated village sends volunteers
                 site.clock -= dt;
                 if site.clock <= 0.0 {
                     site.clock = VILLAGE_TRICKLE_SECONDS;
@@ -347,6 +370,20 @@ pub(crate) fn update_sites(
         }
     }
     news
+}
+
+//a liberated village mends the units round it, whoever they belong to, while a player is near enough to see it
+pub(crate) fn mend_at_villages(sites: &[Site], units: &mut [Unit], players: &[Vec2], dt: f32) {
+    let reach = VILLAGE_HEAL_TILES * TILE_SIZE;
+    let near = AWAKEN_TILES * TILE_SIZE;
+    for site in sites.iter().filter(|site| site.kind == SiteKind::Village && site.state == SiteState::Cleared) {
+        if !players.iter().any(|player| player.distance(site.position) <= near) {
+            continue;
+        }
+        for unit in units.iter_mut().filter(|unit| unit.health < unit.max_health() && Vec2::new(unit.x, unit.y).distance(site.position) <= reach) {
+            unit.health = (unit.health + VILLAGE_HEAL_RATE * dt).min(unit.max_health());
+        }
+    }
 }
 
 //wake a site up: a nest gets its core and its walls, a village its guards

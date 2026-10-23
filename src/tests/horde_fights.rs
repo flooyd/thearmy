@@ -262,9 +262,7 @@ fn fight_a_horde(def: &'static HordeDef, army: usize, formation: Formation, seed
         tick_enemy_numbers(&mut enemies, dt, &mut fx);
         out.lost += bury_units(&mut units, &mut fx);
         fx.fallen.clear();
-        fx.heal_all = 0.0;
-        fx.points = 0.0;
-        fx.xp = 0.0;
+        fx.spoils = Default::default();
         let range = baby_pickup_range(units.len(), Vec2::new(1920.0, 1080.0));
         grow_babies(&mut babies, &mut units, player.x, player.y, dt, range, 30000, &mut fx);
         fx.update(dt, player);

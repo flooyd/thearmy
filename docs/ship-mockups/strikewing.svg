@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-32 -32 64 64" width="256" height="256">
+<title>Strikewing</title>
+<style>
+  .h { fill: #ffffff; stroke: #06090d; stroke-width: 5; stroke-linejoin: round; paint-order: stroke; }
+  .p { fill: none; stroke: #06090d; stroke-opacity: .38; stroke-width: 1.1; stroke-linecap: round; }
+  .g { fill: #10202b; }
+  .gl { fill: #9cecff; opacity: .85; }
+  .e { fill: #ffa63d; }
+</style>
+<path class="e" d="M-3 19 L0 28 L3 19 Z"/>
+<path class="e" d="M19.5 -1 L21.75 6 L24 -1 Z"/>
+<path class="e" d="M-24 -1 L-21.75 6 L-19.5 -1 Z"/>
+<path class="h" d="M4.5 -2 L22 -13 L22 -6 L4.5 16 Z"/>
+<path class="h" d="M-4.5 -2 L-22 -13 L-22 -6 L-4.5 16 Z"/>
+<path class="h" d="M19.5 -15 L24 -15 L24 -1 L19.5 -1 Z"/>
+<path class="h" d="M-24 -15 L-19.5 -15 L-19.5 -1 L-24 -1 Z"/>
+<path class="h" d="M0 -25 L5 -11 L5 15 L0 22 L-5 15 L-5 -11 Z"/>
+<path class="p" d="M0 1 L0 17 M6 5 L14 -3.5 M-6 5 L-14 -3.5"/>
+<path class="g" d="M0 -14 C2.2 -11.5 2.4 -6 0 -2 C-2.4 -6 -2.2 -11.5 0 -14 Z"/>
+<path class="gl" d="M0 -12 C0.8 -10.5 0.9 -9 0.3 -7.8 C-0.3 -9 -0.4 -10.5 0 -12 Z"/>
+</svg>

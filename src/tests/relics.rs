@@ -118,24 +118,24 @@ fn bloodlust_heals_every_unit_for_each_enemy_destroyed() {
     enemy.health = 0.0;
     let mut fx = Effects::default();
     resolve_deaths(&mut vec![enemy], &mut Vec::new(), 100, &up, &mut fx);
-    assert!((fx.heal_all - 3.0).abs() < 1e-5, "two stacks of 1.5: {}", fx.heal_all);
+    assert!((fx.spoils[0].heal_all - 3.0).abs() < 1e-5, "two stacks of 1.5: {}", fx.spoils[0].heal_all);
     //a minion is worth nothing, a boss a lot
     let mut imp = Enemy::minion(MIDDLE, kind_named("Imp"), 1.0, 99);
     imp.health = 0.0;
     let mut fx = Effects::default();
     resolve_deaths(&mut vec![imp], &mut Vec::new(), 100, &up, &mut fx);
-    assert_eq!(fx.heal_all, 0.0);
+    assert_eq!(fx.spoils[0].heal_all, 0.0);
     let mut boss = Enemy::boss(&BOSSES[0], 200, 0, MIDDLE);
     boss.health = 0.0;
     let mut fx = Effects::default();
     resolve_deaths(&mut vec![boss], &mut Vec::new(), 100, &up, &mut fx);
-    assert!((fx.heal_all - 30.0).abs() < 1e-4);
+    assert!((fx.spoils[0].heal_all - 30.0).abs() < 1e-4);
     //none without the relic
     let mut enemy = kind_at("Grunt", MIDDLE);
     enemy.health = 0.0;
     let mut fx = Effects::default();
     resolve_deaths(&mut vec![enemy], &mut Vec::new(), 100, &Upgrades::default(), &mut fx);
-    assert_eq!(fx.heal_all, 0.0);
+    assert_eq!(fx.spoils[0].heal_all, 0.0);
     //and it reaches the hurt units, no further than full
     let mut units = vec![unit_on(MIDDLE), unit_on(MIDDLE)];
     units[0].health = 50.0;
@@ -249,10 +249,10 @@ fn a_martyr_hurts_the_enemy_it_dies_in_and_only_that_one() {
     let up = with(&[Relic::Martyr, Relic::Martyr]);
     let mut enemies = vec![kind_at("Brute", MIDDLE), kind_at("Brute", MIDDLE + Vec2::new(1000.0, 0.0))];
     let before = enemies[0].health;
-    martyr_blasts(&mut enemies, &[MIDDLE + Vec2::new(5.0, 0.0), MIDDLE + Vec2::new(-5.0, 0.0), MIDDLE + Vec2::new(500.0, 0.0)], &up);
+    martyr_blasts(&mut enemies, &[(MIDDLE + Vec2::new(5.0, 0.0), 0), (MIDDLE + Vec2::new(-5.0, 0.0), 0), (MIDDLE + Vec2::new(500.0, 0.0), 0)], &up);
     assert!((before - enemies[0].health - MARTYR_DAMAGE * 2.0 * 2.0).abs() < 0.01, "two units died in it, with two relics");
     assert_eq!(enemies[1].health, enemies[1].max_health);
-    martyr_blasts(&mut enemies, &[MIDDLE], &Upgrades::default());
+    martyr_blasts(&mut enemies, &[(MIDDLE, 0)], &Upgrades::default());
     assert!((before - enemies[0].health - MARTYR_DAMAGE * 4.0).abs() < 0.01, "nothing without the relic");
 }
 
@@ -262,7 +262,7 @@ fn bury_units_reports_where_they_fell() {
     units[1].health = 0.0;
     let mut fx = Effects::default();
     bury_units(&mut units, &mut fx);
-    assert_eq!(fx.fallen, vec![MIDDLE + Vec2::new(50.0, 0.0)]);
+    assert_eq!(fx.fallen, vec![(MIDDLE + Vec2::new(50.0, 0.0), 0)]);
 }
 
 #[test]
@@ -595,5 +595,5 @@ fn the_army_destroys_a_frozen_enemy_and_it_shatters_in_the_middle_of_the_fight()
     let mut shards = vec![shard];
     let mut babies = Vec::new();
     assert_eq!(resolve_deaths(&mut shards, &mut babies, 100, &Upgrades::default(), &mut fx), 1);
-    assert!(shards.is_empty() && babies.len() == 3 && fx.points > 0.0);
+    assert!(shards.is_empty() && babies.len() == 3 && fx.spoils[0].points > 0.0);
 }

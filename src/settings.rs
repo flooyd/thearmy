@@ -1,5 +1,5 @@
 //! what the player can change: how loud things are, how much the screen shakes, the colours for those who can't tell red from
-//! green, how hard the enemies are, which formation the army keeps, how big the army can grow and whether hints are shown. kept in a small text file beside the
+//! green, how hard the enemies are, which formation the army keeps, what the units look like, how big the army can grow and whether hints are shown. kept in a small text file beside the
 //! saves and read again the next time the game starts
 
 use crate::prelude::*;
@@ -16,6 +16,35 @@ pub(crate) enum Difficulty {
 }
 
 pub(crate) const DIFFICULTIES: [Difficulty; 4] = [Difficulty::Easy, Difficulty::Normal, Difficulty::Hard, Difficulty::Brutal];
+
+//what the ordinary units of an army are drawn as
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum UnitShape {
+    Ships,   //a small fighter that points the way it is going
+    Circles, //a plain round disc with a black edge
+}
+
+pub(crate) const UNIT_SHAPES: [UnitShape; 2] = [UnitShape::Ships, UnitShape::Circles];
+
+impl UnitShape {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            UnitShape::Ships => "Ships",
+            UnitShape::Circles => "Circles",
+        }
+    }
+
+    pub(crate) fn blurb(self) -> &'static str {
+        match self {
+            UnitShape::Ships => "each unit is a small fighter that points the way it is going",
+            UnitShape::Circles => "each unit is a plain circle with a black edge",
+        }
+    }
+
+    pub(crate) fn from_name(name: &str) -> Option<UnitShape> {
+        UNIT_SHAPES.into_iter().find(|shape| shape.name() == name)
+    }
+}
 
 impl Difficulty {
     pub(crate) fn name(self) -> &'static str {
@@ -90,12 +119,18 @@ pub(crate) struct Settings {
     pub(crate) difficulty: Difficulty,
     pub(crate) hints: bool,
     pub(crate) formation: Formation,
+    pub(crate) unit_shape: UnitShape,
     pub(crate) army_limit: usize, //the most units the army can have, from MIN_ARMY_LIMIT to MAX_ARMY_LIMIT
+    pub(crate) player_name: String, //what the player is called in a game with others, as `clean_name` leaves it
+    pub(crate) join_address: String, //the host they last joined, as they typed it
+    pub(crate) host_port: u16,       //the port they host on
+    pub(crate) lobby_server: String, //where the list of games is kept (see directory.rs), as they typed it. empty for none
+    pub(crate) list_game: bool,      //whether a game they host is put on that list
 }
 
 impl Default for Settings {
     fn default() -> Settings {
-        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Free, army_limit: DEFAULT_ARMY_LIMIT }
+        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Free, unit_shape: UnitShape::Ships, army_limit: DEFAULT_ARMY_LIMIT, player_name: String::new(), join_address: String::new(), host_port: DEFAULT_PORT, lobby_server: DEFAULT_LOBBY_SERVER.to_owned(), list_game: true }
     }
 }
 
@@ -103,7 +138,7 @@ impl Settings {
     //the settings as lines of text, a name and a value each
     pub(crate) fn to_text(&self) -> String {
         format!(
-            "master {:.2}\neffects {:.2}\nmusic {:.2}\nshake {:.2}\nfullscreen {}\ncolourblind {}\ndifficulty {}\nhints {}\nformation {}\narmy_limit {}\n",
+            "master {:.2}\neffects {:.2}\nmusic {:.2}\nshake {:.2}\nfullscreen {}\ncolourblind {}\ndifficulty {}\nhints {}\nformation {}\nunit_shape {}\narmy_limit {}\nplayer_name {}\njoin_address {}\nhost_port {}\nlobby_server {}\nlist_game {}\n",
             self.master,
             self.effects,
             self.music,
@@ -113,7 +148,13 @@ impl Settings {
             self.difficulty.name(),
             if self.hints { "yes" } else { "no" },
             self.formation.name(),
+            self.unit_shape.name(),
             self.army_limit,
+            self.player_name,
+            self.join_address,
+            self.host_port,
+            self.lobby_server,
+            if self.list_game { "yes" } else { "no" },
         )
     }
 
@@ -142,7 +183,13 @@ impl Settings {
                 "hints" => settings.hints = yes().unwrap_or(settings.hints),
                 "difficulty" => settings.difficulty = Difficulty::from_name(value).unwrap_or(settings.difficulty),
                 "formation" => settings.formation = Formation::from_name(value).unwrap_or(settings.formation),
+                "unit_shape" => settings.unit_shape = UnitShape::from_name(value).unwrap_or(settings.unit_shape),
                 "army_limit" => settings.army_limit = value.parse::<usize>().map_or(settings.army_limit, |limit| limit.clamp(MIN_ARMY_LIMIT, MAX_ARMY_LIMIT)),
+                "player_name" => settings.player_name = clean_name(line.split_once(char::is_whitespace).map_or("", |(_, rest)| rest)),
+                "join_address" => settings.join_address = value.chars().take(MAX_ADDRESS_LENGTH).collect(),
+                "host_port" => settings.host_port = parse_port(value).unwrap_or(settings.host_port),
+                "lobby_server" => settings.lobby_server = value.chars().take(MAX_SERVER_LENGTH).collect(),
+                "list_game" => settings.list_game = yes().unwrap_or(settings.list_game),
                 _ => {}
             }
         }

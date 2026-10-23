@@ -198,7 +198,7 @@ fn a_baby_nobody_picks_up_is_gone_after_thirty_seconds() {
     grow_babies(&mut babies, &mut units, far.x, far.y, 0.02, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut fx);
     assert!(babies.is_empty());
     assert!(units.is_empty(), "an expired baby doesn't grow");
-    assert_eq!(fx.picked_up, 0);
+    assert_eq!(fx.grown, [0; MAX_PLAYERS]);
 }
 
 #[test]

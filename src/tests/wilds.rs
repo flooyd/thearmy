@@ -98,9 +98,7 @@ pub(super) fn wander_with(upgrades: Upgrades, army: usize, formation: Formation,
         tick_enemy_numbers(&mut enemies, dt, &mut fx);
         out.lost += bury_units(&mut units, &mut fx);
         fx.fallen.clear();
-        fx.heal_all = 0.0;
-        fx.points = 0.0;
-        fx.xp = 0.0;
+        fx.spoils = Default::default();
         respawn_enemies(&mut enemies, player.x, player.y, pressure_for(units.len()));
         let before_pickup = units.len();
         let range = baby_pickup_range(units.len(), Vec2::new(1920.0, 1080.0));

@@ -1,0 +1,12 @@
+{
+  "name": "the-army-lobby",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The lobby list for The Army: hosts say they are open, players see who to join. Players still connect to the host directly.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "dev": "node dev.js"
+  }
+}

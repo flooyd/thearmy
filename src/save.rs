@@ -405,7 +405,8 @@ impl Stored for SiteKind {
     }
 }
 
-//(how long ago a unit grew is not kept: everyone loaded is full grown. a champion is kept apart, in its own section)
+//(how long ago a unit grew is not kept: everyone loaded is full grown. a champion is kept apart, in its own section. nor is whose
+//army it is in: a saved game has one army, the first player's)
 impl Stored for Unit {
     fn store(&self, w: &mut SaveWriter) {
         self.x.store(w);
@@ -423,7 +424,7 @@ impl Stored for Unit {
     }
 
     fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
-        Ok(Unit { x: r.get()?, y: r.get()?, speed: r.get()?, steer: r.get()?, steer_in: r.get()?, velocity: r.get()?, target: r.get()?, health: r.get()?, garrison: r.get()?, guard: r.get()?, calm: r.get()?, age: 99.0, champion: 0, power: 0.0, might: 1.0, ward: 1.0, level: 0, xp: 0.0, slot: rand::rand() })
+        Ok(Unit { x: r.get()?, y: r.get()?, speed: r.get()?, steer: r.get()?, steer_in: r.get()?, velocity: r.get()?, nose: Vec2::new(0.0, -1.0), target: r.get()?, health: r.get()?, garrison: r.get()?, guard: r.get()?, calm: r.get()?, age: 99.0, champion: 0, power: 0.0, might: 1.0, ward: 1.0, level: 0, xp: 0.0, slot: rand::rand(), id: NEXT_UNIT_ID.fetch_add(1, Ordering::Relaxed), owner: 0 })
     }
 }
 stored_fields!(Baby { position, age });
@@ -514,7 +515,7 @@ stored_fields!(
         id, name, position, size, color, max_health, health, babies, speed, route, heading_for, attack, aggro, chasing, range, volley, shot_in,
         hurt, killed, popup_in, behavior, modifier, scale, owner, armor, shield, max_shield, shield_idle, mode, timer, flash, blew_up, boss,
         site, steer, steer_in, stuck, pressing, slow
-    } ; frozen: 0.0, provoked: 0.0, grudge: Vec2::ZERO, rout: 0.0, rallied: false //(a freeze lasts a moment, and so do a grudge and a rout, and the rally is worked out again at once, so they are not kept)
+    } ; frozen: 0.0, provoked: 0.0, grudge: Vec2::ZERO, rout: 0.0, rallied: false, credit: 0 //(a freeze lasts a moment, and so do a grudge and a rout, and the rally is worked out again at once, and whose army hurt it is a matter of the next frame, so they are not kept)
 );
 
 //the walls are kept in order of their squares, so the same walls make the same file
@@ -582,7 +583,35 @@ impl Stored for RelicChoice {
     }
 }
 
-//a run at one moment: all that has to be put back to carry on from it
+//a player of a game with others, as a save has them: all but their army, which is among the units (marked with whose it is)
+#[derive(Clone)]
+pub(crate) struct Companion {
+    pub(crate) name: String,
+    pub(crate) position: Vec2,
+    pub(crate) rerolls: u32,
+    pub(crate) upgrades: Upgrades,
+    pub(crate) wall_kind: WallKind,
+    pub(crate) wall_points: f32,
+    pub(crate) choice: Option<RelicChoice>,
+}
+
+//a name as one word of a file, which has no spaces in it: the bytes of it in hexadecimal
+pub(crate) fn name_word(name: &str) -> String {
+    name.bytes().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn name_from(word: &str) -> Result<String, SaveError> {
+    let bytes: Option<Vec<u8>> = (0..word.len()).step_by(2).map(|at| word.get(at..at + 2).and_then(|pair| u8::from_str_radix(pair, 16).ok())).collect();
+    let name = bytes.filter(|_| word.len() % 2 == 0).and_then(|bytes| String::from_utf8(bytes).ok()).ok_or_else(|| SaveError(format!("{word:?} is not a name")))?;
+    let clean = clean_name(&name);
+    if clean.is_empty() || clean != name {
+        return Err(SaveError(format!("{name:?} is not a name a player can have")));
+    }
+    Ok(clean)
+}
+
+//a run at one moment: all that has to be put back to carry on from it. a game with others in it has a `company`: the players after the first, whose armies
+//are among the units (in order of owner)
 pub(crate) struct Snapshot {
     pub(crate) player: Vec2,
     pub(crate) zoom: f32,
@@ -600,6 +629,7 @@ pub(crate) struct Snapshot {
     pub(crate) choice: Option<RelicChoice>, //the relics on offer, if the run was waiting for one to be chosen
     pub(crate) victory: bool,               //the citadel had just fallen and the victory screen was up
     pub(crate) hordes: Hordes,              //when the next horde comes, the one being fought and the chests it left
+    pub(crate) company: Vec<Companion>,     //the other players, if there were any
 }
 
 impl Snapshot {
@@ -638,12 +668,14 @@ impl Snapshot {
             choice: choice.cloned(),
             victory,
             hordes: hordes.clone(),
+            company: Vec::new(),
         }
     }
 
     //the line at the top of a file: what the title screen tells the player about it without reading the rest
     pub(crate) fn header(&self, saved_at: f64) -> String {
-        format!("{SAVE_MAGIC} {SAVE_VERSION} {saved_at:.0} {} {} {}\n", self.units.len(), self.run.seconds, self.run.bosses)
+        let party = if self.company.is_empty() { String::new() } else { format!(" {}", self.company.len() + 1) };
+        format!("{SAVE_MAGIC} {SAVE_VERSION} {saved_at:.0} {} {} {}{party}\n", self.units.len(), self.run.seconds, self.run.bosses)
     }
 
     //everything below the header
@@ -707,6 +739,36 @@ impl Snapshot {
         //the hordes, in a section of their own which a save from before they were kept has not got
         w.word("hordes");
         w.put(&self.hordes);
+        //the other players, in a section of their own, and whose each army is (which is told by how many in a row are of each, as the armies are together)
+        if !self.company.is_empty() {
+            w.word("party");
+            w.number(self.company.len());
+            w.end_line();
+            for mate in &self.company {
+                w.word(&name_word(&mate.name));
+                w.put(&mate.position);
+                w.put(&mate.rerolls);
+                w.put(&mate.upgrades);
+                w.put(&mate.wall_kind);
+                w.put(&mate.wall_points);
+                w.put(&mate.choice);
+                w.end_line();
+            }
+            let mut runs: Vec<(u8, usize)> = Vec::new();
+            for unit in &self.units {
+                match runs.last_mut() {
+                    Some((owner, count)) if *owner == unit.owner => *count += 1,
+                    _ => runs.push((unit.owner, 1)),
+                }
+            }
+            w.word("owners");
+            w.number(runs.len());
+            for (owner, count) in runs {
+                w.number(owner);
+                w.number(count);
+            }
+            w.end_line();
+        }
         w.finish()
     }
 
@@ -726,6 +788,9 @@ impl Snapshot {
         //the rest of the header is for the title screen
         for _ in 0..4 {
             r.word()?;
+        }
+        if !r.next_is("player") {
+            r.word()?; //(how many players the run had)
         }
         r.expect("player")?;
         let player = r.get()?;
@@ -754,7 +819,16 @@ impl Snapshot {
         r.expect("sites")?;
         let mut sites: Vec<Site> = r.get()?;
         r.expect("enemies")?;
-        let enemies: Vec<Enemy> = r.get()?;
+        let mut enemies: Vec<Enemy> = r.get()?;
+        for enemy in &mut enemies {
+            //(an enemy walks a route and is heading for a stop on it: one that is not is put right, the way a copy of an enemy on another computer is)
+            if enemy.route.is_empty() {
+                enemy.route.push(enemy.position);
+            }
+            if enemy.heading_for >= enemy.route.len() {
+                enemy.heading_for = 0;
+            }
+        }
         if r.next_is("champions") {
             r.expect("champions")?;
             let count: usize = r.number()?;
@@ -802,6 +876,38 @@ impl Snapshot {
         } else {
             Hordes::new()
         };
+        let mut company: Vec<Companion> = Vec::new();
+        if r.next_is("party") {
+            r.expect("party")?;
+            let count: usize = r.number()?;
+            if count == 0 || count >= MAX_PLAYERS {
+                return Err(SaveError(format!("{count} other players in a game for {MAX_PLAYERS}")));
+            }
+            for _ in 0..count {
+                let name = name_from(r.word()?)?;
+                if company.iter().any(|other| other.name.eq_ignore_ascii_case(&name)) {
+                    return Err(SaveError(format!("two players are called {name}")));
+                }
+                company.push(Companion { name, position: r.get()?, rerolls: r.get()?, upgrades: r.get()?, wall_kind: r.get()?, wall_points: r.get()?, choice: r.get()? });
+            }
+            r.expect("owners")?;
+            let runs: usize = r.number()?;
+            let mut at = 0;
+            for _ in 0..runs {
+                let owner: usize = r.number()?;
+                let length: usize = r.number()?;
+                if owner > company.len() || length > units.len() - at {
+                    return Err(SaveError(format!("{length} units of player {owner} do not fit in an army of {}", units.len())));
+                }
+                for unit in &mut units[at..at + length] {
+                    unit.owner = owner as u8;
+                }
+                at += length;
+            }
+            if at != units.len() {
+                return Err(SaveError(format!("{at} of {} units have an owner", units.len())));
+            }
+        }
         for unit in &mut units {
             unit.target = None;
         }
@@ -815,7 +921,7 @@ impl Snapshot {
         if !sites.iter().any(|site| site.kind == SiteKind::Barracks) {
             place_sites(&mut sites, vec![SiteKind::Barracks; BARRACKS_COUNT]);
         }
-        Ok(Snapshot { player, zoom, run, rerolls, upgrades, wall_kind, wall_points, director, units, babies, walls, sites, enemies, choice, victory, hordes })
+        Ok(Snapshot { player, zoom, run, rerolls, upgrades, wall_kind, wall_points, director, units, babies, walls, sites, enemies, choice, victory, hordes, company })
     }
 }
 
@@ -826,6 +932,7 @@ pub(crate) struct SaveInfo {
     pub(crate) army: usize,
     pub(crate) seconds: f32, //played
     pub(crate) bosses: usize,
+    pub(crate) party: usize, //how many players were in it
 }
 
 impl SaveInfo {
@@ -836,15 +943,18 @@ impl SaveInfo {
         if version != SAVE_VERSION {
             return Err(SaveError(format!("it was saved by another version of the game (file {version}, game {SAVE_VERSION})")));
         }
-        Ok(SaveInfo { saved_at: r.number()?, army: r.number()?, seconds: r.number()?, bosses: r.number()? })
+        let (saved_at, army, seconds, bosses) = (r.number()?, r.number()?, r.number()?, r.number()?);
+        Ok(SaveInfo { saved_at, army, seconds, bosses, party: if r.is_done() { 1 } else { r.number()? } })
     }
 }
 
-//the two places a run is kept: the one the game keeps by itself, and the one the player saves to
+//the places a run is kept: the one the game keeps by itself, the one the player saves to, and the one for a game with others in it (which is the host's, and
+//is carried on from by hosting it again, when the players join it by their names)
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Slot {
     Auto,
     Quick,
+    Party,
 }
 
 pub(crate) const AUTOSAVE_SECONDS: f32 = 60.0; //how often the game saves by itself
@@ -878,6 +988,7 @@ impl Saves {
         self.dir.join(match slot {
             Slot::Auto => "autosave.sav",
             Slot::Quick => "quicksave.sav",
+            Slot::Party => "partysave.sav",
         })
     }
 

@@ -134,14 +134,14 @@ fn opening_a_chest_earns_the_points_puts_recruits_down_and_wins_a_champion_if_it
         let chest = Chest::new(SPOT, tier, 30.0);
         let mut babies = Vec::new();
         let mut fx = Effects::default();
-        let relic = open_chest(&chest, 1200, DEFAULT_ARMY_LIMIT, &mut babies, &mut fx);
+        let relic = open_chest(0, &chest, 1200, DEFAULT_ARMY_LIMIT, &mut babies, &mut fx);
         let loot = chest.loot(1200);
         assert_eq!(relic, tier >= CHEST_RELIC_TIER, "tier {tier}");
-        assert_eq!(fx.points, loot.points);
+        assert_eq!(fx.spoils[0].points, loot.points);
         assert_eq!(babies.len(), loot.recruits, "tier {tier}");
         assert!(babies.iter().all(|baby| baby.position.distance(SPOT) <= TILE_SIZE * 2.5 + 1.0));
         assert_eq!(fx.recruits.len(), (tier >= CHEST_CHAMPION_TIER) as usize);
-        assert!(fx.recruits.iter().all(|(at, odds)| *at == SPOT && *odds == Odds::Horde(tier)));
+        assert!(fx.recruits.iter().all(|(at, odds, owner)| *at == SPOT && *odds == Odds::Horde(tier) && *owner == 0));
         assert!(fx.announcements.iter().any(|(text, _)| text.contains(chest.name())), "the player is told");
         assert!(!fx.cues.is_empty() && !fx.popups.is_empty());
     }
@@ -152,11 +152,11 @@ fn recruits_that_the_army_has_no_room_for_are_not_made_and_the_chest_still_opens
     let chest = Chest::new(SPOT, 3, 30.0);
     let mut babies = Vec::new();
     let mut fx = Effects::default();
-    open_chest(&chest, DEFAULT_ARMY_LIMIT, DEFAULT_ARMY_LIMIT, &mut babies, &mut fx);
+    open_chest(0, &chest, DEFAULT_ARMY_LIMIT, DEFAULT_ARMY_LIMIT, &mut babies, &mut fx);
     assert!(babies.is_empty(), "a full army has no room");
-    assert!(fx.points > 0.0);
+    assert!(fx.spoils[0].points > 0.0);
     //and a little room gives a few
-    open_chest(&chest, DEFAULT_ARMY_LIMIT - 7, DEFAULT_ARMY_LIMIT, &mut babies, &mut fx);
+    open_chest(0, &chest, DEFAULT_ARMY_LIMIT - 7, DEFAULT_ARMY_LIMIT, &mut babies, &mut fx);
     assert_eq!(babies.len(), 7);
 }
 

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-32 -32 64 64" width="256" height="256">
+<title>Flying wing</title>
+<style>
+  .h { fill: #ffffff; stroke: #06090d; stroke-width: 5; stroke-linejoin: round; paint-order: stroke; }
+  .p { fill: none; stroke: #06090d; stroke-opacity: .38; stroke-width: 1.1; stroke-linecap: round; }
+  .g { fill: #10202b; }
+  .gl { fill: #9cecff; opacity: .85; }
+  .e { fill: #ffa63d; }
+</style>
+<path class="e" d="M-9 15 L-6.5 24 L-4 15 Z"/>
+<path class="e" d="M4 15 L6.5 24 L9 15 Z"/>
+<path class="h" d="M0 -26 L25 11 L20 17 L13 12.5 L6.5 18 L0 13.5 L-6.5 18 L-13 12.5 L-20 17 L-25 11 Z"/>
+<path class="p" d="M0 0 L0 13 M0 -14 L12 4 M0 -14 L-12 4 M13 6 L9 11 M-13 6 L-9 11"/>
+<path class="g" d="M0 -12 C2.2 -9 2.4 -4 0 0 C-2.4 -4 -2.2 -9 0 -12 Z"/>
+<path class="gl" d="M0 -10 C0.8 -8.5 0.9 -7 0.3 -5.8 C-0.3 -7 -0.4 -8.5 0 -10 Z"/>
+</svg>

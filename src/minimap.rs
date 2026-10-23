@@ -70,6 +70,8 @@ impl Minimap {
     }
 }
 
+const SQUAD_MARK: u8 = 0x80; //a map pixel that has a unit of a squad on it
+
 //the enemy whose dot is under a point on the screen, if the map shows one there: the closest, if several are
 pub(crate) fn minimap_enemy_at(map: &Minimap, point: Vec2, enemies: &[Enemy]) -> Option<usize> {
     enemies
@@ -84,7 +86,8 @@ pub(crate) fn minimap_enemy_at(map: &Minimap, point: Vec2, enemies: &[Enemy]) ->
 
 //the minimap, drawn with the default camera: a dot for everything in the part of the world it shows, a box for the part the
 //camera shows, rings round the enemies that are after the player and round the ones a squad has been sent at, and the
-//enemy under the mouse outlined. `time` is for the rings to pulse
+//enemy under the mouse outlined. in a game with others (`team`) each army's dots are in the colour of its player, and the other players are on the map
+//too. `time` is for the rings to pulse
 pub(crate) fn draw_minimap(
     map: &Minimap,
     view: MapView,
@@ -98,6 +101,7 @@ pub(crate) fn draw_minimap(
     walls: &Walls,
     hazards: &[Hazard],
     sites: &[Site],
+    team: Option<&Team>,
     time: f32,
 ) {
     let rect = map.rect;
@@ -131,14 +135,22 @@ pub(crate) fn draw_minimap(
         let point = map.to_screen(Vec2::new(unit.x, unit.y));
         if on_map(point, 1.0) {
             let at = (point.x - rect.x) as usize + columns * (point.y - rect.y) as usize;
-            //(a unit of a squad shows over the ones that aren't)
-            seen[at] = seen[at].max(if unit.target.is_some() { 2 } else { 1 });
+            //(a unit of a squad shows over the ones that aren't. what is kept is whether it is of a squad, and whose it is, from 1)
+            let squad = unit.target.is_some();
+            if seen[at] == 0 || (squad && seen[at] & SQUAD_MARK == 0) {
+                seen[at] = (squad as u8 * SQUAD_MARK) | (owner_index(unit.owner) as u8 + 1);
+            }
         }
     }
     for (at, &mark) in seen.iter().enumerate() {
         if mark != 0 {
             let (px, py) = (rect.x + (at % columns) as f32, rect.y + (at / columns) as f32);
-            draw_rectangle(px - 0.5, py - 0.5, 2.0, 2.0, if mark == 2 { SQUAD_COLOR } else { WHITE });
+            let color = match team {
+                _ if mark & SQUAD_MARK != 0 => SQUAD_COLOR,
+                Some(team) => team_color(WHITE, team.colors[(mark & !SQUAD_MARK) as usize - 1]),
+                None => WHITE,
+            };
+            draw_rectangle(px - 0.5, py - 0.5, 2.0, 2.0, color);
         }
     }
     //the champions are bigger dots, ringed, in their own colours
@@ -197,8 +209,18 @@ pub(crate) fn draw_minimap(
         draw_rectangle_lines(top_left.x, top_left.y, bottom_right.x - top_left.x, bottom_right.y - top_left.y, 1.5, Color::new(1.0, 1.0, 1.0, 0.8));
     }
 
-    let point = map.to_screen(player).max(rect.point() + Vec2::splat(4.0)).min(rect.point() + rect.size() - Vec2::splat(4.0));
-    draw_circle(point.x, point.y, 4.0, BLUE);
+    let keep_in = |point: Vec2| point.max(rect.point() + Vec2::splat(4.0)).min(rect.point() + rect.size() - Vec2::splat(4.0));
+    //(the other players are known wherever they are, so they are shown as far as the edge of the map)
+    if let Some(team) = team {
+        for mate in team.mates.iter().filter(|mate| !mate.you && !mate.away) {
+            let point = keep_in(map.to_screen(mate.position));
+            draw_circle(point.x, point.y, 4.0, mate.color);
+            draw_circle_lines(point.x, point.y, 4.0, 1.5, WHITE);
+        }
+    }
+    let mine = team.and_then(|team| team.mates.iter().find(|mate| mate.you)).map_or(BLUE, |mate| mate.color);
+    let point = keep_in(map.to_screen(player));
+    draw_circle(point.x, point.y, 4.0, mine);
     draw_circle_lines(point.x, point.y, 4.0, 1.5, WHITE);
 
     draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 2.0, Color::new(CYAN.r, CYAN.g, CYAN.b, 0.75));

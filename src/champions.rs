@@ -199,12 +199,12 @@ pub(crate) fn train_champions(units: &mut [Unit], xp: f32, fx: &mut Effects) {
 }
 
 //how many champions there are in the army
-pub(crate) fn champions_held(units: &[Unit]) -> usize {
-    units.iter().filter(|unit| unit.champion != 0).count()
+pub(crate) fn champions_held<'a>(units: impl IntoIterator<Item = &'a Unit>) -> usize {
+    units.into_iter().filter(|unit| unit.champion != 0).count()
 }
 
 //how many of each kind
-pub(crate) fn champions_by_kind(units: &[Unit]) -> [usize; CHAMPIONS.len()] {
+pub(crate) fn champions_by_kind<'a>(units: impl IntoIterator<Item = &'a Unit>) -> [usize; CHAMPIONS.len()] {
     let mut held = [0; CHAMPIONS.len()];
     for unit in units {
         if let Some(kind) = (unit.champion as usize).checked_sub(1).filter(|&kind| kind < CHAMPIONS.len()) {
@@ -248,8 +248,13 @@ fn grade_index(grade: Rarity) -> usize {
 
 //the kind to give out, from a roll between 0 and 1: a grade is picked by the weights and then one of its kinds, and a kind the
 //army has already is less likely for each it has, so the roster doesn't fill up with the same one
+#[cfg(test)]
 pub(crate) fn pick_champion(units: &[Unit], weights: [f32; 3], roll: f32) -> usize {
-    let held = champions_by_kind(units);
+    pick_champion_among(champions_by_kind(units), weights, roll)
+}
+
+//the same when the champions the army has are already counted, by kind
+pub(crate) fn pick_champion_among(held: [usize; CHAMPIONS.len()], weights: [f32; 3], roll: f32) -> usize {
     let in_grade = |grade: Rarity| CHAMPIONS.iter().filter(|champion| champion.grade == grade).count() as f32;
     let weight = |kind: usize| {
         let champion = &CHAMPIONS[kind];
@@ -271,14 +276,15 @@ pub(crate) fn boss_drops_champion(bosses_slain: usize, roll: f32) -> bool {
     bosses_slain <= 1 || roll < CHAMPION_BOSS_CHANCE
 }
 
-//a champion joins the army where `at` is, in a flare of its colour. one of a kind the army already has merges into it instead,
-//raising its level, and takes no room. the roster has room for MAX_CHAMPIONS kinds, and a new one won past that is turned into
-//recruits. returns the kind that was won
-pub(crate) fn award_champion(units: &mut Vec<Unit>, babies: &mut Vec<Baby>, at: Vec2, odds: Odds, cap: usize, fx: &mut Effects) -> Option<usize> {
-    let kind = pick_champion(units, odds.weights(), rand::gen_range(0.0, 1.0));
+//a champion joins a player's army where `at` is, in a flare of its colour. one of a kind that army already has merges into it
+//instead, raising its level, and takes no room. the roster has room for MAX_CHAMPIONS kinds, and a new one won past that is turned
+//into recruits. `units` is everyone's, and only the units of that player are looked at. returns the kind that was won
+pub(crate) fn award_champion_for(owner: usize, units: &mut Vec<Unit>, babies: &mut Vec<Baby>, at: Vec2, odds: Odds, cap: usize, fx: &mut Effects) -> Option<usize> {
+    let mine = |unit: &Unit| unit.owner as usize == owner;
+    let kind = pick_champion_among(champions_by_kind(units.iter().filter(|unit| mine(unit))), odds.weights(), rand::gen_range(0.0, 1.0));
     let champion = &CHAMPIONS[kind];
     //one of a kind the army has already merges into it, which rises a level (the highest one that can still rise), and takes up no room
-    if let Some(veteran) = units.iter_mut().filter(|unit| unit.champion as usize == kind + 1 && unit.level < CHAMPION_MAX_LEVEL).max_by_key(|unit| unit.level) {
+    if let Some(veteran) = units.iter_mut().filter(|unit| mine(unit) && unit.champion as usize == kind + 1 && unit.level < CHAMPION_MAX_LEVEL).max_by_key(|unit| unit.level) {
         level_up(veteran, fx);
         let spot = Vec2::new(veteran.x, veteran.y);
         fx.announce(format!("{} MERGES: LEVEL {}", champion.name.to_uppercase(), veteran.level), champion.color);
@@ -286,14 +292,15 @@ pub(crate) fn award_champion(units: &mut Vec<Unit>, babies: &mut Vec<Baby>, at: 
         fx.add_punch(0.4);
         return Some(kind);
     }
-    if champions_held(units) >= MAX_CHAMPIONS {
-        spread_babies(babies, at, CHAMPION_RECRUITS, units.len(), cap, TILE_SIZE * 3.0);
+    if champions_held(units.iter().filter(|unit| mine(unit))) >= MAX_CHAMPIONS {
+        let army = units.iter().filter(|unit| mine(unit)).count();
+        spread_babies(babies, at, CHAMPION_RECRUITS, army, cap, TILE_SIZE * 3.0);
         fx.announce(format!("ROSTER FULL: {CHAMPION_RECRUITS} RECRUITS INSTEAD"), TROPHY);
         fx.cue(Cue::Liberate);
         return None;
     }
     let spot = at + Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * rand::gen_range(0.0, RADIUS * 2.0);
-    units.push(champion_unit(kind, spot));
+    units.push(champion_unit(kind, spot).owned_by(owner));
     fx.announce(format!("{} JOINS YOUR ARMY", champion.name.to_uppercase()), champion.color);
     fx.popup(spot, RADIUS * 3.0, 0.0, format!("{}: {}", champion.grade.name(), champion.name), champion.color);
     fx.ring(spot, 200.0, champion.color);
@@ -303,10 +310,10 @@ pub(crate) fn award_champion(units: &mut Vec<Unit>, babies: &mut Vec<Baby>, at: 
     Some(kind)
 }
 
-//hand out the champions the frame has won, each where it was won
-pub(crate) fn award_recruits(units: &mut Vec<Unit>, babies: &mut Vec<Baby>, cap: usize, fx: &mut Effects) {
-    for (at, odds) in std::mem::take(&mut fx.recruits) {
-        award_champion(units, babies, at, odds, cap, fx);
+//hand out the champions the frame has won, each where it was won, to the player who won it, with the room their relics leave their army
+pub(crate) fn award_recruits<R: Relics + ?Sized>(units: &mut Vec<Unit>, babies: &mut Vec<Baby>, relics: &R, fx: &mut Effects) {
+    for (at, odds, owner) in std::mem::take(&mut fx.recruits) {
+        award_champion_for(owner, units, babies, at, odds, relics.of(owner as u8).unit_cap(), fx);
     }
 }
 
@@ -319,10 +326,11 @@ fn power_damage(enemy: &Enemy, flat: f32, share: f32, upgrades: &Upgrades) -> f3
     (UNIT_DAMAGE * flat + enemy.max_health * share) * upgrades.hit()
 }
 
-//hurt an enemy with a power, and keep count so a number floats up from it
-fn strike(enemy: &mut Enemy, damage: f32) {
+//hurt an enemy with a power of a player's champion, and keep count so a number floats up from it. the player has the credit for it
+fn strike(enemy: &mut Enemy, damage: f32, owner: u8) {
     let dealt = enemy.take_damage(damage);
     enemy.hurt += dealt;
+    enemy.credit = owner;
 }
 
 fn in_reach(enemy: &Enemy, from: Vec2, reach: f32) -> bool {
@@ -394,11 +402,12 @@ pub(crate) const MIN_WARD: f32 = 0.1; //however many shields are stacked, at lea
 //the champions' powers that act on the world, each frame. the timers count down and each power goes off when its time is up and
 //there is something for it to do. a rebirth that happened last frame blazes now. it has to come after the terrain has set the
 //enemies' speeds for the frame, as the ones that slow them take from that
-pub(crate) fn champion_acts(units: &mut [Unit], enemies: &mut [Enemy], babies: &mut Vec<Baby>, upgrades: &Upgrades, cap: usize, dt: f32, fx: &mut Effects) {
+pub(crate) fn champion_acts<R: Relics + ?Sized>(units: &mut [Unit], enemies: &mut [Enemy], babies: &mut Vec<Baby>, relics: &R, dt: f32, fx: &mut Effects) {
     if dt <= 0.0 {
         return;
     }
-    for (at, kind, level) in std::mem::take(&mut fx.rebirths) {
+    for (at, kind, level, owner) in std::mem::take(&mut fx.rebirths) {
+        let upgrades = relics.of(owner);
         let Some(champion) = (kind as usize).checked_sub(1).and_then(|kind| CHAMPIONS.get(kind)) else {
             continue;
         };
@@ -407,7 +416,7 @@ pub(crate) fn champion_acts(units: &mut [Unit], enemies: &mut [Enemy], babies: &
         };
         for enemy in enemies.iter_mut().filter(|enemy| in_reach(enemy, at, radius)) {
             let damage = power_damage(enemy, flat, share, upgrades);
-            strike(enemy, damage);
+            strike(enemy, damage, owner);
         }
         fx.ring(at, radius, champion.color);
         fx.burst(at, champion.color, 60, 420.0);
@@ -415,12 +424,16 @@ pub(crate) fn champion_acts(units: &mut [Unit], enemies: &mut [Enemy], babies: &
         fx.add_shake(0.3);
         fx.cue_at(Cue::Explosion, at);
     }
-    let army = units.len();
+    //the powers of a champion are the relics of the player it fights for, and a muster is held to the size of that player's army
+    let sizes = army_sizes(units);
     for unit in units.iter_mut().filter(|unit| unit.champion != 0 && unit.garrison.is_none()) {
         let Some(kind) = unit.champion_kind() else {
             continue;
         };
         let at = Vec2::new(unit.x, unit.y);
+        let owner = unit.owner;
+        let upgrades = relics.of(owner);
+        let (army, cap) = (sizes[owner_index(owner)], upgrades.unit_cap());
         let mut timer = unit.power;
         match kind.power.at_level(unit.level) {
             Power::Fireball { every, range, radius, flat, share } => {
@@ -430,7 +443,7 @@ pub(crate) fn champion_acts(units: &mut [Unit], enemies: &mut [Enemy], babies: &
                         Some(target) => {
                             for enemy in enemies.iter_mut().filter(|enemy| in_reach(enemy, target, radius)) {
                                 let damage = power_damage(enemy, flat, share, upgrades);
-                                strike(enemy, damage);
+                                strike(enemy, damage, owner);
                             }
                             streak(fx, at, target, kind.color);
                             fx.ring(target, radius, kind.color);
@@ -456,7 +469,7 @@ pub(crate) fn champion_acts(units: &mut [Unit], enemies: &mut [Enemy], babies: &
                     timer = match toughest {
                         Some(i) => {
                             let damage = power_damage(&enemies[i], flat, share, upgrades);
-                            strike(&mut enemies[i], damage);
+                            strike(&mut enemies[i], damage, owner);
                             streak(fx, at, enemies[i].position, kind.color);
                             fx.burst(enemies[i].position, kind.color, 8, 180.0);
                             fx.cue_at(Cue::Arrow, at);
@@ -476,7 +489,7 @@ pub(crate) fn champion_acts(units: &mut [Unit], enemies: &mut [Enemy], babies: &
                         let mut from = at;
                         for &i in &chain {
                             let damage = power_damage(&enemies[i], flat, share, upgrades);
-                            strike(&mut enemies[i], damage);
+                            strike(&mut enemies[i], damage, owner);
                             streak(fx, from, enemies[i].position, kind.color);
                             fx.burst(enemies[i].position, kind.color, 10, 220.0);
                             from = enemies[i].position;
@@ -493,7 +506,7 @@ pub(crate) fn champion_acts(units: &mut [Unit], enemies: &mut [Enemy], babies: &
                     timer = if enemies.iter().any(|enemy| in_reach(enemy, at, radius)) {
                         for enemy in enemies.iter_mut().filter(|enemy| in_reach(enemy, at, radius)) {
                             let damage = power_damage(enemy, flat, share, upgrades);
-                            strike(enemy, damage);
+                            strike(enemy, damage, owner);
                         }
                         fx.ring(at, radius, kind.color);
                         fx.burst(at, kind.color, 50, 360.0);

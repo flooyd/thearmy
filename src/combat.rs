@@ -5,9 +5,13 @@ use crate::prelude::*;
 //every unit inside an enemy hurts it, and it hurts the units inside it: its attack, a number of damage per second, is
 //spent on one unit after another until it is used up, so units die one at a time rather than all being worn down. a
 //bomber that is touched lights its fuse. an enemy that runs out of health is destroyed (see resolve_deaths). the units that
-//run out of health are left for bury_units. returns how many enemies were destroyed
-pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut Vec<Baby>, dt: f32, upgrades: &Upgrades, fx: &mut Effects) -> usize {
+//run out of health are left for bury_units. returns how many enemies were destroyed.
+//the units are everyone's: each does as much as its own player's relics make it, takes as much as their relics let through, and
+//the player whose units did the most to an enemy has the credit for it
+pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut Vec<Baby>, dt: f32, relics: &R, fx: &mut Effects) -> usize {
     let grid = UnitGrid::new(units);
+    //what each player's relics make of a unit's touch, worked out once as the power in it is not cheap
+    let hits: [f32; MAX_PLAYERS] = std::array::from_fn(|owner| relics.of(owner as u8).hit());
     let mut touching: Vec<usize> = Vec::new();
     for enemy in enemies.iter_mut() {
         touching.clear();
@@ -25,13 +29,28 @@ pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut V
             continue;
         }
         //a champion counts as many units, and a boss with an armoured front takes little from the units in front of it
-        let strength: f32 = if enemy.boss.as_ref().is_some_and(|state| state.def.flank) {
-            touching.iter().map(|&i| flank_factor(enemy, Vec2::new(units[i].x, units[i].y)) * units[i].might).sum()
+        let mut strength = [0.0f32; MAX_PLAYERS];
+        if enemy.boss.as_ref().is_some_and(|state| state.def.flank) {
+            for &i in &touching {
+                strength[owner_index(units[i].owner)] += flank_factor(enemy, Vec2::new(units[i].x, units[i].y)) * units[i].might;
+            }
         } else {
-            touching.iter().map(|&i| units[i].might).sum()
-        };
-        let dealt = enemy.take_damage(strength * UNIT_DAMAGE * upgrades.hit() * dt);
+            for &i in &touching {
+                strength[owner_index(units[i].owner)] += units[i].might;
+            }
+        }
+        let mut damage = 0.0;
+        for (owner, &each) in strength.iter().enumerate() {
+            damage += each * UNIT_DAMAGE * hits[owner] * dt;
+        }
+        let dealt = enemy.take_damage(damage);
         enemy.hurt += dealt;
+        //the credit is the army that did the most of it, which is not always the one with the most units on it
+        let share = |owner: usize| strength[owner] * hits[owner];
+        if let Some(top) = (0..MAX_PLAYERS).filter(|&owner| share(owner) > 0.0).max_by(|&a, &b| share(a).total_cmp(&share(b))) {
+            enemy.credit = top as u8;
+        }
+        let leading = relics.of(enemy.credit);
         //hurt by units, it fights back at where they are, and the enemies near it come at them too
         if dealt > 0.0 && !touching.is_empty() && enemy.can_be_provoked() {
             let nearest = touching.iter().take(8).fold(Vec2::ZERO, |sum, &i| sum + Vec2::new(units[i].x, units[i].y)) / touching.len().min(8) as f32;
@@ -41,7 +60,7 @@ pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut V
         }
         //a Freezing relic: an enemy being fought now and then freezes solid
         enemy.frozen = (enemy.frozen - dt).max(0.0);
-        if upgrades.freeze > 0.0 && enemy.frozen <= 0.0 && enemy.can_freeze() && !touching.is_empty() && rand::gen_range(0.0, 1.0) < upgrades.freeze_chance(dt) {
+        if leading.freeze > 0.0 && enemy.frozen <= 0.0 && enemy.can_freeze() && !touching.is_empty() && rand::gen_range(0.0, 1.0) < leading.freeze_chance(dt) {
             enemy.frozen = FREEZE_SECONDS;
             fx.burst(enemy.position, ICE, 8, 160.0);
             fx.cue_at(Cue::Frost, enemy.position);
@@ -53,6 +72,7 @@ pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut V
         }
         let mut budget = enemy.attack_now() * dt;
         let spent_from = budget;
+        let mut took = [0.0f32; MAX_PLAYERS]; //how much of it each player's units took
         //the grid finds them in no order, and the first ones in the army are the first to be hit. an attack only gets through so many,
         //so they are put in order a batch at a time (the first few of thousands, then more if it is not used up) rather than all of them
         let mut done = 0;
@@ -71,9 +91,11 @@ pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut V
                 //a tougher unit takes less from the same hit, so the budget goes further. a champion, or a unit a champion is
                 //looking after, takes less again, which hurt works out
                 let unit = &mut units[i];
-                let hit = budget.min((unit.health + unit.guard) / (upgrades.toughness * unit.ward));
-                unit.hurt(hit * upgrades.toughness);
+                let toughness = relics.of(unit.owner).toughness;
+                let hit = budget.min((unit.health + unit.guard) / (toughness * unit.ward));
+                unit.hurt(hit * toughness);
                 budget -= hit;
+                took[owner_index(unit.owner)] += hit;
                 if unit.health <= 0.0 {
                     enemy.killed += 1;
                 }
@@ -81,18 +103,31 @@ pub(crate) fn fight(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut V
             done = end;
             batch *= 4;
         }
-        //thorns: it takes back some of what it did
-        if upgrades.thorns > 0.0 && budget < spent_from {
-            enemy.hurt += enemy.take_damage((spent_from - budget) * upgrades.thorns);
+        //thorns: it takes back some of what it did, as much as the relics of the units that took it say
+        if budget < spent_from {
+            let total: f32 = took.iter().sum();
+            let back: f32 = took.iter().enumerate().filter(|(_, share)| **share > 0.0).map(|(owner, share)| (spent_from - budget) * (share / total) * relics.of(owner as u8).thorns).sum();
+            if back > 0.0 {
+                enemy.hurt += enemy.take_damage(back);
+            }
         }
     }
-    resolve_deaths(enemies, babies, units.len(), upgrades, fx)
+    let sizes = army_sizes(units);
+    resolve_deaths_among(enemies, babies, &sizes, relics, fx)
+}
+
+//remove every enemy that has run out of health, with one army to drop babies for
+#[cfg(test)]
+pub(crate) fn resolve_deaths<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, army: usize, relics: &R, fx: &mut Effects) -> usize {
+    resolve_deaths_among(enemies, babies, &[army], relics, fx)
 }
 
 //remove every enemy that has run out of health. one that was made by another is just gone, a bomber that set itself off
-//too, anything else drops its baby units (more with upgrades.bounty) and counts as destroyed. a splitter breaks into
-//smaller ones, a frozen one shatters, a volatile one goes off, and whatever an enemy made dies with it. returns how many were destroyed
-pub(crate) fn resolve_deaths(enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, army: usize, upgrades: &Upgrades, fx: &mut Effects) -> usize {
+//too, anything else drops its baby units (more with the bounty relic of the player with the credit for it) and counts as destroyed. a
+//splitter breaks into smaller ones, a frozen one shatters, a volatile one goes off, and whatever an enemy made dies with it. what it was
+//worth goes to the player who has the credit, as their army's `spoils`. `armies` is how big each player's army is, by player.
+//returns how many were destroyed
+pub(crate) fn resolve_deaths_among<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, armies: &[usize], relics: &R, fx: &mut Effects) -> usize {
     let mut destroyed = 0;
     let mut gone: Vec<u32> = Vec::new();
     let mut born: Vec<Enemy> = Vec::new();
@@ -115,10 +150,13 @@ pub(crate) fn resolve_deaths(enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, a
             fx.cue_at(Cue::Death, enemy.position);
             return false;
         }
+        let upgrades = relics.of(enemy.credit);
+        let army = armies[(enemy.credit as usize).min(armies.len() - 1)];
         drop_babies(enemy, babies, army, upgrades.bounty, upgrades.unit_cap());
-        fx.points += kill_points(enemy);
-        fx.xp += kill_xp(enemy);
-        fx.heal_all += upgrades.bloodlust * if enemy.boss.is_some() { 10.0 } else { 1.0 };
+        let spoils = &mut fx.spoils[owner_index(enemy.credit)];
+        spoils.points += kill_points(enemy);
+        spoils.xp += kill_xp(enemy);
+        spoils.heal_all += upgrades.bloodlust * if enemy.boss.is_some() { 10.0 } else { 1.0 };
         let boss = enemy.boss.is_some();
         fx.add_shake(if boss { 1.0 } else { (enemy.size / 600.0).clamp(0.06, 0.7) });
         fx.burst(enemy.position, enemy.color, (enemy.size / 4.0).clamp(14.0, if boss { 400.0 } else { 160.0 }) as usize, 320.0);
@@ -127,7 +165,7 @@ pub(crate) fn resolve_deaths(enemies: &mut Vec<Enemy>, babies: &mut Vec<Baby>, a
         fx.mark(enemy.position, (enemy.size * 0.7).clamp(22.0, 300.0), enemy.color, MarkKind::Splat);
         fx.cue_at(Cue::Thud, enemy.position);
         if enemy.modifier != Modifier::None && rand::gen_range(0.0, 1.0) < CHAMPION_ELITE_CHANCE {
-            fx.recruits.push((enemy.position, Odds::Elite));
+            fx.recruits.push((enemy.position, Odds::Elite, owner_index(enemy.credit)));
         }
         if boss {
             fx.cue_at(Cue::Explosion, enemy.position);
@@ -340,7 +378,7 @@ fn units_near(grid: &TileMap<Vec<usize>>, units: &[Unit], at: Vec2, reach: f32, 
 
 //a splash shot goes off where it is: up to `victims` of the units within its reach (the closest ones) are hurt, the walls there too,
 //and it leaves a scorch on the ground
-fn detonate(shot: &Shot, grid: &TileMap<Vec<usize>>, units: &mut [Unit], upgrades: &Upgrades, fx: &mut Effects) {
+fn detonate<R: Relics + ?Sized>(shot: &Shot, grid: &TileMap<Vec<usize>>, units: &mut [Unit], relics: &R, fx: &mut Effects) {
     let mut near = Vec::new();
     units_near(grid, units, shot.position, shot.splash, &mut near);
     if shot.victims > 0 && near.len() > shot.victims {
@@ -351,7 +389,8 @@ fn detonate(shot: &Shot, grid: &TileMap<Vec<usize>>, units: &mut [Unit], upgrade
         near.truncate(shot.victims);
     }
     for &i in &near {
-        units[i].hurt(shot.damage * upgrades.toughness);
+        let toughness = relics.of(units[i].owner).toughness;
+        units[i].hurt(shot.damage * toughness);
     }
     fx.blasts.push(Blast { position: shot.position, radius: shot.splash, damage: shot.damage * BLAST_WALL_FACTOR });
     fx.burst(shot.position, shot.color, (shot.splash / 5.0).clamp(10.0, 60.0) as usize, shot.splash * 2.0);
@@ -383,7 +422,7 @@ fn bend_towards(velocity: Vec2, from: Vec2, to: Vec2, turn: f32) -> Vec2 {
 //piercing one goes through the units it meets, hurting each, until it has been through as many as it can. a splash one goes off on the
 //first unit it meets, or where it was aimed, and hurts the units round that. a homing one bends towards the nearest unit as it flies.
 //the units are sorted into a grid first, there can be a lot of shots and a lot of units
-pub(crate) fn update_shots(shots: &mut Vec<Shot>, units: &mut [Unit], walls: &Walls, dt: f32, upgrades: &Upgrades, fx: &mut Effects) {
+pub(crate) fn update_shots<R: Relics + ?Sized>(shots: &mut Vec<Shot>, units: &mut [Unit], walls: &Walls, dt: f32, relics: &R, fx: &mut Effects) {
     if shots.is_empty() {
         return;
     }
@@ -393,7 +432,7 @@ pub(crate) fn update_shots(shots: &mut Vec<Shot>, units: &mut [Unit], walls: &Wa
         if shot.age > shot.life {
             //a grenade that has flown as far as it was aimed goes off, any other shot is just gone
             if shot.kind == ShotKind::Splash {
-                detonate(shot, &grid, units, upgrades, fx);
+                detonate(shot, &grid, units, relics, fx);
             }
             return false;
         }
@@ -414,7 +453,7 @@ pub(crate) fn update_shots(shots: &mut Vec<Shot>, units: &mut [Unit], walls: &Wa
             //the player's walls stop a shot and take its damage, a lair's let it through
             if walls.get(&(col, row)).is_some_and(|wall| wall.stops_shots()) {
                 if shot.kind == ShotKind::Splash {
-                    detonate(shot, &grid, units, upgrades, fx);
+                    detonate(shot, &grid, units, relics, fx);
                 } else {
                     fx.wall_hits.push(((col, row), shot.damage * SHOT_WALL_SHARE));
                     fx.burst(shot.position, shot.color, 5, 120.0);
@@ -434,14 +473,14 @@ pub(crate) fn update_shots(shots: &mut Vec<Shot>, units: &mut [Unit], walls: &Wa
                         }
                         match shot.kind {
                             ShotKind::Splash => {
-                                detonate(shot, &grid, units, upgrades, fx);
+                                detonate(shot, &grid, units, relics, fx);
                                 return false;
                             }
                             ShotKind::Piercing => {
                                 if shot.struck.contains(&i) {
                                     continue;
                                 }
-                                unit.hurt(shot.damage * upgrades.toughness);
+                                unit.hurt(shot.damage * relics.of(unit.owner).toughness);
                                 fx.burst(shot.position, shot.color, 4, 140.0);
                                 shot.struck.push(i);
                                 shot.pierce = shot.pierce.saturating_sub(1);
@@ -450,7 +489,7 @@ pub(crate) fn update_shots(shots: &mut Vec<Shot>, units: &mut [Unit], walls: &Wa
                                 }
                             }
                             ShotKind::Plain | ShotKind::Homing => {
-                                unit.hurt(shot.damage * upgrades.toughness);
+                                unit.hurt(shot.damage * relics.of(unit.owner).toughness);
                                 fx.burst(shot.position, shot.color, 6, 160.0);
                                 return false;
                             }
@@ -552,7 +591,7 @@ impl Hazard {
 }
 
 //count the hazards down, set off the ones that are due and burn the units in the ones that are burning
-pub(crate) fn update_hazards(hazards: &mut Vec<Hazard>, units: &mut [Unit], upgrades: &Upgrades, dt: f32, fx: &mut Effects) {
+pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, units: &mut [Unit], relics: &R, dt: f32, fx: &mut Effects) {
     let mut burning: Vec<(Vec2, f32, f32)> = Vec::new(); //where, how far it reaches and how hard it burns
     hazards.retain_mut(|hazard| {
         if hazard.armed {
@@ -572,7 +611,7 @@ pub(crate) fn update_hazards(hazards: &mut Vec<Hazard>, units: &mut [Unit], upgr
                         break;
                     }
                     if unit.health > 0.0 && unit.garrison.is_none() && Vec2::new(unit.x, unit.y).distance(hazard.position) <= hazard.radius {
-                        unit.hurt(hazard.damage * upgrades.toughness);
+                        unit.hurt(hazard.damage * relics.of(unit.owner).toughness);
                         hurt += 1;
                         killed += (unit.health <= 0.0) as usize;
                     }
@@ -603,7 +642,7 @@ pub(crate) fn update_hazards(hazards: &mut Vec<Hazard>, units: &mut [Unit], upgr
             let at = Vec2::new(unit.x, unit.y);
             let worst = burning.iter().filter(|(position, radius, _)| at.distance(*position) <= *radius).map(|(_, _, burn)| *burn).fold(0.0, f32::max);
             if worst > 0.0 {
-                unit.hurt(worst * upgrades.toughness * dt);
+                unit.hurt(worst * relics.of(unit.owner).toughness * dt);
             }
         }
     }

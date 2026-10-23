@@ -230,6 +230,7 @@ pub(crate) struct Enemy {
     pub(crate) grudge: Vec2,       //where those units were, which it goes to and fights them at
     pub(crate) rout: f32,          //seconds it is still running from the army, after its captain fell: it does nothing else. not kept in a save
     pub(crate) rallied: bool,      //a living captain is rallying it: it is faster and hits harder. worked out every frame, not kept in a save
+    pub(crate) credit: u8,         //the player whose army has hurt it most lately, who is given the babies and the rewards when it is destroyed. not kept in a save
 }
 
 impl Enemy {
@@ -296,6 +297,7 @@ impl Enemy {
             grudge: Vec2::ZERO,
             rout: 0.0,
             rallied: false,
+            credit: 0,
         }
     }
 
