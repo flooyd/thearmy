@@ -165,8 +165,6 @@ fn tab_and_the_arrows_go_round_the_rows() {
     form.step(1);
     assert_eq!(form.focus, Row::Target);
     form.step(1);
-    assert_eq!(form.focus, Row::Server);
-    form.step(1);
     assert_eq!(form.focus, Row::Listed, "someone hosting can choose whether the game is on the list");
     form.step(1);
     assert_eq!(form.focus, Row::Role, "round to the start");
@@ -174,11 +172,11 @@ fn tab_and_the_arrows_go_round_the_rows() {
     assert_eq!(form.focus, Row::Listed, "and back");
     //(someone joining has no use for that row, and is not left on it)
     form.switch(Role::Join);
-    assert_eq!(form.focus, Row::Server);
+    assert_eq!(form.focus, Row::Target);
     form.step(1);
     assert_eq!(form.focus, Row::Role);
     form.step(-1);
-    assert_eq!(form.focus, Row::Server);
+    assert_eq!(form.focus, Row::Target);
 }
 
 #[test]
@@ -192,7 +190,7 @@ fn enter_moves_on_until_the_address_and_then_asks_to_go() {
     assert_eq!(form.focus, Row::Target);
     assert!(form.enter(), "on the address or port it goes ahead");
     assert_eq!(form.focus, Row::Target);
-    form.focus = Row::Server;
+    form.focus = Row::Listed;
     assert!(form.enter(), "and so it does below it");
 }
 
@@ -207,7 +205,6 @@ fn the_fourth_row_is_the_port_to_host_on_or_the_address_to_join() {
     assert_eq!(form.field(Row::Target).unwrap().text(), "");
     assert!(form.field(Row::Role).is_none());
     assert!(form.field(Row::Listed).is_none(), "that one is a switch");
-    assert!(form.field(Row::Server).is_some());
 }
 
 #[test]
@@ -237,13 +234,13 @@ fn a_form_filled_in_right_asks_to_host() {
     assert_eq!(config.name, "Ann", "the name as the game cleans it");
     assert_eq!(config.password, PASSWORD_FOR_FORMS);
     assert_eq!(config.port, 50000);
-    assert_eq!(list_on, None, "there is no lobby server to put it on");
+    assert_eq!(list_on.as_deref(), Some(LOBBY_SERVER), "the lobby list is where the game goes, without the player saying so");
 }
 
 #[test]
 fn a_game_goes_on_the_lobby_list_when_it_is_asked_to_and_there_is_one() {
     let mut form = form_with("Ann", PASSWORD_FOR_FORMS);
-    form.lobby = TextField::new(" https://army.example.com ", MAX_SERVER_LENGTH, Allowed::Address);
+    form.server = " https://army.example.com ".to_owned();
     assert!(form.listed, "it is the usual thing");
     let Ok(Submit::Host { list_on, .. }) = form.submit() else { panic!("not a host") };
     assert_eq!(list_on.as_deref(), Some("https://army.example.com"));
@@ -251,7 +248,7 @@ fn a_game_goes_on_the_lobby_list_when_it_is_asked_to_and_there_is_one() {
     let Ok(Submit::Host { list_on, .. }) = form.submit() else { panic!("not a host") };
     assert_eq!(list_on, None, "not if the player would rather it were not");
     //an address that is no good is said so when it would be used, and not otherwise
-    form.lobby = TextField::new("ftp://army.example.com", MAX_SERVER_LENGTH, Allowed::Address);
+    form.server = "ftp://army.example.com".to_owned();
     assert!(form.submit().is_ok());
     form.listed = true;
     let Err(problem) = form.submit() else { panic!("not an address of a lobby server") };
@@ -278,11 +275,10 @@ fn what_is_worth_keeping_is_kept_once_the_form_is_used() {
     let mut settings = Settings::default();
     let mut form = form_with(" Ann  Marie ", PASSWORD_FOR_FORMS);
     form.port = TextField::new("50000", 5, Allowed::Port);
-    form.lobby = TextField::new(" https://army.example.com ", MAX_SERVER_LENGTH, Allowed::Address);
     form.listed = false;
     form.remember(&mut settings);
     assert_eq!((settings.player_name.as_str(), settings.host_port), ("Ann  Marie", 50000));
-    assert_eq!((settings.lobby_server.as_str(), settings.list_game), ("https://army.example.com", false));
+    assert!(!settings.list_game);
     assert_eq!(settings.join_address, "", "joining was not what was done");
     form.switch(Role::Join);
     form.address = TextField::new("203.0.113.7:5000", MAX_ADDRESS_LENGTH, Allowed::Address);

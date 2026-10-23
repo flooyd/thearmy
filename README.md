@@ -87,10 +87,10 @@ Joining again with the same name gets it back, and a guest whose connection is l
 (`F5`, the menu, or on its own); next time the host's lobby offers *Continue party*, and each friend takes their army up again by joining with their name.
 Only the host saves and loads. If the host ends the game, it ends for everyone.
 
-**The lobby list.** Typing an address is fine, but there is also an optional list of open games. It is a tiny web service (in [`lobby-server`](lobby-server/README.md),
-written for Vercel and a free Redis database) that only holds the list: the games themselves are still played straight with the host. A host turns it on with
-*Show my game on the list*; everyone who should see each other's games puts the same address in the *Lobby server* box. [`lobby-server/README.md`](lobby-server/README.md)
-has the steps to set one up.
+**The lobby list.** Typing an address is fine, but there is also a list of open games. It is a tiny web service (in [`lobby-server`](lobby-server/README.md),
+written for Vercel and a free Redis database) that only holds the list: the games themselves are still played straight with the host. The game already knows where it is,
+so there is nothing to type: a host turns it on with *Show my game on the list* (it is on unless you switch it off), and a player presses *Find games*.
+[`lobby-server/README.md`](lobby-server/README.md) has the steps to run a list of your own.
 
 ## Download
 

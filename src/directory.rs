@@ -9,9 +9,8 @@ use std::net::IpAddr;
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 
-pub(crate) const MAX_SERVER_LENGTH: usize = 120;
-//where the list of games is kept unless the player says otherwise: empty, until there is a service to name here (see lobby-server/README.md)
-pub(crate) const DEFAULT_LOBBY_SERVER: &str = "";
+//where the list of games is kept: the lobby server of lobby-server/ in the repository, on Vercel. a player is never asked for it
+pub(crate) const LOBBY_SERVER: &str = "https://lobby-server-virid.vercel.app";
 const REQUEST_SECONDS: u64 = 6; //how long the service has to answer
 const MAX_ANSWER_BYTES: u64 = 256 * 1024;
 const MAX_LISTED: usize = 100; //how many games of the ones it names are looked at
@@ -69,6 +68,11 @@ pub(crate) enum DirectoryEvent {
     Unreachable(String), //the list could not be read, and why
     Listed(String),      //a game is on the list, at this address
     Unlisted(String),    //a game could not be put on the list (or has not stayed on it), and why. said once, not each time it fails
+}
+
+//the lobby server the game talks to: the one above, or the one named in THE_ARMY_LOBBY (for trying the service out on this machine, as `npm run dev` runs it)
+pub(crate) fn lobby_server() -> String {
+    std::env::var("THE_ARMY_LOBBY").ok().map(|server| server.trim().to_owned()).filter(|server| !server.is_empty()).unwrap_or_else(|| LOBBY_SERVER.to_owned())
 }
 
 //the address of the service's list, from what a player typed: `https://army.example.com`, `army.example.com`, `http://127.0.0.1:8787/` and the

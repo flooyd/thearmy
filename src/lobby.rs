@@ -22,12 +22,11 @@ pub(crate) enum Row {
     Name,
     Password,
     Target, //the port to host on, or the address to join
-    Server, //where the lobby list is kept (see directory.rs)
-    Listed, //whether a game that is hosted is put on it
+    Listed, //whether a game that is hosted is put on the lobby list (see directory.rs)
 }
 
-const HOST_ROWS: [Row; 6] = [Row::Role, Row::Name, Row::Password, Row::Target, Row::Server, Row::Listed];
-const JOIN_ROWS: [Row; 5] = [Row::Role, Row::Name, Row::Password, Row::Target, Row::Server];
+const HOST_ROWS: [Row; 5] = [Row::Role, Row::Name, Row::Password, Row::Target, Row::Listed];
+const JOIN_ROWS: [Row; 4] = [Row::Role, Row::Name, Row::Password, Row::Target];
 
 //the rows of the form for someone hosting, or for someone joining
 pub(crate) fn rows(role: Role) -> &'static [Row] {
@@ -49,7 +48,7 @@ pub(crate) struct Form {
     pub(crate) password: TextField,
     pub(crate) address: TextField,
     pub(crate) port: TextField,
-    pub(crate) lobby: TextField, //the address of the lobby server
+    pub(crate) server: String, //the address of the lobby server (not asked for: see directory.rs)
     pub(crate) listed: bool,     //whether a game that is hosted goes on its list
     pub(crate) focus: Row,
     pub(crate) reveal: bool, //whether the password is shown as it is typed
@@ -66,7 +65,7 @@ impl Form {
             password: TextField::new("", MAX_PASSWORD, Allowed::Password),
             address: TextField::new(&settings.join_address, MAX_ADDRESS_LENGTH, Allowed::Address),
             port: TextField::new(&settings.host_port.to_string(), 5, Allowed::Port),
-            lobby: TextField::new(&settings.lobby_server, MAX_SERVER_LENGTH, Allowed::Address),
+            server: lobby_server(),
             listed: settings.list_game,
             focus: if settings.player_name.is_empty() { Row::Name } else { Row::Password },
             reveal: false,
@@ -80,7 +79,6 @@ impl Form {
             Row::Name => Some(&mut self.name),
             Row::Password => Some(&mut self.password),
             Row::Target => Some(if self.role == Role::Host { &mut self.port } else { &mut self.address }),
-            Row::Server => Some(&mut self.lobby),
         }
     }
 
@@ -96,13 +94,13 @@ impl Form {
         self.problem = None;
         //(a joining player has no use for the list switch)
         if !rows(role).contains(&self.focus) {
-            self.focus = Row::Server;
+            self.focus = Row::Target;
         }
     }
 
     //Enter: from the address or port down it asks to go ahead (true), on the others it moves on to the next
     pub(crate) fn enter(&mut self) -> bool {
-        if matches!(self.focus, Row::Target | Row::Server | Row::Listed) {
+        if matches!(self.focus, Row::Target | Row::Listed) {
             return true;
         }
         self.step(1);
@@ -128,7 +126,7 @@ impl Form {
     //the lobby server a game that is hosted is to go on, if it is to go on one: it is asked for, and there is one to ask. one that is not an address is a
     //problem to tell the player of, as the game would never be on the list
     fn listing(&self) -> Result<Option<String>, String> {
-        let server = self.lobby.text().trim();
+        let server = self.server.trim();
         if !self.listed || server.is_empty() {
             return Ok(None);
         }
@@ -139,7 +137,6 @@ impl Form {
     //what is worth keeping for next time, once it has been used
     pub(crate) fn remember(&self, settings: &mut Settings) {
         settings.player_name = clean_name(self.name.text());
-        settings.lobby_server = self.lobby.text().trim().to_owned();
         settings.list_game = self.listed;
         match self.role {
             Role::Host => settings.host_port = parse_port(self.port.text()).unwrap_or(settings.host_port),
@@ -401,7 +398,6 @@ fn draw_form(form: &Form, time: f32, mouse: Vec2) {
             Row::Password => "PASSWORD",
             Row::Target if form.role == Role::Host => "PORT",
             Row::Target => "ADDRESS",
-            Row::Server => "LOBBY SERVER",
             Row::Listed => "LOBBY LIST",
         };
         let room = rect.x - frame.left - 12.0;
@@ -438,15 +434,10 @@ fn draw_form(form: &Form, time: f32, mouse: Vec2) {
                 let field = match row {
                     Row::Name => &form.name,
                     Row::Password => &form.password,
-                    Row::Server => &form.lobby,
                     _ if form.role == Role::Host => &form.port,
                     _ => &form.address,
                 };
                 draw_field(rect, field, row == Row::Password && !form.reveal, focused, frame.size, time);
-                if row == Row::Server && field.text().is_empty() {
-                    let hint_size = fit_size("https://your-lobby.vercel.app", frame.size * 0.85, rect.w - 24.0, Face::Body);
-                    draw_label("https://your-lobby.vercel.app", rect.x + 12.0, baseline(rect, hint_size), hint_size, Color::new(MUTED.r, MUTED.g, MUTED.b, 0.45), Face::Body);
-                }
             }
         }
     }
@@ -460,8 +451,8 @@ fn draw_form(form: &Form, time: f32, mouse: Vec2) {
     }
     //what to give the others
     let note = match form.role {
-        Role::Host if form.listed && !form.lobby.text().trim().is_empty() => "players find your game on the lobby list and join it directly, so the port (UDP) must be forwarded on your router for those outside your home",
-        Role::Host => "others join with your address and this port (UDP); players outside your home need the port forwarded on your router. a lobby server lets them find your game without the address",
+        Role::Host if form.listed && !form.server.trim().is_empty() => "players find your game on the lobby list and join it directly, so the port (UDP) must be forwarded on your router for those outside your home",
+        Role::Host => "others join with your address and this port (UDP); players outside your home need the port forwarded on your router. the lobby list lets them find your game without the address",
         Role::Join => "the host's address, like 203.0.113.7 or 203.0.113.7:47821, or pick a game from the lobby list. you need the password the host chose",
     };
     let note_size = (frame.size * 0.78).round();
@@ -928,17 +919,14 @@ pub(crate) async fn show_multiplayer(settings: &mut Settings, saves: &Saves) -> 
             Screen::Form => match form_frame(&mut form, &mut typing, time, dt, mouse, click) {
                 FormOutcome::Stay => {}
                 FormOutcome::Back => break None,
-                FormOutcome::Browse => match Directory::connect(form.lobby.text()) {
+                FormOutcome::Browse => match Directory::connect(&form.server) {
                     Ok(directory) => {
                         form.remember(settings);
                         saves.save_settings(settings);
                         form.problem = None;
-                        page = Screen::Browse(Box::new(BrowsePage::new(directory, form.lobby.text().trim().to_owned(), time)));
+                        page = Screen::Browse(Box::new(BrowsePage::new(directory, form.server.trim().to_owned(), time)));
                     }
-                    Err(problem) => {
-                        form.focus = Row::Server;
-                        form.problem = Some(problem);
-                    }
+                    Err(problem) => form.problem = Some(problem),
                 },
                 FormOutcome::Go => match form.submit() {
                     Err(problem) => form.problem = Some(problem),

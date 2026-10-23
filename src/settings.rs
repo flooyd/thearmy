@@ -124,13 +124,12 @@ pub(crate) struct Settings {
     pub(crate) player_name: String, //what the player is called in a game with others, as `clean_name` leaves it
     pub(crate) join_address: String, //the host they last joined, as they typed it
     pub(crate) host_port: u16,       //the port they host on
-    pub(crate) lobby_server: String, //where the list of games is kept (see directory.rs), as they typed it. empty for none
-    pub(crate) list_game: bool,      //whether a game they host is put on that list
+    pub(crate) list_game: bool,      //whether a game they host is put on the lobby list (see directory.rs)
 }
 
 impl Default for Settings {
     fn default() -> Settings {
-        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Free, unit_shape: UnitShape::Ships, army_limit: DEFAULT_ARMY_LIMIT, player_name: String::new(), join_address: String::new(), host_port: DEFAULT_PORT, lobby_server: DEFAULT_LOBBY_SERVER.to_owned(), list_game: true }
+        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Free, unit_shape: UnitShape::Ships, army_limit: DEFAULT_ARMY_LIMIT, player_name: String::new(), join_address: String::new(), host_port: DEFAULT_PORT, list_game: true }
     }
 }
 
@@ -138,7 +137,7 @@ impl Settings {
     //the settings as lines of text, a name and a value each
     pub(crate) fn to_text(&self) -> String {
         format!(
-            "master {:.2}\neffects {:.2}\nmusic {:.2}\nshake {:.2}\nfullscreen {}\ncolourblind {}\ndifficulty {}\nhints {}\nformation {}\nunit_shape {}\narmy_limit {}\nplayer_name {}\njoin_address {}\nhost_port {}\nlobby_server {}\nlist_game {}\n",
+            "master {:.2}\neffects {:.2}\nmusic {:.2}\nshake {:.2}\nfullscreen {}\ncolourblind {}\ndifficulty {}\nhints {}\nformation {}\nunit_shape {}\narmy_limit {}\nplayer_name {}\njoin_address {}\nhost_port {}\nlist_game {}\n",
             self.master,
             self.effects,
             self.music,
@@ -153,7 +152,6 @@ impl Settings {
             self.player_name,
             self.join_address,
             self.host_port,
-            self.lobby_server,
             if self.list_game { "yes" } else { "no" },
         )
     }
@@ -188,7 +186,6 @@ impl Settings {
                 "player_name" => settings.player_name = clean_name(line.split_once(char::is_whitespace).map_or("", |(_, rest)| rest)),
                 "join_address" => settings.join_address = value.chars().take(MAX_ADDRESS_LENGTH).collect(),
                 "host_port" => settings.host_port = parse_port(value).unwrap_or(settings.host_port),
-                "lobby_server" => settings.lobby_server = value.chars().take(MAX_SERVER_LENGTH).collect(),
                 "list_game" => settings.list_game = yes().unwrap_or(settings.list_game),
                 _ => {}
             }

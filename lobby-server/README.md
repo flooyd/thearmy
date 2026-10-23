@@ -17,9 +17,9 @@ You need a Vercel account (the free Hobby plan is plenty).
 2. **Give it a database.** In the project, open *Storage* (or *Marketplace*) and add **Upstash Redis** (the free plan is plenty). Connect it to the project for all environments. This adds the environment variables `KV_REST_API_URL` and `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`), which the service picks up by itself.
 3. **Deploy again** (*Deployments → … → Redeploy*) so the new variables are in use.
 4. **Check it.** Open `https://<your-project>.vercel.app/api/games`. You should see `{"games":[],…,"store":"upstash"}`. If it says `"store":"memory"`, the database is not connected yet: with `memory` every copy of the function has its own list, and the list will look random.
-5. **Tell the game.** In *Multiplayer* there is a **Lobby server** box: put `https://<your-project>.vercel.app` there. (It is kept in the game's `settings.txt` as `lobby_server`.)
+5. **Tell the game.** The game has its address built in: `LOBBY_SERVER` in `src/directory.rs` (it is `https://lobby-server-virid.vercel.app`). To run a list of your own, change it there and build the game. To try one without building, start the game with the environment variable `THE_ARMY_LOBBY` set to its address.
 
-Everyone who should see each other's games has to use the same lobby server. To make that automatic for everyone who downloads the game, put the address in `DEFAULT_LOBBY_SERVER` in `src/directory.rs` before building a release.
+Everyone who should see each other's games has to use the same lobby server, which is why it is not something a player types.
 
 ### Notes
 
@@ -54,7 +54,7 @@ npm test        # the tests
 npm run dev     # the service on http://127.0.0.1:8787, listing games from this machine too
 ```
 
-Then, in the game, put `http://127.0.0.1:8787` as the lobby server. To run the game's own end-to-end check against it:
+Then start the game with `THE_ARMY_LOBBY=http://127.0.0.1:8787` set, so that it uses that one. To run the game's own end-to-end check against it:
 
 ```
 THE_ARMY_TEST_LOBBY=http://127.0.0.1:8787 cargo test -- --ignored the_real_lobby_server

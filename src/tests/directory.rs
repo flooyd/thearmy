@@ -379,3 +379,13 @@ fn the_real_lobby_server_and_the_game_agree_about_what_is_said() {
     let DirectoryEvent::Games(games) = event_where(&looker, |event| matches!(event, DirectoryEvent::Games(_))) else { unreachable!() };
     assert!(games.iter().all(|game| game.name != "Hostess"), "the game came off the list when the host ended it");
 }
+
+#[test]
+fn the_game_knows_where_the_lobby_list_is_without_being_told() {
+    assert_eq!(LOBBY_SERVER, "https://lobby-server-virid.vercel.app");
+    assert_eq!(games_url(LOBBY_SERVER).as_deref(), Ok("https://lobby-server-virid.vercel.app/api/games"));
+    //(a form starts out with it, and a settings file from when it was a box on the form does not change that)
+    let form = Form::new(&Settings::from_text("lobby_server https://old.example.com\n"));
+    assert_eq!(form.server, lobby_server());
+    assert!(!Settings::default().to_text().contains("lobby_server"));
+}
