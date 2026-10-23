@@ -209,20 +209,20 @@ fn squeezed(part: RunnerPart, across: f32) -> RunnerPart {
     }
 }
 
-//how much of the figure shows, and how much of the circle, for a unit radius this many pixels on the screen: all circle while it is too small to make a
-//figure out, all figure when it is big enough, and a fade between
-pub(crate) fn runner_show(screen_radius: f32) -> f32 {
-    ((screen_radius - RUNNER_FADE_FROM) / RUNNER_FADE_RANGE).clamp(0.0, 1.0)
+//whether a unit radius this many pixels on the screen is big enough to make a figure out. under that a player is the circle they were, and never both: a
+//circle left round a figure reads as a ring round the player
+pub(crate) fn runner_shown(screen_radius: f32) -> bool {
+    screen_radius >= RUNNER_MIN_RADIUS
 }
 
-fn tone_color(tone: RunnerTone, color: Color, alpha: f32) -> Color {
+fn tone_color(tone: RunnerTone, color: Color) -> Color {
     let shaded = match tone {
         RunnerTone::Body => color,
         RunnerTone::Dark => lerp_color(color, EDGE, 0.3),
         RunnerTone::Light => lerp_color(color, WHITE, 0.3),
         RunnerTone::Back => lerp_color(color, EDGE, 0.12),
     };
-    Color::new(shaded.r, shaded.g, shaded.b, alpha)
+    Color::new(shaded.r, shaded.g, shaded.b, 1.0)
 }
 
 //a line of up to three points with round joints and ends
@@ -239,20 +239,20 @@ fn draw_stroke(at: Vec2, points: &[Vec2; 3], width: f32, color: Color) {
     }
 }
 
-//the figure at a player's position, in the world (the camera does the zooming). `alpha` is how much of it shows
-pub(crate) fn draw_runner(runner: &Runner, position: Vec2, color: Color, alpha: f32) {
+//the figure at a player's position, in the world (the camera does the zooming)
+pub(crate) fn draw_runner(runner: &Runner, position: Vec2, color: Color) {
     let hip = position + Vec2::new(0.0, FIGURE_LIFT);
-    let edge = Color::new(EDGE.r, EDGE.g, EDGE.b, alpha);
+    let edge = EDGE;
     for part in runner.pose() {
         match part {
-            RunnerPart::Shadow { half_width } => draw_ellipse(hip.x, hip.y + GROUND, half_width, 2.5, 0.0, Color::new(0.0, 0.0, 0.0, 0.38 * alpha)),
+            RunnerPart::Shadow { half_width } => draw_ellipse(hip.x, hip.y + GROUND, half_width, 2.5, 0.0, Color::new(0.0, 0.0, 0.0, 0.38)),
             RunnerPart::Limb { points, tone, width } => {
                 draw_stroke(hip, &points, width + 2.0 * OUTLINE, edge);
-                draw_stroke(hip, &points, width, tone_color(tone, color, alpha));
+                draw_stroke(hip, &points, width, tone_color(tone, color));
             }
             RunnerPart::Head { at, tone, eyes } => {
                 draw_circle(hip.x + at.x, hip.y + at.y, HEAD_RADIUS + OUTLINE, edge);
-                draw_circle(hip.x + at.x, hip.y + at.y, HEAD_RADIUS, tone_color(tone, color, alpha));
+                draw_circle(hip.x + at.x, hip.y + at.y, HEAD_RADIUS, tone_color(tone, color));
                 for eye in eyes.into_iter().flatten() {
                     draw_circle(hip.x + eye.x, hip.y + eye.y, EYE_RADIUS, edge);
                 }

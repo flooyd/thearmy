@@ -169,22 +169,22 @@ fn answer(result: Result<ureq::http::Response<ureq::Body>, ureq::Error>) -> Resu
     let text = response.body_mut().with_config().limit(MAX_ANSWER_BYTES).read_to_string().unwrap_or_default();
     let value: Option<Value> = serde_json::from_str(&text).ok();
     if status.is_success() {
-        return value.ok_or_else(|| "the lobby server did not answer in a way that makes sense (is that its address?)".to_owned());
+        return value.ok_or_else(|| "the lobby server did not answer in a way that makes sense".to_owned());
     }
     //(its own words if it had any, otherwise what the status says)
     let said = value.as_ref().and_then(|value| value.get("error")?.as_str()).map(|error| short(error).to_owned());
     Err(match said {
         Some(said) => format!("the lobby server said: {said}"),
-        None => format!("the lobby server answered {} (is that its address?)", status.as_u16()),
+        None => format!("the lobby server answered {}", status.as_u16()),
     })
 }
 
 //why the service could not be spoken to, short enough to read
 fn reach_problem(error: &ureq::Error) -> String {
     match error {
-        ureq::Error::HostNotFound => "could not find the lobby server (is its address right?)".to_owned(),
+        ureq::Error::HostNotFound => "could not find the lobby server (is the internet working?)".to_owned(),
         ureq::Error::Timeout(_) => "the lobby server took too long to answer".to_owned(),
-        ureq::Error::ConnectionFailed | ureq::Error::Io(_) => "could not reach the lobby server (is it running, and is the address right?)".to_owned(),
+        ureq::Error::ConnectionFailed | ureq::Error::Io(_) => "could not reach the lobby server (is the internet working?)".to_owned(),
         other => format!("could not talk to the lobby server ({})", short(&other.to_string())),
     }
 }

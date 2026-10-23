@@ -2,18 +2,48 @@
 //! waits in once they have
 
 use crate::prelude::*;
-use std::net::IpAddr;
 
-pub(crate) const MAX_ADDRESS_LENGTH: usize = 80;
 const LOG_LINES: usize = 5; //how much of what has happened a lobby remembers
 const MAX_EARLY_MESSAGES: usize = 64; //how many messages of the world a player waiting in a lobby keeps (the game takes them as soon as it opens)
 
 // ---------- the form ----------
 
+//what a player does in multiplayer. nobody is ever asked for, or shown, an address: a game is hosted on the lobby list and joined from it, and the one other
+//way in is a game on this very computer
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Role {
-    Host,
-    Join,
+    Host,  //a game that goes on the lobby list
+    Join,  //one of the games on the list
+    Local, //a game that is hosted on this computer, in another window
+}
+
+const ROLES: [Role; 3] = [Role::Host, Role::Join, Role::Local];
+
+impl Role {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Role::Host => "host",
+            Role::Join => "join",
+            Role::Local => "local",
+        }
+    }
+
+    pub(crate) fn from_name(name: &str) -> Option<Role> {
+        ROLES.into_iter().find(|role| role.name() == name)
+    }
+
+    //the next one along (round to the first), the one after it (stopping at the last) or the one before it (stopping at the first)
+    pub(crate) fn next(self) -> Role {
+        ROLES[(ROLES.iter().position(|&role| role == self).unwrap_or(0) + 1) % ROLES.len()]
+    }
+
+    pub(crate) fn before(self) -> Role {
+        ROLES[ROLES.iter().position(|&role| role == self).unwrap_or(0).saturating_sub(1)]
+    }
+
+    pub(crate) fn after(self) -> Role {
+        ROLES[(ROLES.iter().position(|&role| role == self).unwrap_or(0) + 1).min(ROLES.len() - 1)]
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -21,35 +51,34 @@ pub(crate) enum Row {
     Role,
     Name,
     Password,
-    Target, //the port to host on, or the address to join
-    Listed, //whether a game that is hosted is put on the lobby list (see directory.rs)
+    Port, //the port to host on, or the port of the game on this computer
 }
 
-const HOST_ROWS: [Row; 5] = [Row::Role, Row::Name, Row::Password, Row::Target, Row::Listed];
-const JOIN_ROWS: [Row; 4] = [Row::Role, Row::Name, Row::Password, Row::Target];
+//(someone joining a game from the list is asked for the password when they have picked one, and has no port to give)
+const HOST_ROWS: [Row; 4] = [Row::Role, Row::Name, Row::Password, Row::Port];
+const JOIN_ROWS: [Row; 2] = [Row::Role, Row::Name];
 
-//the rows of the form for someone hosting, or for someone joining
+//the rows of the form for what the player is doing
 pub(crate) fn rows(role: Role) -> &'static [Row] {
     match role {
-        Role::Host => &HOST_ROWS,
+        Role::Host | Role::Local => &HOST_ROWS,
         Role::Join => &JOIN_ROWS,
     }
 }
 
 //what the form asks for, once it is filled in right
 pub(crate) enum Submit {
-    Host { config: HostConfig, list_on: Option<String> }, //and the lobby server to put the game on, if it is to be on one
-    Join { target: String, name: String, password: String },
+    Host { config: HostConfig, list_on: String }, //and the lobby server to put the game on
+    Join { name: String },                        //to see the games on the list: the password is asked for once one is picked
+    Local { target: String, name: String, password: String },
 }
 
 pub(crate) struct Form {
     pub(crate) role: Role,
     pub(crate) name: TextField,
     pub(crate) password: TextField,
-    pub(crate) address: TextField,
     pub(crate) port: TextField,
     pub(crate) server: String, //the address of the lobby server (not asked for: see directory.rs)
-    pub(crate) listed: bool,     //whether a game that is hosted goes on its list
     pub(crate) focus: Row,
     pub(crate) reveal: bool, //whether the password is shown as it is typed
     pub(crate) problem: Option<String>,
@@ -58,16 +87,14 @@ pub(crate) struct Form {
 impl Form {
     //filled in with what the player used last time (except the password, which is never kept)
     pub(crate) fn new(settings: &Settings) -> Form {
+        let role = settings.multiplayer_role;
         Form {
-            //(someone who has joined a game before is most likely joining again)
-            role: if settings.join_address.is_empty() { Role::Host } else { Role::Join },
+            role,
             name: TextField::new(&settings.player_name, MAX_NAME_LENGTH, Allowed::Name),
             password: TextField::new("", MAX_PASSWORD, Allowed::Password),
-            address: TextField::new(&settings.join_address, MAX_ADDRESS_LENGTH, Allowed::Address),
             port: TextField::new(&settings.host_port.to_string(), 5, Allowed::Port),
             server: lobby_server(),
-            listed: settings.list_game,
-            focus: if settings.player_name.is_empty() { Row::Name } else { Row::Password },
+            focus: if settings.player_name.is_empty() || role == Role::Join { Row::Name } else { Row::Password },
             reveal: false,
             problem: None,
         }
@@ -75,10 +102,10 @@ impl Form {
 
     pub(crate) fn field(&mut self, row: Row) -> Option<&mut TextField> {
         match row {
-            Row::Role | Row::Listed => None,
+            Row::Role => None,
             Row::Name => Some(&mut self.name),
             Row::Password => Some(&mut self.password),
-            Row::Target => Some(if self.role == Role::Host { &mut self.port } else { &mut self.address }),
+            Row::Port => Some(&mut self.port),
         }
     }
 
@@ -92,15 +119,15 @@ impl Form {
     pub(crate) fn switch(&mut self, role: Role) {
         self.role = role;
         self.problem = None;
-        //(a joining player has no use for the list switch)
+        //(a player joining from the list has no use for the password or the port, and is not left on them)
         if !rows(role).contains(&self.focus) {
-            self.focus = Row::Target;
+            self.focus = Row::Name;
         }
     }
 
-    //Enter: from the address or port down it asks to go ahead (true), on the others it moves on to the next
+    //Enter: on the last row it asks to go ahead (true), on the others it moves on to the next
     pub(crate) fn enter(&mut self) -> bool {
-        if matches!(self.focus, Row::Target | Row::Listed) {
+        if rows(self.role).last() == Some(&self.focus) {
             return true;
         }
         self.step(1);
@@ -113,61 +140,58 @@ impl Form {
         if name.is_empty() {
             return Err("type the name you want to be called".to_owned());
         }
+        if self.role == Role::Join {
+            return Ok(Submit::Join { name });
+        }
         if let Some(problem) = password_problem(self.password.text()) {
             return Err(problem);
         }
         let password = self.password.text().to_owned();
+        let port = parse_port(self.port.text())?;
         match self.role {
-            Role::Host => Ok(Submit::Host { config: HostConfig::new(&name, &password, parse_port(self.port.text())?), list_on: self.listing()? }),
-            Role::Join => Ok(Submit::Join { target: parse_target(self.address.text())?, name, password }),
+            Role::Local => Ok(Submit::Local { target: format!("127.0.0.1:{port}"), name, password }),
+            _ => Ok(Submit::Host { config: HostConfig::new(&name, &password, port), list_on: self.listing()? }),
         }
     }
 
-    //the lobby server a game that is hosted is to go on, if it is to go on one: it is asked for, and there is one to ask. one that is not an address is a
-    //problem to tell the player of, as the game would never be on the list
-    fn listing(&self) -> Result<Option<String>, String> {
+    //the lobby server a game that is hosted goes on. one that is not an address is a problem to tell the player of, as the game would never be on the list
+    fn listing(&self) -> Result<String, String> {
         let server = self.server.trim();
-        if !self.listed || server.is_empty() {
-            return Ok(None);
-        }
         games_url(server)?;
-        Ok(Some(server.to_owned()))
+        Ok(server.to_owned())
     }
 
     //what is worth keeping for next time, once it has been used
     pub(crate) fn remember(&self, settings: &mut Settings) {
         settings.player_name = clean_name(self.name.text());
-        settings.list_game = self.listed;
-        match self.role {
-            Role::Host => settings.host_port = parse_port(self.port.text()).unwrap_or(settings.host_port),
-            Role::Join => settings.join_address = self.address.text().to_owned(),
+        settings.multiplayer_role = self.role;
+        if self.role != Role::Join {
+            settings.host_port = parse_port(self.port.text()).unwrap_or(settings.host_port);
         }
     }
 }
 
 // ---------- what a lobby is told ----------
 
-//a line for the log of a host's lobby
+//a line for the log of a host's lobby (the player who was turned away is not named by where they came from)
 pub(crate) fn log_line(event: &HostEvent) -> (String, Color) {
     match event {
         HostEvent::Joined { name, .. } => (format!("{name} joined"), CYAN),
         HostEvent::Left { name, why, .. } => (format!("{name} left ({why})"), MUTED),
-        //(only the address, as the port is whatever the player's side was given)
-        HostEvent::TurnedAway { address, why } => (format!("{} was turned away: {why}", address.ip()), ALERT),
+        HostEvent::TurnedAway { why, .. } => (format!("someone was turned away: {why}"), ALERT),
     }
 }
 
 //a host's lobby is a roster and what has happened to it
 struct HostPage {
     host: NetHost,
-    here: Option<IpAddr>, //this machine's address on its network, for the players beside it
     log: Vec<(String, Color)>,
-    listing: Option<Result<String, String>>, //how the game is doing on the lobby list, if it is to be on one: the address it is at, or what is wrong. None while it waits to hear
+    listing: Option<Result<(), String>>, //how the game is doing on the lobby list: whether it is on it, or what is wrong. None while it waits to hear
 }
 
 impl HostPage {
     fn new(host: NetHost) -> HostPage {
-        HostPage { host, here: local_address(), log: Vec::new(), listing: None }
+        HostPage { host, log: Vec::new(), listing: None }
     }
 
     fn absorb(&mut self) {
@@ -177,7 +201,7 @@ impl HostPage {
         self.host.announce(false);
         for news in self.host.listing_news() {
             match news {
-                DirectoryEvent::Listed(address) => self.listing = Some(Ok(address)),
+                DirectoryEvent::Listed(_) => self.listing = Some(Ok(())),
                 DirectoryEvent::Unlisted(problem) => self.listing = Some(Err(problem)),
                 DirectoryEvent::Games(_) | DirectoryEvent::Unreachable(_) => {}
             }
@@ -231,13 +255,15 @@ impl Lobby {
 
 struct JoinPage {
     client: NetClient,
-    target: String,
+    to: String,                     //who is being joined, as the screen says it
+    asked: Option<Box<PasswordPage>>, //the password page it came from, when a game on the list was picked, to go back to if it does not work out
     lobby: Lobby,
 }
 
 enum Screen {
     Form,
     Browse(Box<BrowsePage>),
+    Password(Box<PasswordPage>),
     Host(Box<HostPage>),
     Join(Box<JoinPage>),
 }
@@ -335,13 +361,24 @@ fn draw_field(rect: Rect, field: &TextField, secret: bool, focused: bool, size: 
 //where everything on the form is, which the drawing and the mouse both go by
 struct FormRects {
     rows: Vec<(Row, Rect)>, //each row's control, which takes the room right of its label
-    roles: [Rect; 2],       //inside the first of them
-    reveal: Rect,           //in the password field
-    browse: Rect,           //beside the address, for someone who is joining
+    roles: [Rect; 3],       //inside the first of them
+    reveal: Option<Rect>,   //in the password field, if there is one
     go: Rect,
     back: Rect,
     note_y: f32,
     top: f32,
+}
+
+//the button in a password field that shows or hides what is typed in it
+fn reveal_rect(password: Rect, size: f32) -> Rect {
+    let width = text_width("SHOW", size * 0.7, Face::Bold) + 20.0;
+    Rect::new(password.right() - width - 6.0, password.y + 6.0, width, password.h - 12.0)
+}
+
+fn draw_reveal(rect: Rect, revealed: bool, size: f32, mouse: Vec2) {
+    let size = (size * 0.7).round();
+    draw_rectangle(rect.x, rect.y, rect.w, rect.h, Color::new(1.0, 1.0, 1.0, if rect.contains(mouse) { 0.14 } else { 0.05 }));
+    draw_label_centered(if revealed { "HIDE" } else { "SHOW" }, rect.x + rect.w / 2.0, baseline(rect, size), size, MUTED, Face::Bold);
 }
 
 fn form_rects(screen: Vec2, role: Role) -> FormRects {
@@ -356,27 +393,17 @@ fn form_rects(screen: Vec2, role: Role) -> FormRects {
     let height = frame.row.min(step * 0.82);
     let field_left = frame.left + frame.width * 0.3;
     let field_width = frame.width * 0.7;
-    let half = (field_width - 8.0) / 2.0;
+    let gap = 8.0;
+    let third = (field_width - gap * 2.0) / 3.0;
     let rects: Vec<(Row, Rect)> = rows.iter().enumerate().map(|(i, &row)| (row, Rect::new(field_left, top + step * i as f32, field_width, height))).collect();
-    let rect_of = |wanted: Row| rects.iter().find(|(row, _)| *row == wanted).map(|(_, rect)| *rect).expect("the row is on the form");
-    let first = rect_of(Row::Role);
-    let password = rect_of(Row::Password);
-    let reveal_width = text_width("SHOW", frame.size * 0.7, Face::Bold) + 20.0;
-    //(someone joining has a button to look for games beside the address, which takes a share of its room)
-    let address = rect_of(Row::Target);
-    let mut rects = rects;
-    let browse_width = if role == Role::Join { (field_width * 0.42).round() } else { 0.0 };
-    for (row, rect) in rects.iter_mut() {
-        if *row == Row::Target {
-            rect.w -= if browse_width > 0.0 { browse_width + 8.0 } else { 0.0 };
-        }
-    }
+    let rect_of = |wanted: Row| rects.iter().find(|(row, _)| *row == wanted).map(|(_, rect)| *rect);
+    let first = rect_of(Row::Role).expect("the form starts with the role");
+    let reveal = rect_of(Row::Password).map(|password| reveal_rect(password, frame.size));
     let after = rects.last().map_or(top, |(_, rect)| rect.bottom());
     FormRects {
+        roles: std::array::from_fn(|i| Rect::new(first.x + (third + gap) * i as f32, first.y, third, first.h)),
         rows: rects,
-        roles: [Rect::new(first.x, first.y, half, first.h), Rect::new(first.x + half + 8.0, first.y, half, first.h)],
-        reveal: Rect::new(password.right() - reveal_width - 6.0, password.y + 6.0, reveal_width, password.h - 12.0),
-        browse: Rect::new(address.right() - browse_width, address.y, browse_width, address.h),
+        reveal,
         go: Rect::new(frame.left, buttons_y, frame.width * 0.62, button_height),
         back: Rect::new(frame.left + frame.width * 0.66, buttons_y, frame.width * 0.34, button_height),
         note_y: after + frame.size * 1.1,
@@ -396,17 +423,15 @@ fn draw_form(form: &Form, time: f32, mouse: Vec2) {
             Row::Role => "GAME",
             Row::Name => "NAME",
             Row::Password => "PASSWORD",
-            Row::Target if form.role == Role::Host => "PORT",
-            Row::Target => "ADDRESS",
-            Row::Listed => "LOBBY LIST",
+            Row::Port => "PORT",
         };
         let room = rect.x - frame.left - 12.0;
         let label_size = fit_size(name, frame.size, room, Face::Bold);
         draw_label(name, frame.left, baseline(rect, label_size), label_size, if focused { CYAN } else { MUTED }, Face::Bold);
         match row {
-            //host or join
+            //host, join or join local
             Row::Role => {
-                for (role_rect, (role, name)) in rects.roles.iter().zip([(Role::Host, "HOST A GAME"), (Role::Join, "JOIN A GAME")]) {
+                for (role_rect, (role, name)) in rects.roles.iter().zip([(Role::Host, "HOST A GAME"), (Role::Join, "JOIN A GAME"), (Role::Local, "JOIN LOCAL")]) {
                     let chosen = form.role == role;
                     let tone = if chosen { CYAN } else { MUTED };
                     draw_rectangle(role_rect.x, role_rect.y, role_rect.w, role_rect.h, Color::new(tone.r, tone.g, tone.b, if chosen { 0.22 } else { 0.05 }));
@@ -415,49 +440,28 @@ fn draw_form(form: &Form, time: f32, mouse: Vec2) {
                     draw_label_centered(name, role_rect.x + role_rect.w / 2.0, baseline(*role_rect, size), size, if chosen { INK } else { MUTED }, Face::Bold);
                 }
             }
-            Row::Listed => {
-                let hot = rect.contains(mouse);
-                let tone = if focused { CYAN } else { MUTED };
-                draw_rectangle(rect.x, rect.y, rect.w, rect.h, Color::new(tone.r, tone.g, tone.b, if hot { 0.14 } else { 0.05 }));
-                draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, if focused { 2.0 } else { 1.0 }, Color::new(tone.r, tone.g, tone.b, if focused { 1.0 } else { 0.4 }));
-                let side = rect.h * 0.5;
-                let (box_x, box_y) = (rect.x + 12.0, rect.y + (rect.h - side) / 2.0);
-                draw_rectangle_lines(box_x, box_y, side, side, 2.0, if form.listed { CYAN } else { MUTED });
-                if form.listed {
-                    draw_rectangle(box_x + side * 0.22, box_y + side * 0.22, side * 0.56, side * 0.56, CYAN);
-                }
-                let text = if form.listed { "SHOW MY GAME ON THE LIST" } else { "DO NOT SHOW MY GAME" };
-                let size = fit_size(text, frame.size * 0.9, rect.w - side - 36.0, Face::Bold);
-                draw_label(text, box_x + side + 12.0, baseline(rect, size), size, if form.listed { INK } else { MUTED }, Face::Bold);
-            }
             _ => {
                 let field = match row {
                     Row::Name => &form.name,
                     Row::Password => &form.password,
-                    _ if form.role == Role::Host => &form.port,
-                    _ => &form.address,
+                    _ => &form.port,
                 };
                 draw_field(rect, field, row == Row::Password && !form.reveal, focused, frame.size, time);
             }
         }
     }
-    let hot = rects.reveal.contains(mouse);
-    let reveal_size = (frame.size * 0.7).round();
-    let reveal_text = if form.reveal { "HIDE" } else { "SHOW" };
-    draw_rectangle(rects.reveal.x, rects.reveal.y, rects.reveal.w, rects.reveal.h, Color::new(1.0, 1.0, 1.0, if hot { 0.14 } else { 0.05 }));
-    draw_label_centered(reveal_text, rects.reveal.x + rects.reveal.w / 2.0, baseline(rects.reveal, reveal_size), reveal_size, MUTED, Face::Bold);
-    if form.role == Role::Join {
-        draw_button(rects.browse, "FIND GAMES", "F5", mouse, TROPHY, true);
+    if let Some(reveal) = rects.reveal {
+        draw_reveal(reveal, form.reveal, frame.size, mouse);
     }
-    //what to give the others
+    //what the player is doing
     let note = match form.role {
-        Role::Host if form.listed && !form.server.trim().is_empty() => "players find your game on the lobby list and join it directly, so the port (UDP) must be forwarded on your router for those outside your home",
-        Role::Host => "others join with your address and this port (UDP); players outside your home need the port forwarded on your router. the lobby list lets them find your game without the address",
-        Role::Join => "the host's address, like 203.0.113.7 or 203.0.113.7:47821, or pick a game from the lobby list. you need the password the host chose",
+        Role::Host => "your game goes on the lobby list, where players find it and join it with the password you choose here. for those outside your home the port (UDP) must be forwarded on your router to this computer",
+        Role::Join => "see the games that are open on the lobby list, pick one, and give the password its host chose",
+        Role::Local => "joins a game that is hosted on this computer, in another window, by its port (UDP): for trying the game out, or two players at one computer",
     };
     let note_size = (frame.size * 0.78).round();
     let note_height = draw_wrapped(note, frame.left, rects.note_y, note_size, frame.width, MUTED, Face::Body);
-    draw_button(rects.go, match form.role { Role::Host => "START HOSTING", Role::Join => "JOIN THE GAME" }, "Enter", mouse, CYAN, true);
+    draw_button(rects.go, match form.role { Role::Host => "START HOSTING", Role::Join => "FIND GAMES", Role::Local => "JOIN THE GAME" }, "Enter", mouse, CYAN, true);
     draw_button(rects.back, "BACK", "Esc", mouse, MUTED, true);
     if let Some(problem) = &form.problem {
         draw_wrapped(problem, frame.left, rects.note_y + note_height + note_size * 0.6, (frame.size * 0.85).round(), frame.width, ALERT, Face::Bold);
@@ -528,7 +532,6 @@ enum FormOutcome {
     Stay,
     Back,
     Go,
-    Browse, //look for a game on the lobby list
 }
 
 fn form_frame(form: &mut Form, typing: &mut Typing, time: f32, dt: f32, mouse: Vec2, click: bool) -> FormOutcome {
@@ -543,26 +546,19 @@ fn form_frame(form: &mut Form, typing: &mut Typing, time: f32, dt: f32, mouse: V
         for &(row, rect) in &rects.rows {
             match row {
                 Row::Role => {
-                    for (role_rect, role) in rects.roles.iter().zip([Role::Host, Role::Join]) {
+                    for (role_rect, role) in rects.roles.iter().zip(ROLES) {
                         if role_rect.contains(mouse) {
                             form.switch(role);
                             form.focus = Row::Role;
                         }
                     }
                 }
-                Row::Listed if rect.contains(mouse) => {
-                    form.listed = !form.listed;
-                    form.focus = Row::Listed;
-                }
                 _ if rect.contains(mouse) => form.focus = row,
                 _ => {}
             }
         }
-        if rects.reveal.contains(mouse) {
+        if rects.reveal.is_some_and(|reveal| reveal.contains(mouse)) {
             form.reveal = !form.reveal;
-        }
-        if form.role == Role::Join && rects.browse.contains(mouse) {
-            return FormOutcome::Browse;
         }
         if rects.go.contains(mouse) {
             return FormOutcome::Go;
@@ -578,23 +574,16 @@ fn form_frame(form: &mut Form, typing: &mut Typing, time: f32, dt: f32, mouse: V
     if is_key_pressed(KeyCode::Up) {
         form.step(-1);
     }
-    if form.role == Role::Join && is_key_pressed(KeyCode::F5) {
-        return FormOutcome::Browse;
-    }
     let focus = form.focus;
     if focus == Row::Role {
         if is_key_pressed(KeyCode::Left) {
-            form.switch(Role::Host);
+            form.switch(form.role.before());
         }
         if is_key_pressed(KeyCode::Right) {
-            form.switch(Role::Join);
+            form.switch(form.role.after());
         }
         if is_key_pressed(KeyCode::Space) {
-            form.switch(if form.role == Role::Host { Role::Join } else { Role::Host });
-        }
-    } else if focus == Row::Listed {
-        if is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::Right) {
-            form.listed = !form.listed;
+            form.switch(form.role.next());
         }
     } else if let Some(field) = form.field(focus) {
         for edit in edits {
@@ -617,7 +606,7 @@ const BROWSE_REFRESH_SECONDS: f32 = 8.0; //how often the list is read again whil
 //the games on a lobby server, for a player to pick from
 struct BrowsePage {
     directory: Directory,
-    server: String,
+    name: String, //what the player who is looking is called, for when they join one
     games: Option<Vec<ListedGame>>, //None until the first answer
     problem: Option<String>,
     selected: usize,
@@ -626,9 +615,9 @@ struct BrowsePage {
 }
 
 impl BrowsePage {
-    fn new(directory: Directory, server: String, time: f32) -> BrowsePage {
+    fn new(directory: Directory, name: String, time: f32) -> BrowsePage {
         directory.refresh();
-        BrowsePage { directory, server, games: None, problem: None, selected: 0, scroll: 0, asked_at: time }
+        BrowsePage { directory, name, games: None, problem: None, selected: 0, scroll: 0, asked_at: time }
     }
 
     fn ask(&mut self, time: f32) {
@@ -678,7 +667,6 @@ fn browse_frame(page: &mut BrowsePage, time: f32, mouse: Vec2, click: bool) -> B
     let top = (screen.y * 0.2).max(frame.row * 1.8);
     draw_glowing_heading("GAMES", screen.x / 2.0, top - frame.row * 0.4, heading_size, WHITE, 1.0);
     let small = (frame.size * 0.72).round();
-    draw_label_centered(&page.server, screen.x / 2.0, top + frame.row * 0.25, fit_size(&page.server, small, frame.width, Face::Body), MUTED, Face::Body);
     //the buttons along the bottom
     let button_height = frame.row * 1.1;
     let y = screen.y - button_height - (screen.y * 0.04).max(14.0);
@@ -772,6 +760,79 @@ fn browse_frame(page: &mut BrowsePage, time: f32, mouse: Vec2, click: bool) -> B
     BrowseOutcome::Stay
 }
 
+//a game that has been picked from the list, and what is asked for to get into it: its password
+struct PasswordPage {
+    browse: Box<BrowsePage>, //the list it was picked from, which Back goes back to
+    game: ListedGame,
+    password: TextField,
+    reveal: bool,
+    problem: Option<String>,
+}
+
+impl PasswordPage {
+    fn new(browse: Box<BrowsePage>, game: ListedGame) -> PasswordPage {
+        PasswordPage { browse, game, password: TextField::new("", MAX_PASSWORD, Allowed::Password), reveal: false, problem: None }
+    }
+}
+
+enum PasswordOutcome {
+    Stay,
+    Back,
+    Join, //with the password as it was typed
+}
+
+fn password_frame(page: &mut PasswordPage, typing: &mut Typing, time: f32, dt: f32, mouse: Vec2, click: bool) -> PasswordOutcome {
+    let screen = Vec2::new(screen_width(), screen_height());
+    let frame = frame_of(screen);
+    let edits = typing.edits(dt);
+    let top = (screen.y * 0.2).max(frame.row * 1.7);
+    let heading_size = fit_size("JOIN A GAME", (screen.y * 0.085).round(), screen.x * 0.9, Face::Header);
+    draw_glowing_heading("JOIN A GAME", screen.x / 2.0, top - frame.row * 1.05, heading_size, WHITE, 1.0);
+    //whose game it is
+    let game = &page.game;
+    let title = format!("{}'S GAME", game.name.to_uppercase());
+    draw_label_centered(&title, screen.x / 2.0, top + frame.row * 0.2, fit_size(&title, (frame.size * 1.25).round(), frame.width, Face::Bold), CYAN, Face::Bold);
+    let state = format!("{} of {} players, {}", game.players, game.max, if game.started { "the run is under way" } else { "waiting to start" });
+    let small = (frame.size * 0.78).round();
+    draw_label_centered(&state, screen.x / 2.0, top + frame.row * 0.2 + small * 1.7, fit_size(&state, small, frame.width, Face::Body), MUTED, Face::Body);
+    //the password
+    let field = Rect::new(frame.left + frame.width * 0.3, top + frame.row * 1.6, frame.width * 0.7, frame.row);
+    let label_size = fit_size("PASSWORD", frame.size, field.x - frame.left - 12.0, Face::Bold);
+    draw_label("PASSWORD", frame.left, baseline(field, label_size), label_size, CYAN, Face::Bold);
+    draw_field(field, &page.password, !page.reveal, true, frame.size, time);
+    let reveal = reveal_rect(field, frame.size);
+    draw_reveal(reveal, page.reveal, frame.size, mouse);
+    let note = format!("the password {} chose for the game", game.name);
+    let below = field.bottom() + small * 1.9;
+    let note_height = draw_wrapped(&note, frame.left, below, small, frame.width, MUTED, Face::Body);
+    if let Some(problem) = &page.problem {
+        draw_wrapped(problem, frame.left, below + note_height + small * 0.6, (frame.size * 0.85).round(), frame.width, ALERT, Face::Bold);
+    }
+    //the buttons along the bottom
+    let button_height = frame.row * 1.1;
+    let y = screen.y - button_height - (screen.y * 0.04).max(14.0);
+    let join = Rect::new(frame.left, y, frame.width * 0.62, button_height);
+    let back = Rect::new(frame.left + frame.width * 0.66, y, frame.width * 0.34, button_height);
+    draw_button(join, "JOIN THE GAME", "Enter", mouse, CYAN, true);
+    draw_button(back, "BACK", "Esc", mouse, MUTED, true);
+    if is_key_pressed(KeyCode::Escape) || (click && back.contains(mouse)) {
+        return PasswordOutcome::Back;
+    }
+    if click && reveal.contains(mouse) {
+        page.reveal = !page.reveal;
+    }
+    for edit in edits {
+        page.password.apply(edit);
+    }
+    if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) || (click && join.contains(mouse)) {
+        page.problem = password_problem(page.password.text());
+        if page.problem.is_none() {
+            return PasswordOutcome::Join;
+        }
+    }
+    PasswordOutcome::Stay
+}
+
 enum HostOutcome {
     Stay,
     Back,
@@ -785,36 +846,28 @@ fn host_frame(page: &mut HostPage, saved: Option<&SaveInfo>, mouse: Vec2, click:
     let heading_size = fit_size("HOSTING", (screen.y * 0.085).round(), screen.x * 0.9, Face::Header);
     let top = (screen.y * 0.2).max(frame.row * 1.8);
     draw_glowing_heading("HOSTING", screen.x / 2.0, top - frame.row * 0.4, heading_size, WHITE, 1.0);
-    //where the others go
+    //where the others go: the lobby list, and what it takes for those outside the home to get to the game
     let port = page.host.port;
     let size = frame.size * 0.85;
-    let beyond = format!("from the internet: your public address and port {port} (UDP), with the port forwarded on your router to this machine");
-    let beyond_size = (frame.size * 0.72).round();
-    let beyond_lines = wrap(&beyond, beyond_size, frame.width - 36.0, Face::Body).len() as f32;
-    let listed = page.host.directory.is_some();
-    //(what is wrong with the listing is said on lines of its own, under the rest)
+    let note = format!("players find your game on the lobby list and join it with its password. from outside your home, port {port} (UDP) must be forwarded on your router to this computer. a second window here joins with JOIN LOCAL, on port {port}");
+    let note_size = (frame.size * 0.72).round();
+    let note_lines = wrap(&note, note_size, frame.width - 36.0, Face::Body).len() as f32;
+    //(what is wrong with the listing is said on lines of its own, over the rest)
     let (status, tone, trouble) = match &page.listing {
         None => ("asking the lobby server...".to_owned(), MUTED, None),
-        Some(Ok(address)) => (format!("on the lobby list, as {address}"), pickup_color(), None),
+        Some(Ok(())) => ("on the lobby list".to_owned(), pickup_color(), None),
         Some(Err(problem)) => ("not on the lobby list".to_owned(), ALERT, Some(problem.as_str())),
     };
-    let trouble_lines = trouble.map_or(0, |problem| wrap(problem, beyond_size, frame.width - 36.0, Face::Body).len()) as f32;
-    let listing_height = if listed { frame.row * 0.6 + beyond_size * LINE_SPACING * trouble_lines } else { 0.0 };
-    let address_panel = frame.row * 1.15 + beyond_size * LINE_SPACING * beyond_lines + frame.row * 0.15 + listing_height;
+    let trouble_height = trouble.map_or(0.0, |problem| note_size * LINE_SPACING * wrap(problem, note_size, frame.width - 36.0, Face::Body).len() as f32 + frame.row * 0.15);
+    let address_panel = frame.row * 1.4 + trouble_height + note_size * LINE_SPACING * note_lines + frame.row * 0.1;
     panel(frame.left, top, frame.width, address_panel);
-    let on_network = page.here.map_or("not found".to_owned(), |address| format!("{address}:{port}"));
-    draw_label("ON YOUR NETWORK", frame.left + 18.0, top + frame.row * 0.8, size, MUTED, Face::Bold);
-    draw_label_right(&on_network, frame.left + frame.width - 18.0, top + frame.row * 0.8, size, INK, Face::Bold);
-    draw_wrapped(&beyond, frame.left + 18.0, top + frame.row * 1.4, beyond_size, frame.width - 36.0, MUTED, Face::Body);
-    if listed {
-        let y = top + frame.row * 1.4 + beyond_size * LINE_SPACING * beyond_lines + frame.row * 0.35;
-        draw_label("LOBBY LIST", frame.left + 18.0, y, beyond_size, MUTED, Face::Bold);
-        let room = frame.width - 36.0 - text_width("LOBBY LIST", beyond_size, Face::Bold) - 16.0;
-        draw_label_right(&status, frame.left + frame.width - 18.0, y, fit_size(&status, beyond_size, room, Face::Body), tone, Face::Body);
-        if let Some(problem) = trouble {
-            draw_wrapped(problem, frame.left + 18.0, y + beyond_size * LINE_SPACING, beyond_size, frame.width - 36.0, ALERT, Face::Body);
-        }
+    draw_label("LOBBY LIST", frame.left + 18.0, top + frame.row * 0.8, size, MUTED, Face::Bold);
+    let room = frame.width - 36.0 - text_width("LOBBY LIST", size, Face::Bold) - 16.0;
+    draw_label_right(&status, frame.left + frame.width - 18.0, top + frame.row * 0.8, fit_size(&status, size, room, Face::Body), tone, Face::Body);
+    if let Some(problem) = trouble {
+        draw_wrapped(problem, frame.left + 18.0, top + frame.row * 1.4, note_size, frame.width - 36.0, ALERT, Face::Body);
     }
+    draw_wrapped(&note, frame.left + 18.0, top + frame.row * 1.4 + trouble_height, note_size, frame.width - 36.0, MUTED, Face::Body);
     //who is in
     let members = page.host.members();
     let roster_top = top + address_panel + frame.row * 0.35;
@@ -871,7 +924,7 @@ fn join_frame(page: &mut JoinPage, time: f32, mouse: Vec2, click: bool) -> JoinO
     let size = frame.size;
     if !lobby.joined {
         let dots = ".".repeat(1 + (time * 2.0) as usize % 3);
-        let line = format!("CONNECTING TO {}{dots}", page.target.to_uppercase());
+        let line = format!("CONNECTING TO {}{dots}", page.to.to_uppercase());
         draw_label_centered(&line, screen.x / 2.0, top + frame.row * 1.2, fit_size(&line, size, frame.width, Face::Bold), pulse, Face::Bold);
     } else {
         let (_, _) = draw_roster(&frame, top, &lobby.members, lobby.slot, false, mouse, false);
@@ -919,19 +972,10 @@ pub(crate) async fn show_multiplayer(settings: &mut Settings, saves: &Saves) -> 
             Screen::Form => match form_frame(&mut form, &mut typing, time, dt, mouse, click) {
                 FormOutcome::Stay => {}
                 FormOutcome::Back => break None,
-                FormOutcome::Browse => match Directory::connect(&form.server) {
-                    Ok(directory) => {
-                        form.remember(settings);
-                        saves.save_settings(settings);
-                        form.problem = None;
-                        page = Screen::Browse(Box::new(BrowsePage::new(directory, form.server.trim().to_owned(), time)));
-                    }
-                    Err(problem) => form.problem = Some(problem),
-                },
                 FormOutcome::Go => match form.submit() {
                     Err(problem) => form.problem = Some(problem),
                     Ok(Submit::Host { config, list_on }) => match NetHost::start(config) {
-                        Ok(mut host) => match list_on.map_or(Ok(()), |server| host.list_on(&server)) {
+                        Ok(mut host) => match host.list_on(&list_on) {
                             Ok(()) => {
                                 form.remember(settings);
                                 saves.save_settings(settings);
@@ -941,12 +985,21 @@ pub(crate) async fn show_multiplayer(settings: &mut Settings, saves: &Saves) -> 
                         },
                         Err(problem) => form.problem = Some(problem),
                     },
-                    Ok(Submit::Join { target, name, password }) => {
+                    Ok(Submit::Join { name }) => match Directory::connect(&form.server) {
+                        Ok(directory) => {
+                            form.remember(settings);
+                            saves.save_settings(settings);
+                            form.problem = None;
+                            page = Screen::Browse(Box::new(BrowsePage::new(directory, name, time)));
+                        }
+                        Err(problem) => form.problem = Some(problem),
+                    },
+                    Ok(Submit::Local { target, name, password }) => {
                         form.remember(settings);
                         saves.save_settings(settings);
                         form.problem = None;
                         let client = NetClient::connect(&target, &name, &password);
-                        page = Screen::Join(Box::new(JoinPage { client, target, lobby: Lobby::default() }));
+                        page = Screen::Join(Box::new(JoinPage { client, to: "this computer".to_owned(), asked: None, lobby: Lobby::default() }));
                     }
                 },
             },
@@ -954,11 +1007,20 @@ pub(crate) async fn show_multiplayer(settings: &mut Settings, saves: &Saves) -> 
                 BrowseOutcome::Stay => {}
                 BrowseOutcome::Back => page = Screen::Form,
                 BrowseOutcome::Pick(game) => {
-                    form.address = TextField::new(&game.target(), MAX_ADDRESS_LENGTH, Allowed::Address);
-                    form.role = Role::Join;
-                    form.focus = if form.name.text().is_empty() { Row::Name } else { Row::Password };
-                    form.problem = None;
-                    page = Screen::Form;
+                    let Screen::Browse(browse) = std::mem::replace(&mut page, Screen::Form) else { unreachable!("it was the list") };
+                    page = Screen::Password(Box::new(PasswordPage::new(browse, game)));
+                }
+            },
+            Screen::Password(ask) => match password_frame(ask, &mut typing, time, dt, mouse, click) {
+                PasswordOutcome::Stay => {}
+                PasswordOutcome::Back => {
+                    let Screen::Password(ask) = std::mem::replace(&mut page, Screen::Form) else { unreachable!("it was the password page") };
+                    page = Screen::Browse(ask.browse);
+                }
+                PasswordOutcome::Join => {
+                    let Screen::Password(ask) = std::mem::replace(&mut page, Screen::Form) else { unreachable!("it was the password page") };
+                    let client = NetClient::connect(&ask.game.target(), &ask.browse.name, ask.password.text());
+                    page = Screen::Join(Box::new(JoinPage { client, to: ask.game.name.clone(), asked: Some(ask), lobby: Lobby::default() }));
                 }
             },
             Screen::Host(host) => match host_frame(host, carry.as_ref().map(|(_, info)| info), mouse, click) {
@@ -972,15 +1034,28 @@ pub(crate) async fn show_multiplayer(settings: &mut Settings, saves: &Saves) -> 
             },
             Screen::Join(join) => match join_frame(join, time, mouse, click) {
                 JoinOutcome::Stay => {}
-                JoinOutcome::Back => page = Screen::Form,
+                //(a player who picked the game from the list goes back to its password, to try again or to leave from there)
+                JoinOutcome::Back => {
+                    let Screen::Join(join) = std::mem::replace(&mut page, Screen::Form) else { unreachable!("it was a join page") };
+                    if let Some(ask) = join.asked {
+                        page = Screen::Password(ask);
+                    }
+                }
                 JoinOutcome::Go => {
                     let Screen::Join(join) = std::mem::replace(&mut page, Screen::Form) else { unreachable!("it was a join page") };
                     let JoinPage { client, lobby, .. } = *join;
                     break Some(Multi::Guest(client, lobby));
                 }
                 JoinOutcome::Over(why) => {
-                    page = Screen::Form;
-                    form.problem = Some(why);
+                    let Screen::Join(join) = std::mem::replace(&mut page, Screen::Form) else { unreachable!("it was a join page") };
+                    match join.asked {
+                        //(it did not work out, which may be the password: it can be typed again)
+                        Some(mut ask) if !join.lobby.joined => {
+                            ask.problem = Some(why);
+                            page = Screen::Password(ask);
+                        }
+                        _ => form.problem = Some(why),
+                    }
                 }
             },
         }

@@ -77,15 +77,6 @@ pub(crate) fn parse_port(text: &str) -> NetResult<u16> {
     Ok(port)
 }
 
-//the address of this machine on its own network, which is what others on it join (not the one on the internet, which only the router knows). found by
-//asking the system which way it would go to reach somewhere, without sending anything
-pub(crate) fn local_address() -> Option<IpAddr> {
-    let socket = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
-    socket.connect((Ipv4Addr::new(192, 0, 2, 1), 9)).ok()?;
-    let address = socket.local_addr().ok()?.ip();
-    (!address.is_unspecified() && !address.is_loopback()).then_some(address)
-}
-
 // ---------- encryption ----------
 
 fn provider() -> Arc<CryptoProvider> {
@@ -992,15 +983,15 @@ async fn client_session(target: &str, name: &str, password: &str, events: &std_m
 //from finding the host to being let in
 async fn join(target: &str, name: &str, password: &str, events: &std_mpsc::Sender<ClientEvent>) -> Result<Seat, Ended> {
     let target = parse_target(target)?;
-    let address = tokio::net::lookup_host(target.as_str()).await.ok().and_then(|mut found| found.next()).ok_or_else(|| format!("could not find {target}"))?;
+    let address = tokio::net::lookup_host(target.as_str()).await.ok().and_then(|mut found| found.next()).ok_or_else(|| "could not find the host".to_owned())?;
     let local = if address.is_ipv4() { SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0)) } else { SocketAddr::from(([0u16; 8], 0)) };
     let mut endpoint = Endpoint::client(local).map_err(|error| format!("could not use the network: {error}"))?;
     endpoint.set_default_client_config(client_config()?);
     let connecting = endpoint.connect(address, SERVER_NAME).map_err(|error| format!("could not connect: {error}"))?;
     let connection = match tokio::time::timeout(Duration::from_secs(CONNECT_SECONDS), connecting).await {
         Ok(Ok(connection)) => connection,
-        Ok(Err(error)) => return Err(Ended::Failed(connect_problem(&error, &target))),
-        Err(_) => return Err(Ended::Failed(format!("no answer from {target}: is the address right, and the port open on the host's router?"))),
+        Ok(Err(error)) => return Err(Ended::Failed(connect_problem(&error))),
+        Err(_) => return Err(Ended::Failed(no_answer())),
     };
     let (mut send, mut receive) = connection.open_bi().await.map_err(|error| error.to_string())?;
     let hello = ClientMsg::Hello { protocol: PROTOCOL, version: env!("CARGO_PKG_VERSION").to_owned(), name: name.to_owned() };
@@ -1030,10 +1021,15 @@ async fn join(target: &str, name: &str, password: &str, events: &std_mpsc::Sende
     Ok(Seat { _endpoint: endpoint, connection, send, receive })
 }
 
-fn connect_problem(error: &quinn::ConnectionError, target: &str) -> String {
+//(the host is never named by where it is: the player did not give an address and is not shown one)
+fn no_answer() -> String {
+    "no answer from the host: is its port (UDP) open on the host's firewall and router?".to_owned()
+}
+
+fn connect_problem(error: &quinn::ConnectionError) -> String {
     match error {
-        quinn::ConnectionError::TimedOut => format!("no answer from {target}: is the address right, and the port open on the host's router?"),
-        quinn::ConnectionError::ConnectionClosed(_) | quinn::ConnectionError::ApplicationClosed(_) => format!("{target} refused the connection"),
-        other => format!("could not connect to {target}: {other}"),
+        quinn::ConnectionError::TimedOut => no_answer(),
+        quinn::ConnectionError::ConnectionClosed(_) | quinn::ConnectionError::ApplicationClosed(_) => "the host refused the connection".to_owned(),
+        other => format!("could not connect to the host: {other}"),
     }
 }

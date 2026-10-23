@@ -67,30 +67,30 @@ The game also saves on its own, and the title screen offers to carry on from whe
 
 Up to four players share one world over the internet. One of you hosts: the host's game runs the world, and everyone else sees and plays in it
 with their own army of up to 12,500 units, their own relics and their own walls. Each player's colour tints their army, their names float over
-them, and an arrow at the edge of the screen points at whoever is off it. Nothing is needed but the host's address and the password.
+them, and an arrow at the edge of the screen points at whoever is off it. Nothing is needed but the host's password: games are found on the lobby list, and nobody types or sees an address.
 
 **Hosting.** Press `M` on the title screen for *Multiplayer*, then *Host a game*: pick your name, a password (4 characters or more) and a port (47821 unless you
-change it), and *Start hosting*. Friends who join appear in the lobby; press *New run* (or *Continue party*, below) when everyone is in. Players can still join after the run has started.
+change it), and *Start hosting*. Your game goes on the lobby list (below) so that friends can find it. Friends who join appear in the lobby; press *New run* (or *Continue party*, below) when everyone is in. Players can still join after the run has started.
 
 - **Forward the port.** The game uses **UDP**, not TCP. On your router, forward UDP port 47821 (or the port you chose) to the machine that is hosting.
-  Friends then join your public address (search "what is my ip"). Players on the same network can use the machine's local address and need no forwarding.
+  Friends then find your game on the lobby list. Without the forward, only a second window on the same computer can join (*Join local*, below).
 - **Firewall.** The first time you host, Windows asks whether to let the game through its firewall: allow it (private networks is enough for the same network,
   tick public for the internet). On Linux, open the port, for example `sudo ufw allow 47821/udp`.
 - **The password** is never sent: a joiner proves they know it, and the host keeps no more of it than that proof needs. The connection is encrypted, but it can't prove it is the
   host you meant (there is no certificate authority for it), so use a password you do not use anywhere else.
 
-**Joining.** `M` on the title screen, then *Join a game*: the host's address (add `:port` if it is not the usual one), your name and the password. Or press *Find games*
-to pick from the lobby list below.
+**Joining.** `M` on the title screen, then *Join a game*: give your name and press *Find games*, pick a game from the list, and type its password. There is no address to type, and none is shown.
+
+**Join local.** To try the game out, or to play two at one computer, host in one window and choose *Join local* in the other: it joins a game hosted on this computer by its port (47821 unless the host chose another), with the name and password.
 
 **Coming and going.** A player who drops (or closes the game) has their army held where it was, out of reach of everything, and shows as AWAY in the list.
 Joining again with the same name gets it back, and a guest whose connection is lost tries to rejoin for a minute by itself. The host saves the whole party
 (`F5`, the menu, or on its own); next time the host's lobby offers *Continue party*, and each friend takes their army up again by joining with their name.
 Only the host saves and loads. If the host ends the game, it ends for everyone.
 
-**The lobby list.** Typing an address is fine, but there is also a list of open games. It is a tiny web service (in [`lobby-server`](lobby-server/README.md),
+**The lobby list.** Every hosted game is on a list of open games, and every other player joins from it. It is a tiny web service (in [`lobby-server`](lobby-server/README.md),
 written for Vercel and a free Redis database) that only holds the list: the games themselves are still played straight with the host. The game already knows where it is,
-so there is nothing to type: a host turns it on with *Show my game on the list* (it is on unless you switch it off), and a player presses *Find games*.
-[`lobby-server/README.md`](lobby-server/README.md) has the steps to run a list of your own.
+so there is nothing to set up. [`lobby-server/README.md`](lobby-server/README.md) has the steps to run a list of your own.
 
 ## Download
 

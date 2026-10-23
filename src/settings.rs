@@ -122,14 +122,13 @@ pub(crate) struct Settings {
     pub(crate) unit_shape: UnitShape,
     pub(crate) army_limit: usize, //the most units the army can have, from MIN_ARMY_LIMIT to MAX_ARMY_LIMIT
     pub(crate) player_name: String, //what the player is called in a game with others, as `clean_name` leaves it
-    pub(crate) join_address: String, //the host they last joined, as they typed it
-    pub(crate) host_port: u16,       //the port they host on
-    pub(crate) list_game: bool,      //whether a game they host is put on the lobby list (see directory.rs)
+    pub(crate) host_port: u16, //the port they host on, or join a game on this computer by
+    pub(crate) multiplayer_role: Role, //what they last did in multiplayer: hosted, joined from the list, or joined on this computer
 }
 
 impl Default for Settings {
     fn default() -> Settings {
-        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Free, unit_shape: UnitShape::Ships, army_limit: DEFAULT_ARMY_LIMIT, player_name: String::new(), join_address: String::new(), host_port: DEFAULT_PORT, list_game: true }
+        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Free, unit_shape: UnitShape::Ships, army_limit: DEFAULT_ARMY_LIMIT, player_name: String::new(), host_port: DEFAULT_PORT, multiplayer_role: Role::Host }
     }
 }
 
@@ -137,7 +136,7 @@ impl Settings {
     //the settings as lines of text, a name and a value each
     pub(crate) fn to_text(&self) -> String {
         format!(
-            "master {:.2}\neffects {:.2}\nmusic {:.2}\nshake {:.2}\nfullscreen {}\ncolourblind {}\ndifficulty {}\nhints {}\nformation {}\nunit_shape {}\narmy_limit {}\nplayer_name {}\njoin_address {}\nhost_port {}\nlist_game {}\n",
+            "master {:.2}\neffects {:.2}\nmusic {:.2}\nshake {:.2}\nfullscreen {}\ncolourblind {}\ndifficulty {}\nhints {}\nformation {}\nunit_shape {}\narmy_limit {}\nplayer_name {}\nhost_port {}\nmultiplayer_role {}\n",
             self.master,
             self.effects,
             self.music,
@@ -150,9 +149,8 @@ impl Settings {
             self.unit_shape.name(),
             self.army_limit,
             self.player_name,
-            self.join_address,
             self.host_port,
-            if self.list_game { "yes" } else { "no" },
+            self.multiplayer_role.name(),
         )
     }
 
@@ -184,9 +182,8 @@ impl Settings {
                 "unit_shape" => settings.unit_shape = UnitShape::from_name(value).unwrap_or(settings.unit_shape),
                 "army_limit" => settings.army_limit = value.parse::<usize>().map_or(settings.army_limit, |limit| limit.clamp(MIN_ARMY_LIMIT, MAX_ARMY_LIMIT)),
                 "player_name" => settings.player_name = clean_name(line.split_once(char::is_whitespace).map_or("", |(_, rest)| rest)),
-                "join_address" => settings.join_address = value.chars().take(MAX_ADDRESS_LENGTH).collect(),
                 "host_port" => settings.host_port = parse_port(value).unwrap_or(settings.host_port),
-                "list_game" => settings.list_game = yes().unwrap_or(settings.list_game),
+                "multiplayer_role" => settings.multiplayer_role = Role::from_name(value).unwrap_or(settings.multiplayer_role),
                 _ => {}
             }
         }

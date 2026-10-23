@@ -36,7 +36,7 @@ Everyone who should see each other's games has to use the same lobby server, whi
 
 ```json
 { "games": [ { "id": "83f9eb132fe4221a", "name": "Ann", "address": "93.184.216.34", "port": 47821,
-               "players": 1, "max": 4, "locked": true, "started": false, "version": "0.2.0", "age": 12 } ],
+               "players": 1, "max": 4, "locked": true, "started": false, "version": "0.2.1", "age": 12 } ],
   "now": 1700000000000, "ttl": 90, "store": "upstash" }
 ```
 
@@ -54,7 +54,7 @@ npm test        # the tests
 npm run dev     # the service on http://127.0.0.1:8787, listing games from this machine too
 ```
 
-Then start the game with `THE_ARMY_LOBBY=http://127.0.0.1:8787` set, so that it uses that one. To run the game's own end-to-end check against it:
+Then start the game with `THE_ARMY_LOBBY=http://127.0.0.1:8787` set, so that it uses that one (host in one window, and join from the list in another). To run the game's own end-to-end check against it:
 
 ```
 THE_ARMY_TEST_LOBBY=http://127.0.0.1:8787 cargo test -- --ignored the_real_lobby_server

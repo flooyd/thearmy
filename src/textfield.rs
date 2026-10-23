@@ -3,12 +3,11 @@
 
 use crate::prelude::*;
 
-//which characters a field takes: a name is letters and numbers and a few marks, an address has no spaces in it, a port is only digits
+//which characters a field takes: a name is letters and numbers and a few marks, a port is only digits
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Allowed {
     Name,
     Password,
-    Address,
     Port,
 }
 
@@ -18,7 +17,6 @@ impl Allowed {
             //(the same as `clean_name` leaves, so what is typed is what is kept)
             Allowed::Name => letter.is_alphanumeric() || matches!(letter, ' ' | '-' | '_' | '\'' | '.'),
             Allowed::Password => !letter.is_control(),
-            Allowed::Address => !letter.is_whitespace() && !letter.is_control(),
             Allowed::Port => letter.is_ascii_digit(),
         }
     }

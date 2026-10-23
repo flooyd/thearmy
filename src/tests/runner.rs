@@ -264,20 +264,21 @@ fn the_figure_lifts_a_foot_at_a_time_and_swings_the_arm_opposite_it() {
 }
 
 #[test]
-fn the_figure_is_a_circle_when_small_a_figure_when_big_and_a_fade_between() {
-    assert_eq!(runner_show(0.0), 0.0);
-    assert_eq!(runner_show(RUNNER_FADE_FROM), 0.0);
-    assert_eq!(runner_show(RUNNER_FADE_FROM + RUNNER_FADE_RANGE), 1.0);
-    assert_eq!(runner_show(RADIUS * 2.5), 1.0, "zoomed all the way in it is the figure");
-    assert_eq!(runner_show(RADIUS * MIN_ZOOM), 0.0, "and all the way out the circle");
-    let mut last = 0.0;
-    for step in 0..=100 {
-        let show = runner_show(step as f32 * 0.15);
-        assert!(show >= last && (0.0..=1.0).contains(&show));
-        last = show;
+fn a_player_is_the_circle_when_small_and_the_figure_when_big_and_never_both() {
+    assert!(!runner_shown(0.0));
+    assert!(!runner_shown(RUNNER_MIN_RADIUS - 0.01));
+    assert!(runner_shown(RUNNER_MIN_RADIUS));
+    assert!(runner_shown(RADIUS * MAX_ZOOM), "zoomed all the way in it is the figure");
+    assert!(!runner_shown(RADIUS * MIN_ZOOM), "and all the way out the circle");
+    //(it is one or the other, so there is never a circle left round the figure: it is a step, from the small sizes to the big)
+    let mut was = false;
+    for step in 0..=200 {
+        let shown = runner_shown(step as f32 * 0.1);
+        assert!(shown >= was, "once it is a figure it stays one as it gets bigger");
+        was = shown;
     }
     //at the zoom the game starts at (a unit is 16 pixels across the radius) it is the figure
-    assert_eq!(runner_show(RADIUS), 1.0);
+    assert!(runner_shown(RADIUS));
 }
 
 #[test]

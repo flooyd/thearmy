@@ -526,7 +526,6 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         let ranges = sim.arrange();
         let Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots, hazards, pulls, .. } = &sim;
         let fx = &feedback.fx;
-        let drill = players.list[me].drill();
 
         clear_background(BLACK);
         //the camera jumps in a little for big moments
@@ -538,7 +537,6 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         let hovered = if over_map || paused || entrance { None } else { hovered_tile(player.x, player.y, zoom) };
         draw_world(camera_at.x, camera_at.y, drawn_zoom, hovered);
         draw_floor(camera_at.x, camera_at.y, drawn_zoom, walls, get_time() as f32);
-        draw_formation_outline(drill.formation, player, drill.facing, my_army, drawn_zoom);
         draw_discs(Layer::Marks, &mark_discs(&feedback.ground, drawn), &camera);
         draw_sites(sites, view, get_time() as f32);
         draw_discs(Layer::Puffs, &particle_discs(&feedback.particles), &camera);
@@ -555,14 +553,14 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         }
         draw_shots(shots);
         //(one that has gone is a faint mark of where they will find their army)
-        //(a player is a little runner, or the circle they were when they are too small on the screen to make one out, and a fade between the two)
-        let show = runner_show(RADIUS * camera.zoom.x.abs() * screen_width() / 2.0);
+        //(a player is a little runner, or the circle they were when they are too small on the screen to make one out: never both)
+        let figure = runner_shown(RADIUS * camera.zoom.x.abs() * screen_width() / 2.0);
         let is_gone = |i: usize| mates.get(i).is_some_and(|mate| mate.away);
         let avatars: Vec<Disc> = players.list.iter().enumerate().filter_map(|(i, other)| {
             if is_gone(i) {
                 Some(Disc::new(other.position.x, other.position.y, RADIUS, Color::new(other.color.r, other.color.g, other.color.b, 0.3)))
-            } else if show < 1.0 {
-                Some(Disc::new(other.position.x, other.position.y, RADIUS, Color::new(other.color.r, other.color.g, other.color.b, 1.0 - show)).edged(UNIT_BORDER))
+            } else if !figure {
+                Some(Disc::new(other.position.x, other.position.y, RADIUS, other.color).edged(UNIT_BORDER))
             } else {
                 None
             }
@@ -572,10 +570,10 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         //the walls go on top of everything in the world, the numbers and the screen over them are for reading
         draw_walls(camera_at.x, camera_at.y, drawn_zoom, hovered, walls, if paused || entrance { None } else { Some(players.list[me].mason.selected) }, get_time() as f32);
         //(except the little runners, who are taller than the circle was and would lose their heads to a wall they stand under)
-        if show > 0.0 {
+        if figure {
             for (i, (other, runner)) in players.list.iter().zip(&feedback.runners).enumerate() {
                 if !is_gone(i) {
-                    draw_runner(runner, other.position, other.color, show);
+                    draw_runner(runner, other.position, other.color);
                 }
             }
         }

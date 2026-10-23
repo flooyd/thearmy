@@ -129,39 +129,3 @@ pub(crate) fn turn_to_face(facing: Vec2, velocity: Vec2, dt: f32) -> Vec2 {
     Vec2::from_angle(now + difference * (1.0 - (-FORMATION_TURN * dt).exp()))
 }
 
-//a shape drawn faintly on the ground at the player's feet, so it is clear which formation the army is in (one line round where
-//it ends), at the size it is for an army this big
-pub(crate) fn draw_formation_outline(formation: Formation, player: Vec2, facing: Vec2, army: usize, zoom: f32) {
-    if formation == Formation::Free || army < 2 {
-        return;
-    }
-    let width = 2.0 / zoom;
-    let color = Color::new(CYAN.r, CYAN.g, CYAN.b, 0.35);
-    let area = formation_area(army);
-    let at = |local: Vec2| player + facing * local.x + facing.perp() * local.y;
-    let mut corners: Vec<Vec2> = Vec::new();
-    match formation {
-        Formation::Free => {}
-        Formation::Ring => {
-            let hole = FORMATION_RING_HOLE;
-            let outer = (area / (std::f32::consts::PI * (1.0 - hole * hole))).sqrt();
-            let inner = (outer * hole).max(FORMATION_MIN_HOLE);
-            let outer = (inner * inner + area / std::f32::consts::PI).sqrt();
-            draw_circle_lines(player.x, player.y, outer, width, color);
-            draw_circle_lines(player.x, player.y, inner, width, color);
-        }
-        Formation::Wedge => {
-            let length = (area / FORMATION_WEDGE_WIDTH).sqrt();
-            corners = vec![at(Vec2::new(FORMATION_LEAD, 0.0)), at(Vec2::new(FORMATION_LEAD - length, length * FORMATION_WEDGE_WIDTH)), at(Vec2::new(FORMATION_LEAD - length, -length * FORMATION_WEDGE_WIDTH))];
-        }
-        Formation::Line => {
-            let depth = (area / FORMATION_LINE_RATIO).sqrt();
-            let half = depth * FORMATION_LINE_RATIO / 2.0;
-            corners = vec![at(Vec2::new(FORMATION_LEAD, half)), at(Vec2::new(FORMATION_LEAD + depth, half)), at(Vec2::new(FORMATION_LEAD + depth, -half)), at(Vec2::new(FORMATION_LEAD, -half))];
-        }
-    }
-    for (i, &from) in corners.iter().enumerate() {
-        let to = corners[(i + 1) % corners.len()];
-        draw_line(from.x, from.y, to.x, to.y, width, color);
-    }
-}

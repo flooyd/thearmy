@@ -88,9 +88,6 @@ fn each_kind_of_field_takes_only_its_own_letters() {
     let mut name = field(Allowed::Name, 30);
     typed(&mut name, "Ann-Marie O'Neil_2.0 <b>");
     assert_eq!(name.text(), "Ann-Marie O'Neil_2.0 b", "marks that can't be in a name are left out");
-    let mut address = field(Allowed::Address, 30);
-    typed(&mut address, "203.0.113.7:5000 \t");
-    assert_eq!(address.text(), "203.0.113.7:5000", "no spaces in an address");
     let mut port = field(Allowed::Port, 5);
     typed(&mut port, "4a7b8-21");
     assert_eq!(port.text(), "47821");
@@ -106,9 +103,6 @@ fn a_paste_is_one_line_cleaned_and_cut_to_fit() {
     assert_eq!(password.text(), "secret", "only the first line");
     password.apply(Edit::Paste("abcdef".to_owned()));
     assert_eq!(password.text(), "secretab", "and no more than fits");
-    let mut address = field(Allowed::Address, 40);
-    address.apply(Edit::Paste("203.0.113.7:5000\n".to_owned()));
-    assert_eq!(address.text(), "203.0.113.7:5000", "the end of the line it was copied with is not part of it");
     //(into the middle of a line)
     let mut name = TextField::new("Anne", 16, Allowed::Name);
     name.apply(Edit::Home);
@@ -119,7 +113,7 @@ fn a_paste_is_one_line_cleaned_and_cut_to_fit() {
 
 #[test]
 fn a_field_that_is_given_text_to_start_with_takes_what_it_would_have_been_typed() {
-    assert_eq!(TextField::new("a\tb c", 10, Allowed::Address).text(), "abc");
+    assert_eq!(TextField::new("a\tb c", 10, Allowed::Name).text(), "ab c");
     assert_eq!(TextField::new("toolongforthis", 4, Allowed::Name).text(), "tool");
     assert_eq!(TextField::new("12ab34", 5, Allowed::Port).cursor(), 4, "the cursor starts at the end");
 }
@@ -147,12 +141,15 @@ fn the_form_starts_with_what_the_player_used_last_time_except_the_password() {
     assert_eq!(fresh.role, Role::Host, "someone who has never joined is more likely to host");
     assert_eq!(fresh.focus, Row::Name, "with no name to go on they start by giving one");
     assert_eq!(fresh.port.text(), DEFAULT_PORT.to_string());
-    let kept = Settings { player_name: "Ann".to_owned(), join_address: "203.0.113.7:5000".to_owned(), host_port: 50000, ..Settings::default() };
+    let kept = Settings { player_name: "Ann".to_owned(), host_port: 50000, multiplayer_role: Role::Local, ..Settings::default() };
     let form = Form::new(&kept);
-    assert_eq!(form.role, Role::Join, "someone who joined before is likely to again");
+    assert_eq!(form.role, Role::Local, "what they did last time");
     assert_eq!(form.focus, Row::Password, "the name is there already");
-    assert_eq!((form.name.text(), form.address.text(), form.port.text()), ("Ann", "203.0.113.7:5000", "50000"));
+    assert_eq!((form.name.text(), form.port.text()), ("Ann", "50000"));
     assert_eq!(form.password.text(), "", "the password is not kept");
+    //(someone who joins from the list has no password to type yet, and starts on the name)
+    let joiner = Form::new(&Settings { player_name: "Ann".to_owned(), multiplayer_role: Role::Join, ..Settings::default() });
+    assert_eq!((joiner.role, joiner.focus), (Role::Join, Row::Name));
 }
 
 #[test]
@@ -163,48 +160,61 @@ fn tab_and_the_arrows_go_round_the_rows() {
     assert_eq!(form.focus, Row::Name);
     form.step(1);
     form.step(1);
-    assert_eq!(form.focus, Row::Target);
-    form.step(1);
-    assert_eq!(form.focus, Row::Listed, "someone hosting can choose whether the game is on the list");
+    assert_eq!(form.focus, Row::Port);
     form.step(1);
     assert_eq!(form.focus, Row::Role, "round to the start");
     form.step(-1);
-    assert_eq!(form.focus, Row::Listed, "and back");
-    //(someone joining has no use for that row, and is not left on it)
+    assert_eq!(form.focus, Row::Port, "and back");
+    //(someone joining from the list has only the name to give, and is not left on what is not there)
     form.switch(Role::Join);
-    assert_eq!(form.focus, Row::Target);
+    assert_eq!(form.focus, Row::Name);
     form.step(1);
     assert_eq!(form.focus, Row::Role);
     form.step(-1);
-    assert_eq!(form.focus, Row::Target);
+    assert_eq!(form.focus, Row::Name);
 }
 
 #[test]
-fn enter_moves_on_until_the_address_and_then_asks_to_go() {
+fn enter_moves_on_until_the_last_row_and_then_asks_to_go() {
     let mut form = Form::new(&Settings::default());
     form.focus = Row::Role;
     assert!(!form.enter());
     assert_eq!(form.focus, Row::Name);
     assert!(!form.enter());
     assert!(!form.enter());
-    assert_eq!(form.focus, Row::Target);
-    assert!(form.enter(), "on the address or port it goes ahead");
-    assert_eq!(form.focus, Row::Target);
-    form.focus = Row::Listed;
-    assert!(form.enter(), "and so it does below it");
+    assert_eq!(form.focus, Row::Port);
+    assert!(form.enter(), "on the port it goes ahead");
+    assert_eq!(form.focus, Row::Port);
+    //(for someone who joins from the list the name is the last row)
+    form.switch(Role::Join);
+    assert!(form.enter());
 }
 
 #[test]
-fn the_fourth_row_is_the_port_to_host_on_or_the_address_to_join() {
+fn the_roles_go_round_and_are_known_by_their_names() {
+    assert_eq!(Role::Host.next(), Role::Join);
+    assert_eq!(Role::Join.next(), Role::Local);
+    assert_eq!(Role::Local.next(), Role::Host, "round to the first");
+    assert_eq!((Role::Host.before(), Role::Join.before(), Role::Local.before()), (Role::Host, Role::Host, Role::Join), "and stops at the first going back");
+    assert_eq!((Role::Host.after(), Role::Join.after(), Role::Local.after()), (Role::Join, Role::Local, Role::Local), "and the last going on");
+    for role in [Role::Host, Role::Join, Role::Local] {
+        assert_eq!(Role::from_name(role.name()), Some(role));
+    }
+    assert_eq!(Role::from_name("somewhere"), None);
+}
+
+#[test]
+fn the_fourth_row_is_the_port_and_a_joiner_from_the_list_has_no_port_or_password() {
     let mut form = Form::new(&Settings::default());
-    form.focus = Row::Target;
-    form.field(Row::Target).unwrap().apply(Edit::End);
-    form.switch(Role::Host);
-    assert_eq!(form.field(Row::Target).unwrap().text(), DEFAULT_PORT.to_string());
-    form.switch(Role::Join);
-    assert_eq!(form.field(Row::Target).unwrap().text(), "");
+    form.focus = Row::Port;
+    form.field(Row::Port).unwrap().apply(Edit::End);
+    for role in [Role::Host, Role::Local] {
+        form.switch(role);
+        assert_eq!(rows(role), [Row::Role, Row::Name, Row::Password, Row::Port]);
+        assert_eq!(form.field(Row::Port).unwrap().text(), DEFAULT_PORT.to_string());
+    }
+    assert_eq!(rows(Role::Join), [Row::Role, Row::Name], "the password is asked for when a game is picked");
     assert!(form.field(Row::Role).is_none());
-    assert!(form.field(Row::Listed).is_none(), "that one is a switch");
 }
 
 #[test]
@@ -219,53 +229,59 @@ fn the_form_says_what_is_wrong_in_the_order_the_player_sees_it() {
     form.port = TextField::new("80", 5, Allowed::Port);
     let Err(problem) = form.submit() else { panic!("a port for other programs") };
     assert!(problem.contains("1024"), "{problem}");
+    form.switch(Role::Local);
+    let Err(problem) = form.submit() else { panic!("a port for other programs, to join as well") };
+    assert!(problem.contains("1024"), "{problem}");
+    //(a joiner from the list is asked for a name, and nothing else yet)
     form.switch(Role::Join);
-    let Err(problem) = form.submit() else { panic!("no address") };
-    assert!(problem.contains("address"), "{problem}");
+    assert!(form.submit().is_ok());
+    form.name = TextField::new("", MAX_NAME_LENGTH, Allowed::Name);
+    let Err(problem) = form.submit() else { panic!("no name") };
+    assert!(problem.contains("name"), "{problem}");
 }
 
 const PASSWORD_FOR_FORMS: &str = "open sesame";
 
 #[test]
-fn a_form_filled_in_right_asks_to_host() {
+fn a_form_filled_in_right_asks_to_host_on_the_lobby_list() {
     let mut form = form_with("  Ann  ", PASSWORD_FOR_FORMS);
     form.port = TextField::new("50000", 5, Allowed::Port);
     let Ok(Submit::Host { config, list_on }) = form.submit() else { panic!("not a host") };
     assert_eq!(config.name, "Ann", "the name as the game cleans it");
     assert_eq!(config.password, PASSWORD_FOR_FORMS);
     assert_eq!(config.port, 50000);
-    assert_eq!(list_on.as_deref(), Some(LOBBY_SERVER), "the lobby list is where the game goes, without the player saying so");
+    assert_eq!(list_on, LOBBY_SERVER, "a game is always on the lobby list, without the player saying so");
 }
 
 #[test]
-fn a_game_goes_on_the_lobby_list_when_it_is_asked_to_and_there_is_one() {
+fn a_game_is_not_hosted_when_the_lobby_server_is_no_address() {
     let mut form = form_with("Ann", PASSWORD_FOR_FORMS);
     form.server = " https://army.example.com ".to_owned();
-    assert!(form.listed, "it is the usual thing");
     let Ok(Submit::Host { list_on, .. }) = form.submit() else { panic!("not a host") };
-    assert_eq!(list_on.as_deref(), Some("https://army.example.com"));
-    form.listed = false;
-    let Ok(Submit::Host { list_on, .. }) = form.submit() else { panic!("not a host") };
-    assert_eq!(list_on, None, "not if the player would rather it were not");
-    //an address that is no good is said so when it would be used, and not otherwise
+    assert_eq!(list_on, "https://army.example.com");
     form.server = "ftp://army.example.com".to_owned();
-    assert!(form.submit().is_ok());
-    form.listed = true;
     let Err(problem) = form.submit() else { panic!("not an address of a lobby server") };
     assert!(problem.contains("http"), "{problem}");
-    //and joining does not care
-    form.switch(Role::Join);
-    form.address = TextField::new("203.0.113.7", MAX_ADDRESS_LENGTH, Allowed::Address);
+    //(joining a game on this computer does not go by the lobby list)
+    form.switch(Role::Local);
     assert!(form.submit().is_ok());
 }
 
 #[test]
-fn a_form_filled_in_right_asks_to_join() {
-    let mut form = form_with("Ann", PASSWORD_FOR_FORMS);
+fn a_form_filled_in_right_asks_to_see_the_games_to_join() {
+    let mut form = form_with("Ann", "");
     form.switch(Role::Join);
-    form.address = TextField::new("203.0.113.7", MAX_ADDRESS_LENGTH, Allowed::Address);
-    let Ok(Submit::Join { target, name, password }) = form.submit() else { panic!("not joining") };
-    assert_eq!(target, format!("203.0.113.7:{DEFAULT_PORT}"), "with the port the game uses when there is none");
+    let Ok(Submit::Join { name }) = form.submit() else { panic!("not joining") };
+    assert_eq!(name, "Ann", "the password is asked for once a game is picked");
+}
+
+#[test]
+fn a_game_on_this_computer_is_joined_at_the_loopback_address_and_the_port_it_is_on() {
+    let mut form = form_with("Ann", PASSWORD_FOR_FORMS);
+    form.switch(Role::Local);
+    form.port = TextField::new("50000", 5, Allowed::Port);
+    let Ok(Submit::Local { target, name, password }) = form.submit() else { panic!("not joining") };
+    assert_eq!(target, "127.0.0.1:50000", "the one address there is, and the player never gives it");
     assert_eq!(name, "Ann");
     assert_eq!(password, PASSWORD_FOR_FORMS);
 }
@@ -275,21 +291,19 @@ fn what_is_worth_keeping_is_kept_once_the_form_is_used() {
     let mut settings = Settings::default();
     let mut form = form_with(" Ann  Marie ", PASSWORD_FOR_FORMS);
     form.port = TextField::new("50000", 5, Allowed::Port);
-    form.listed = false;
     form.remember(&mut settings);
-    assert_eq!((settings.player_name.as_str(), settings.host_port), ("Ann  Marie", 50000));
-    assert!(!settings.list_game);
-    assert_eq!(settings.join_address, "", "joining was not what was done");
+    assert_eq!((settings.player_name.as_str(), settings.host_port, settings.multiplayer_role), ("Ann  Marie", 50000, Role::Host));
     form.switch(Role::Join);
-    form.address = TextField::new("203.0.113.7:5000", MAX_ADDRESS_LENGTH, Allowed::Address);
     form.remember(&mut settings);
-    assert_eq!(settings.join_address, "203.0.113.7:5000");
+    assert_eq!(settings.multiplayer_role, Role::Join);
     assert!(!settings.to_text().contains(PASSWORD_FOR_FORMS), "the password is never written down");
-    //and a port that is no good is not kept
-    form.switch(Role::Host);
+    //(joining from the list has no port, and a port that is no good is not kept)
     form.port = TextField::new("12", 5, Allowed::Port);
     form.remember(&mut settings);
     assert_eq!(settings.host_port, 50000);
+    form.switch(Role::Local);
+    form.remember(&mut settings);
+    assert_eq!((settings.host_port, settings.multiplayer_role), (50000, Role::Local));
 }
 
 // ---------- the settings that go with it ----------
@@ -303,12 +317,16 @@ fn a_name_with_spaces_in_it_is_read_back_whole() {
 #[test]
 fn settings_written_without_the_multiplayer_lines_still_read_and_bad_ones_are_ignored() {
     let old = Settings::from_text("master 0.50\ndifficulty Hard\n");
-    assert_eq!((old.player_name.as_str(), old.join_address.as_str(), old.host_port), ("", "", DEFAULT_PORT));
-    let bad = Settings::from_text("host_port 12\nplayer_name !!!\nhost_port abc\n");
+    assert_eq!((old.player_name.as_str(), old.host_port, old.multiplayer_role), ("", DEFAULT_PORT, Role::Host));
+    let bad = Settings::from_text("host_port 12\nplayer_name !!!\nhost_port abc\nmultiplayer_role nowhere\n");
     assert_eq!(bad.host_port, DEFAULT_PORT, "a port under 1024, or none, is left alone");
     assert_eq!(bad.player_name, "", "and a name with nothing in it that can be used is nothing");
-    let long = Settings::from_text(&format!("join_address {}\n", "x".repeat(500)));
-    assert_eq!(long.join_address.len(), MAX_ADDRESS_LENGTH);
+    assert_eq!(bad.multiplayer_role, Role::Host);
+    //(a file from when addresses were typed has lines nobody reads any more, and they are kept nowhere)
+    let typed = Settings::from_text("join_address 203.0.113.7:5000\nlist_game no\nlobby_server https://old.example.com\nmultiplayer_role local\n");
+    assert_eq!(typed.multiplayer_role, Role::Local);
+    let text = typed.to_text();
+    assert!(!text.contains("203.0.113.7") && !text.contains("join_address") && !text.contains("list_game") && !text.contains("old.example.com"));
 }
 
 // ---------- what a lobby is told ----------
@@ -344,7 +362,7 @@ fn the_host_s_log_says_who_came_and_went_and_who_was_turned_away() {
     let (line, _) = log_line(&HostEvent::Left { slot: 1, name: "Ann".to_owned(), why: "left the game".to_owned() });
     assert_eq!(line, "Ann left (left the game)");
     let (line, color) = log_line(&HostEvent::TurnedAway { address, why: "that is not the password".to_owned() });
-    assert_eq!(line, "203.0.113.9 was turned away: that is not the password", "the address without the port");
+    assert_eq!(line, "someone was turned away: that is not the password", "nobody is named by where they came from");
     assert_eq!(color, ALERT);
 }
 
