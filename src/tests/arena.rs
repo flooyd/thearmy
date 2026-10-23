@@ -526,3 +526,39 @@ fn a_citadel_that_was_already_cleared_in_an_older_save_arms_again_at_once() {
     let news = citadel_step(&mut world, away, 0.016, 0);
     assert!(news.citadel_rearmed && !news.citadel && world.0[0].state == SiteState::Dormant);
 }
+
+#[test]
+fn the_camera_goes_to_the_boss_and_out_a_little_and_comes_back_for_anyone() {
+    let boss = boss_of("The Eclipse", 800, MIDDLE);
+    let mut intro = Intro::new(&boss);
+    let player = Vec2::new(MIDDLE.x - 2000.0, MIDDLE.y + 300.0);
+    //(it starts and ends on the player, as they were)
+    let (at, zoom) = intro.view(player, 1.2);
+    assert_eq!((at, zoom), (player, 1.2));
+    let mut farthest = 0.0f32;
+    let mut closest_zoom = 1.2f32;
+    while !intro.over() {
+        intro.age += 0.01;
+        let (at, zoom) = intro.view(player, 1.2);
+        //it is on the line from the player to the boss, and never goes past the boss
+        assert!(at.distance(player) <= player.distance(boss.position) + 1e-3);
+        assert!((at - player).normalize_or_zero().perp_dot((boss.position - player).normalize()).abs() < 1e-3);
+        assert!(zoom <= 1.2 + 1e-6 && zoom >= 1.2 * (1.0 - INTRO_ZOOM_OUT) - 1e-6);
+        farthest = farthest.max(at.distance(player));
+        closest_zoom = closest_zoom.min(zoom);
+    }
+    assert!(farthest > player.distance(boss.position) * 0.99, "it gets to the boss: {farthest}");
+    assert!(closest_zoom < 1.2 * (1.0 - INTRO_ZOOM_OUT) * 1.01, "and goes out as far as it should: {closest_zoom}");
+    let (at, zoom) = intro.view(player, 1.2);
+    assert!(at.distance(player) < 1.0 && (zoom - 1.2).abs() < 0.01, "and it is back");
+}
+
+#[test]
+fn a_boss_is_new_until_it_has_been_hurt() {
+    let mut boss = boss_of("The Eclipse", 800, MIDDLE);
+    let enemies = vec![boss.clone()];
+    assert!(family_health(&enemies, &boss) > FRESH_BOSS, "one that has just come is");
+    boss.health *= 0.5;
+    let enemies = vec![boss.clone()];
+    assert!(family_health(&enemies, &boss) < FRESH_BOSS, "one that has been fought is not");
+}

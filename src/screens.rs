@@ -307,6 +307,13 @@ impl Intro {
         let t = (self.age / INTRO_SECONDS).clamp(0.0, 1.0);
         smooth(0.0, 0.3, t) * (1.0 - smooth(0.78, 1.0, t))
     }
+
+    //where the camera is and how far in it is during the entrance, for a player at `player` who is zoomed to `zoom`: it goes to the boss, and out a
+    //little to see more
+    pub(crate) fn view(&self, player: Vec2, zoom: f32) -> (Vec2, f32) {
+        let ease = self.ease();
+        (player.lerp(self.at, ease), zoom * (1.0 - INTRO_ZOOM_OUT * ease))
+    }
 }
 
 //the name of the boss across the screen, with bars above and below like a film

@@ -18,6 +18,8 @@ are the fonts.
   formations (`F`) change how the rest of the army follows you: a ring with you safe in the middle, a wedge, or a line.
 - **Survive bosses.** Seven bosses with several phases each, plus the Sovereign. They raise barriers, call meteors, charge,
   slam and mark the ground in red. When you hear "get out of the red", walk. Slaying one gives you a choice of relics.
+  A boss makes an entrance: the camera goes to it and back, with its name across the screen (`Space` skips it). Playing alone the
+  world crawls meanwhile; with others it can't be slowed for one of you, so you keep steering and the entrance ends early if your army is in trouble.
 - **Break hordes.** Hordes (Swarm Tide, Iron Column, Wildfire, Stampede, Titan March and more) are announced on screen and
   an arrow shows where they come from. Break one and it drops a bronze, silver or gold chest: wall points, recruits, a
   champion and, from gold, a choice of relic.

@@ -1,6 +1,6 @@
 [package]
 name = "mygame"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 
 #without this a debug build drops to about 60 fps when zoomed all the way out, too slow for a 120hz display (and at 13,000 units, level 1 was not enough)
@@ -35,3 +35,7 @@ serde_json = "1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }
+
+#the graphics library with one change (see vendor/README.md): without it, text now and then turns into black blocks
+[patch.crates-io]
+miniquad = { path = "vendor/miniquad" }

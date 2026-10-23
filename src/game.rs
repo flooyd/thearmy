@@ -152,6 +152,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
     let mut autosave_in = AUTOSAVE_SECONDS; //seconds until the game saves by itself
     let mut heartbeat_in = 0.0; //seconds until the next beat while the army is failing
     let mut beat = 0.0; //1 as the heart beats, fading
+    let mut peril_now = 0.0; //how badly the army was doing at the end of the last frame
     let mut pause: Option<Pause> = None; //the menu, while it is up
     let best = saves.load_high_scores().best(); //the score to beat
     //the run as it is now, to be kept
@@ -253,7 +254,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             }
         }
         //the world stands still while a relic is being chosen or the victory is shown, crawls while a boss makes its entrance,
-        //and freezes for a moment when one falls, with one player to wait for. with others in it nothing stops the world for one of them
+        //and freezes for a moment when one falls, with one player to wait for. with others in it nothing slows or stops the world for one of them
         let paused = sim.players.list[me].choice.is_some() || victory.is_some() || pause.is_some();
         let solo = sim.players.len() == 1;
         let stands_still = guest.is_none() && world_stands_still(sim.players.len(), paused);
@@ -325,20 +326,26 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                 }
             }
         }
+        //(with others in the world it can't be slowed for one of them, so a boss's entrance there is the camera going to it and nothing else: the player is
+        //not held, and it is cut short if their army is in trouble)
+        if !solo && peril_now > 0.0 {
+            intro = None;
+        }
         let entrance = intro.is_some() && !paused;
+        let held = entrance && solo;
         if !paused {
             stillness.tick(real_dt);
         }
         let pace = if stands_still {
             0.0
-        } else if entrance {
+        } else if held {
             INTRO_PACE
         } else {
             stillness.pace()
         };
         let dt = real_dt * pace;
-        //the player is held still for the entrance, and can skip it
-        let player_dt = if entrance { 0.0 } else { dt };
+        //the player alone is held still for the entrance, and anyone can skip it
+        let player_dt = if held { 0.0 } else { dt };
         if let Some(shown) = intro.as_mut() {
             shown.age += real_dt;
         }
@@ -371,7 +378,12 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                 sim.players.list[me].offer(RelicChoice::rare());
             }
         }
-        let acting = !paused && !entrance;
+        let acting = !paused && !held;
+        //(what the mouse points at is what the camera is looking at, which is not the player while an entrance goes on)
+        let (look_at, look_zoom) = match &intro {
+            Some(shown) if entrance => shown.view(at, zoom),
+            _ => (at, zoom),
+        };
         if acting && is_key_pressed(KeyCode::F) {
             settings.formation = settings.formation.next();
             saves.save_settings(settings);
@@ -379,7 +391,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             feedback.fx.popup(at, RADIUS * 3.0, 0.0, format!("{} FORMATION", settings.formation.name().to_uppercase()), CYAN);
         }
         let input = if acting {
-            controls.read(&ControlView { position: at, zoom, screen, formation: settings.formation, map: &map, enemies: &sim.enemies })
+            controls.read(&ControlView { position: look_at, zoom: look_zoom, screen, formation: settings.formation, map: &map, enemies: &sim.enemies })
         } else {
             PlayerInput::idle(settings.formation, screen)
         };
@@ -389,7 +401,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         //the world: stepped here, or by the host of a game that is another's
         let input = PlayerInput { relic, ..input };
         let Step { events, report } = match guest.as_mut() {
-            Some(seat) => Step { events: seat.frame(&mut sim, &input, zoom, real_dt), report: seat.report(&sim) },
+            Some(seat) => Step { events: seat.frame(&mut sim, &input, look_zoom, real_dt), report: seat.report(&sim) },
             None => {
                 let step = sim.step(table.inputs(&sim, input, real_dt), Pace { real_dt, dt, player_dt, stands_still }, rules);
                 if let Link::Host(host) = &*link {
@@ -415,8 +427,8 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                 let family = boss.boss.as_ref().map(|state| state.family);
                 if family != shown_boss {
                     shown_boss = family;
-                    //(an entrance slows the world, and there is no slowing it for one of several)
-                    if solo {
+                    //(not one that has been fought for a while: it is not new to a player who joins late)
+                    if family_health(&sim.enemies, boss) > FRESH_BOSS {
                         intro = Some(Intro::new(boss));
                     }
                 }
@@ -484,6 +496,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
 
         //a failing army has a heart that beats faster the closer it is to the end
         let in_peril = peril(my_army, sim.run.peak_army);
+        peril_now = in_peril;
         beat = (beat - real_dt * 3.0f32).max(0.0);
         if in_peril > 0.0 && !paused {
             heartbeat_in -= real_dt;
@@ -502,7 +515,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         sounds.tune_music(&Mood { army: my_army, danger: (chasing as f32 / MUSIC_DANGER_ENEMIES).min(1.0), boss: current_boss(&sim.enemies).is_some(), peril: in_peril }, real_dt);
         //the camera goes to the boss and back during its entrance
         let (camera_at, camera_zoom) = match &intro {
-            Some(shown) if entrance => (player.lerp(shown.at, shown.ease()), zoom * (1.0 - 0.35 * shown.ease())),
+            Some(shown) if entrance => shown.view(player, zoom),
             _ => (player, zoom),
         };
         //units off screen don't leave trails, nobody would see them
