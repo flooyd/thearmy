@@ -76,10 +76,10 @@ mod world;
 
 use prelude::*;
 
-//the window starts filling the screen, unless the player turned that off in the settings or `THE_ARMY_WINDOWED` is set (which a
-//game being tried out sets, so it doesn't take the screen over)
+//the window starts filling the screen, whatever size the screen is and however the last game was left (F11 and the menu take it out of fullscreen for the game
+//being played, and no further), unless `THE_ARMY_WINDOWED` is set (which a game being tried out sets, so it doesn't take the screen over)
 fn starts_fullscreen() -> bool {
-    std::env::var_os("THE_ARMY_WINDOWED").is_none() && Saves::in_home().load_settings().fullscreen
+    std::env::var_os("THE_ARMY_WINDOWED").is_none()
 }
 
 fn window_conf() -> Conf {

@@ -130,7 +130,7 @@ pub(crate) fn explain_in(act: Act, settings: &Settings, mode: MenuMode) -> &'sta
         Act::Load => "go back to the save: F9 does the same",
         Act::Title | Act::Quit => "the run is kept, and carried on from the title screen next time",
         Act::Shake => "how far the screen shakes and the camera jumps in for big moments",
-        Act::Fullscreen => "F11 does the same",
+        Act::Fullscreen => "F11 does the same. the game always starts full screen",
         Act::Colours => "blue and orange where the game uses green and red",
         Act::UnitShape => settings.unit_shape.blurb(),
         Act::Hints => "tips at the start of a run",

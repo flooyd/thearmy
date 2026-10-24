@@ -58,7 +58,7 @@ You are a stick figure that runs: facing you going down, showing its back going 
 | `Tab` | minimap: near or world |
 | `M` / `N` | mute / music on or off |
 | `F5` / `F9` | quick save / quick load |
-| `F11` | fullscreen |
+| `F11` | fullscreen on or off (the game always starts fullscreen) |
 | `Space` | skip a boss's entrance |
 | `1 2 3` | choose a relic |
 | `Esc` | menu (settings, controls, save, load) |

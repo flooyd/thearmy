@@ -114,7 +114,7 @@ pub(crate) struct Settings {
     pub(crate) effects: f32, //0 to 1, how loud the sounds are next to the music
     pub(crate) music: f32,   //0 to 1, how loud the music is
     pub(crate) shake: f32,   //0 to 1, how much the screen shakes and the camera jumps in for big moments
-    pub(crate) fullscreen: bool, //whether the game starts filling the screen
+    pub(crate) fullscreen: bool, //whether the window fills the screen now (it starts that way every time, and this is only kept as the game was left)
     pub(crate) colourblind: bool,
     pub(crate) difficulty: Difficulty,
     pub(crate) hints: bool,
