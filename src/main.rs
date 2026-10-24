@@ -66,6 +66,7 @@ mod squads;
 mod sync;
 mod team;
 mod textfield;
+mod titlescene;
 mod ui;
 mod units;
 mod viewer;

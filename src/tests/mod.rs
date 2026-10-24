@@ -54,6 +54,7 @@ mod shortcuts;
 mod sound;
 mod squads;
 mod team;
+mod titlescene;
 mod trails;
 mod variety;
 mod wilds;

@@ -52,6 +52,7 @@ pub(crate) use crate::squads::*;
 pub(crate) use crate::sync::*;
 pub(crate) use crate::team::*;
 pub(crate) use crate::textfield::*;
+pub(crate) use crate::titlescene::*;
 pub(crate) use crate::ui::*;
 pub(crate) use crate::units::*;
 pub(crate) use crate::viewer::*;

@@ -1,4 +1,4 @@
-//! the splash screen, the defeat screen, a boss's entrance and the victory screen
+//! the splash screen, the defeat screen, a boss's entrance and the victory screen (the picture on the splash screen is titlescene.rs)
 
 use crate::prelude::*;
 
@@ -54,9 +54,10 @@ fn draw_stats(rows: &[(&str, String)], x: f32, top: f32, row_height: f32, alpha:
 
 //the title and, under it, the prompt, which fades in and out so it is clear the game is waiting. time is how many seconds
 //the screen has been up. with a save to go on from the prompt says so, and what is in it. `problem` is shown if the last
-//attempt to load one went wrong
-pub(crate) fn draw_splash(time: f32, saved: Option<&SaveInfo>, problem: Option<&str>, best: u64, mouse: Vec2) {
+//attempt to load one went wrong. the scene of the army, its enemies and the Sovereign is drawn behind it, with the units as `shape`
+pub(crate) fn draw_splash(time: f32, saved: Option<&SaveInfo>, problem: Option<&str>, best: u64, mouse: Vec2, scene: &mut TitleScene, shape: UnitShape) {
     draw_backdrop(time);
+    scene.draw(time, mouse, shape);
     let center_x = screen_width() / 2.0;
     let title = "THE ARMY";
     let title_size = fit_size(title, (screen_height() * 0.2).round(), screen_width() * 0.9, Face::Header);
@@ -147,10 +148,11 @@ pub(crate) async fn show_splash(saves: &Saves, settings: &mut Settings, notice: 
     let mut problem: Option<String> = notice;
     let best = saves.load_high_scores().best();
     let mut time = 0.0;
+    let mut scene = TitleScene::new();
     loop {
         quit_if_asked();
         let mouse = Vec2::from(mouse_position());
-        draw_splash(time, saved.as_ref().map(|(_, info)| info), problem.as_deref(), best, mouse);
+        draw_splash(time, saved.as_ref().map(|(_, info)| info), problem.as_deref(), best, mouse, &mut scene, settings.unit_shape);
         //(Escape or the button closes the game, from here as from anywhere else)
         if is_key_pressed(KeyCode::Escape) || (is_mouse_button_pressed(MouseButton::Left) && quit_button().contains(mouse)) {
             std::process::exit(0);
@@ -187,6 +189,7 @@ pub(crate) async fn show_splash(saves: &Saves, settings: &mut Settings, notice: 
                 _ => {}
             }
         }
+        scene.update(get_frame_time());
         time += get_frame_time();
         next_frame().await;
     }
