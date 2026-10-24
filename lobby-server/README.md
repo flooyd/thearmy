@@ -36,7 +36,7 @@ Everyone who should see each other's games has to use the same lobby server, whi
 
 ```json
 { "games": [ { "id": "83f9eb132fe4221a", "name": "Ann", "address": "93.184.216.34", "port": 47821,
-               "players": 1, "max": 4, "locked": true, "started": false, "version": "0.2.3", "age": 12 } ],
+               "players": 1, "max": 4, "locked": true, "started": false, "version": "0.2.4", "age": 12 } ],
   "now": 1700000000000, "ttl": 90, "store": "upstash" }
 ```
 
