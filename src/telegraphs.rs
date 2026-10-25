@@ -206,6 +206,14 @@ pub(crate) fn hatch_of(circle: Option<BossCircle>) -> Option<(f32, bool, f32)> {
         BossCircle::Beam => (90.0, false, 12.0),
         BossCircle::Cleave => (0.0, false, 18.0),
         BossCircle::GravityRing => (45.0, true, 34.0),
+        BossCircle::Acid => (135.0, true, 24.0),
+        BossCircle::Rush => (0.0, false, 14.0),
+        BossCircle::Whirlwind => (45.0, false, 30.0),
+        BossCircle::Leap => (135.0, false, 32.0),
+        BossCircle::Twin => (90.0, true, 28.0),
+        BossCircle::Barrage => (90.0, false, 26.0),
+        BossCircle::Sweep => (0.0, true, 18.0),
+        BossCircle::Judgement => (45.0, true, 18.0),
     })
 }
 
@@ -335,6 +343,14 @@ fn edge_shape(position: Vec2, radius: f32, shape: Shape, thick: f32, color: Colo
 pub(crate) fn draw_hazards(hazards: &[Hazard], time: f32, zoom: f32) {
     for hazard in hazards {
         let (at, radius, shape) = (hazard.position, hazard.radius, hazard.shape);
+        //a mine that nothing has come near: a faint ring and a blinking light, which the army sees when it is close
+        if hazard.mine {
+            let blink = 0.5 + 0.5 * (time * 4.0 + at.x * 0.013).sin();
+            let tint = hazard.color;
+            draw_poly_lines(at.x, at.y, 20, radius, 0.0, 1.5 / zoom.max(0.01), Color::new(tint.r, tint.g, tint.b, 0.2));
+            draw_circle(at.x, at.y, (radius * 0.12).max(4.0), Color::new(1.0, 0.25, 0.2, 0.25 + 0.5 * blink));
+            continue;
+        }
         if hazard.armed {
             let filled = 1.0 - (hazard.warn / hazard.warn_total).clamp(0.0, 1.0);
             let pulse = 0.5 + 0.5 * (time * 12.0).sin();
@@ -366,8 +382,10 @@ pub(crate) fn draw_hazards(hazards: &[Hazard], time: f32, zoom: f32) {
         if hazard.linger > 0.0 {
             let flicker = 0.5 + 0.5 * (time * 9.0 + at.x * 0.01).sin();
             let fade = hazard.linger.min(1.0);
-            fill_shape(at, radius, shape, 1.0, Color::new(1.0, 0.45, 0.1, (0.16 + 0.1 * flicker) * fade));
-            edge_shape(at, radius, shape, 4.0, Color::new(1.0, 0.6, 0.15, (0.5 + 0.3 * flicker) * fade));
+            //(in its own colour: a fire's orange, a curse's purple)
+            let tint = hazard.color;
+            fill_shape(at, radius, shape, 1.0, Color::new(tint.r, tint.g * 0.9, tint.b, (0.16 + 0.1 * flicker) * fade));
+            edge_shape(at, radius, shape, 4.0, Color::new((tint.r + 0.1).min(1.0), (tint.g + 0.1).min(1.0), (tint.b + 0.05).min(1.0), (0.5 + 0.3 * flicker) * fade));
         }
     }
 }
@@ -397,7 +415,7 @@ pub(crate) fn edge_marks(hazards: &[Hazard], player: Vec2, zoom: f32, screen: Ve
     let mut marks: Vec<(Vec2, Color, String)> = Vec::new();
     let mut groups: Vec<u32> = Vec::new();
     for hazard in hazards.iter().filter(|hazard| {
-        hazard.armed && hazard.damage >= UNIT_HEALTH && hazard.warn_total >= BLAST_WARNING_MIN_SECONDS && hazard.circle != Some(BossCircle::Meteor) && (hazard.circle.is_some() || hazard.radius >= EDGE_MARK_SIZE)
+        hazard.armed && !hazard.mine && hazard.damage >= UNIT_HEALTH && hazard.warn_total >= BLAST_WARNING_MIN_SECONDS && hazard.circle != Some(BossCircle::Meteor) && (hazard.circle.is_some() || hazard.radius >= EDGE_MARK_SIZE)
     }) {
         let reach = hazard.radius;
         let offset = hazard.position - player;
@@ -431,7 +449,7 @@ pub(crate) fn tick_gap(seconds: f32) -> f32 {
 //the warning's headline: what to get out of, named by its colour and, when it is not a circle, its shape and what to do
 pub(crate) fn warning_title(warning: &BlastWarning) -> String {
     let colour = warning.circle.map_or("RED", BossCircle::colour_name);
-    let thing = match warning.shape.words() {
+    let thing = match warning.circle.and_then(BossCircle::title_words).or(warning.shape.words()) {
         Some((word, what)) => format!("{colour} {word}: {what}"),
         None => colour.to_string(),
     };

@@ -528,7 +528,7 @@ pub(crate) fn read_shot(input: &mut Reader) -> Option<Shot> {
     Some(shot)
 }
 
-const ALL_CIRCLES: [BossCircle; 10] = [
+const ALL_CIRCLES: [BossCircle; 18] = [
     BossCircle::Slam,
     BossCircle::Meteor,
     BossCircle::Nova,
@@ -539,6 +539,14 @@ const ALL_CIRCLES: [BossCircle; 10] = [
     BossCircle::Beam,
     BossCircle::Cleave,
     BossCircle::GravityRing,
+    BossCircle::Acid,
+    BossCircle::Rush,
+    BossCircle::Whirlwind,
+    BossCircle::Leap,
+    BossCircle::Twin,
+    BossCircle::Barrage,
+    BossCircle::Sweep,
+    BossCircle::Judgement,
 ];
 const SHAPE_MOST: f32 = 50_000.0; //a size of a shape a message tells of that is bigger than this is not believed
 
@@ -605,6 +613,7 @@ pub(crate) fn write_hazard(out: &mut Writer, hazard: &Hazard) {
     out.u8(hazard.circle.map_or(0, |circle| 1 + ALL_CIRCLES.iter().position(|&other| other == circle).unwrap_or(0) as u8));
     write_shape(out, hazard.shape);
     out.u32(hazard.group);
+    out.u8(hazard.mine as u8 | (hazard.hex as u8) << 1);
 }
 
 pub(crate) fn read_hazard(input: &mut Reader) -> Option<Hazard> {
@@ -621,9 +630,15 @@ pub(crate) fn read_hazard(input: &mut Reader) -> Option<Hazard> {
     };
     let shape = read_shape(input)?;
     let group = input.u32()?;
+    let kind = input.u8()?;
+    if kind > 3 {
+        return None;
+    }
     let mut hazard = Hazard::new(position, radius, warn, damage, victims, color, Cue::Pop);
     hazard.shape = shape;
     hazard.group = group;
+    hazard.mine = kind & 1 != 0;
+    hazard.hex = kind & 2 != 0;
     hazard.armed = armed;
     hazard.warn_total = warn_total;
     hazard.linger = linger;

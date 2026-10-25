@@ -375,6 +375,7 @@ pub(crate) struct Unit {
     pub(crate) power: f32,         //a champion's timer: seconds until its power goes off, or until it can rise again
     pub(crate) might: f32,         //how many units' damage it does by touch, worked out each frame by apply_champions
     pub(crate) ward: f32,          //the share of the damage that reaches it, likewise, 1 for an ordinary unit
+    pub(crate) hexed: f32,         //seconds left of a hexer's curse on it, while which it takes HEX_EXTRA more harm
     pub(crate) level: u8,          //0 for an ordinary unit, otherwise the champion's level, from 1
     pub(crate) xp: f32,            //a champion's experience towards its next level
     pub(crate) evolutions: u8,     //a champion's evolutions: two bits for each of EVOLUTION_LEVELS, 0 for none chosen yet, 1 or 2 for the way chosen
@@ -395,7 +396,7 @@ impl Unit {
     //shield from the Aegis relic takes it first
     pub(crate) fn hurt(&mut self, damage: f32) {
         self.calm = 0.0;
-        let damage = damage * self.ward;
+        let damage = damage * self.ward * if self.hexed > 0.0 { 1.0 + HEX_EXTRA } else { 1.0 };
         let soaked = damage.min(self.guard);
         self.guard -= soaked;
         self.health -= damage - soaked;
@@ -421,6 +422,7 @@ impl Unit {
             power: 0.0,
             might: 1.0,
             ward: 1.0,
+            hexed: 0.0,
             level: 0,
             xp: 0.0,
             evolutions: 0,
@@ -441,6 +443,7 @@ pub(crate) fn heal_units(units: &mut [Unit], dt: f32, upgrades: &Upgrades) {
     for unit in units.iter_mut() {
         unit.calm += dt;
         unit.age += dt;
+        unit.hexed = (unit.hexed - dt).max(0.0);
         if upgrades.guard > 0.0 && unit.calm >= AEGIS_CALM_SECONDS && unit.guard < upgrades.guard {
             unit.guard = upgrades.guard;
         }
@@ -592,6 +595,7 @@ impl Unit {
             power: 0.0,
             might: 1.0,
             ward: 1.0,
+            hexed: 0.0,
             level: 0,
             xp: 0.0,
             evolutions: 0,

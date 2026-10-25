@@ -41,8 +41,9 @@ fn only_the_front_of_the_army_fires_and_only_ahead_of_it() {
     let units = block();
     let bolts = plain(&units, &[post(MIDDLE + Vec2::new(700.0, 0.0))], Vec2::X);
     assert!(bolts.len() > 20, "{} bolts", bolts.len());
-    //the front 30% of 570 pixels of depth: from 99 pixels ahead of the player, and a unit's radius on for the muzzle
-    assert!(bolts.iter().all(|bolt| bolt.position.x >= MIDDLE.x + 99.0), "{:?}", bolts.iter().map(|bolt| bolt.position.x - MIDDLE.x).fold(f32::MAX, f32::min));
+    //the front GUNNERY_FRONT_SHARE of 570 pixels of depth, from the front at 270 (and a unit's radius on for the muzzle)
+    let line = 270.0 - GUNNERY_FRONT_SHARE * 570.0;
+    assert!(bolts.iter().all(|bolt| bolt.position.x >= MIDDLE.x + line), "{:?}", bolts.iter().map(|bolt| bolt.position.x - MIDDLE.x).fold(f32::MAX, f32::min));
     assert!(bolts.iter().all(|bolt| bolt.velocity.x > 0.0 && bolt.kind == BoltKind::Tracer));
     assert!(plain(&units, &[post(MIDDLE + Vec2::new(-900.0, 0.0))], Vec2::X).is_empty(), "an enemy behind the army is never shot");
 }
@@ -54,14 +55,15 @@ fn the_fire_turns_with_the_army() {
     assert!(plain(&units, &behind_now, -Vec2::X).is_empty());
     let bolts = plain(&units, &[post(MIDDLE + Vec2::new(-900.0, 0.0))], -Vec2::X);
     assert!(!bolts.is_empty());
-    assert!(bolts.iter().all(|bolt| bolt.position.x <= MIDDLE.x - 129.0 + 0.5 && bolt.velocity.x < 0.0), "the front is the other side now");
+    let line = 300.0 - GUNNERY_FRONT_SHARE * 570.0;
+    assert!(bolts.iter().all(|bolt| bolt.position.x <= MIDDLE.x - line + 0.5 && bolt.velocity.x < 0.0), "the front is the other side now");
 }
 
 #[test]
 fn with_nothing_ahead_in_reach_it_holds_its_fire() {
     let units = block();
-    assert!(plain(&units, &[post(MIDDLE + Vec2::new(0.0, 400.0))], Vec2::X).is_empty(), "off to the side");
-    assert!(plain(&units, &[post(MIDDLE + Vec2::new(1800.0, 0.0))], Vec2::X).is_empty(), "too far ahead");
+    assert!(plain(&units, &[post(MIDDLE + Vec2::new(-400.0, 400.0))], Vec2::X).is_empty(), "off to the side and behind the gunners");
+    assert!(plain(&units, &[post(MIDDLE + Vec2::new(2400.0, 0.0))], Vec2::X).is_empty(), "too far ahead");
     assert!(plain(&units, &[], Vec2::X).is_empty());
 }
 
@@ -137,7 +139,7 @@ fn the_vanguards_relics_and_a_wedge_make_it_fire_more_often_further_and_through_
     assert!(wedge.len() as f32 > base.len() as f32 * 1.15, "{} against {}", wedge.len(), base.len());
     assert!(base.iter().all(|bolt| bolt.pierce == 0));
     assert!(fire_for(&units, &enemy, Vec2::X, Formation::Free, &with(Relic::ChainShot), 1.0, 1.0).iter().all(|bolt| bolt.pierce == 1));
-    let far = [post(MIDDLE + Vec2::new(1600.0, 0.0))];
+    let far = [post(MIDDLE + Vec2::new(2100.0, 0.0))];
     assert!(fire_for(&units, &far, Vec2::X, Formation::Free, &Upgrades::default(), 1.0, 1.0).is_empty(), "out of sight");
     assert!(!fire_for(&units, &far, Vec2::X, Formation::Free, &with(Relic::TracerRounds), 1.0, 1.0).is_empty(), "and in sight with tracer rounds");
 }
@@ -165,7 +167,9 @@ fn the_bigger_the_army_the_further_its_front_sees_until_it_is_screen_wide_at_ten
     let ranges: Vec<f32> = [0, 100, 1000, 2500, 5000, GUNNERY_WIDE_ARMY].into_iter().map(gunnery_range).collect();
     assert!(ranges.windows(2).all(|pair| pair[0] < pair[1]), "{ranges:?}");
     assert_eq!(gunnery_range(GUNNERY_WIDE_ARMY), GUNNERY_WIDE_RANGE);
-    assert_eq!(gunnery_range(50000), GUNNERY_WIDE_RANGE, "and no further");
+    assert!(gunnery_range(30000) > GUNNERY_WIDE_RANGE && gunnery_range(30000) < GUNNERY_HUGE_RANGE, "it goes on growing, more slowly");
+    assert_eq!(gunnery_range(GUNNERY_HUGE_ARMY), GUNNERY_HUGE_RANGE);
+    assert_eq!(gunnery_range(200000), GUNNERY_HUGE_RANGE, "and no further");
     //an enemy two thousand pixels past the front of the army: too far for a small one, in reach of one of ten thousand
     let small = block();
     assert!(plain(&small, &[post(MIDDLE + Vec2::new(2270.0, 0.0))], Vec2::X).is_empty());

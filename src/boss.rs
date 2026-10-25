@@ -19,6 +19,16 @@ pub(crate) enum Pattern {
     GravityRing, //a ring round itself with a safe middle: stand close
     Beams,       //a fan of beams out from itself, with gaps between them to stand in
     Cleave,      //a cone from itself at the army: get behind it or to its side
+    AcidRain,    //waves of small drops on the army: keep moving
+    ShieldRush,  //shows a lane, then charges down it behind its shield: step aside, take it from the side
+    Whirlwind,   //a storm out through the army, a circle at a time along a bending path: read the path
+    Leap,        //crouches, showing where it will land, and lands there
+    Sweep,       //wedge after wedge round itself, as though a beam turned, with a gap: find the gap
+    BlackHole,   //a well in the army that drags it in and goes off where it has gathered it
+    TwinSlam,    //two slams at once, on two parts of the army far apart
+    Surge,       //brood after brood at once
+    Barrage,     //waves of lines of shells across the army
+    Judgement,   //four in a set order: a ring (stand close), its middle (get out), a cleave (get behind), two slams (get out of both)
 }
 
 //a pattern and how many seconds between one use and the next
@@ -61,9 +71,9 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         color: Color::new(0.78, 0.85, 0.2, 1.0),
         size: 150.0,
         growth: 15.0,
-        kill_seconds: 6.0,
+        kill_seconds: 6.6,
         speed: 95.0,
-        attack_share: 0.012,
+        attack_share: 0.0132,
         babies_share: 0.6,
         min_army: 100,
         minion: "Imp",
@@ -74,8 +84,8 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         flank: false,
         phases: &[
             Phase { name: "the brood stirs", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Brood, every: 7.0 }, Cast { pattern: Pattern::Ring, every: 9.0 }] },
-            Phase { name: "acid rain", below: 0.6, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Brood, every: 5.0 }, Cast { pattern: Pattern::Burn, every: 8.0 }, Cast { pattern: Pattern::Ring, every: 7.0 }] },
-            Phase { name: "frenzy", below: 0.25, shield: 0.0, speed: 1.4, casts: &[Cast { pattern: Pattern::Brood, every: 3.5 }, Cast { pattern: Pattern::Burn, every: 6.0 }, Cast { pattern: Pattern::Meteors, every: 7.0 }] },
+            Phase { name: "acid rain", below: 0.6, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Brood, every: 5.0 }, Cast { pattern: Pattern::Burn, every: 8.0 }, Cast { pattern: Pattern::Ring, every: 7.0 }, Cast { pattern: Pattern::AcidRain, every: 8.0 }] },
+            Phase { name: "frenzy", below: 0.25, shield: 0.0, speed: 1.4, casts: &[Cast { pattern: Pattern::Brood, every: 3.5 }, Cast { pattern: Pattern::Burn, every: 6.0 }, Cast { pattern: Pattern::Meteors, every: 7.0 }, Cast { pattern: Pattern::AcidRain, every: 6.5 }] },
         ],
     },
     BossDef {
@@ -83,9 +93,9 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         color: Color::new(0.45, 0.6, 0.85, 1.0),
         size: 200.0,
         growth: 18.0,
-        kill_seconds: 6.0,
+        kill_seconds: 6.6,
         speed: 60.0,
-        attack_share: 0.012,
+        attack_share: 0.0132,
         babies_share: 0.7,
         min_army: 200,
         minion: "Bulwark",
@@ -95,9 +105,10 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         keeps_away: 0.0,
         flank: false,
         phases: &[
-            Phase { name: "shields up", below: 1.0, shield: 0.2, speed: 1.0, casts: &[Cast { pattern: Pattern::Slam, every: 6.0 }, Cast { pattern: Pattern::Meteors, every: 9.0 }] },
-            Phase { name: "reinforced", below: 0.65, shield: 0.3, speed: 1.0, casts: &[Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Ring, every: 6.0 }, Cast { pattern: Pattern::Brood, every: 10.0 }, Cast { pattern: Pattern::Piston, every: 7.0 }] },
+            Phase { name: "shields up", below: 1.0, shield: 0.2, speed: 1.0, casts: &[Cast { pattern: Pattern::Slam, every: 6.0 }, Cast { pattern: Pattern::Meteors, every: 9.0 }, Cast { pattern: Pattern::ShieldRush, every: 8.0 }] },
+            Phase { name: "reinforced", below: 0.65, shield: 0.3, speed: 1.0, casts: &[Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Ring, every: 6.0 }, Cast { pattern: Pattern::Brood, every: 10.0 }, Cast { pattern: Pattern::Piston, every: 7.0 }, Cast { pattern: Pattern::ShieldRush, every: 7.5 }] },
             Phase { name: "overload", below: 0.3, shield: 0.0, speed: 1.3, casts: &[Cast { pattern: Pattern::Nova, every: 8.0 }, Cast { pattern: Pattern::Slam, every: 4.0 }, Cast { pattern: Pattern::Meteors, every: 6.0 }, Cast { pattern: Pattern::Piston, every: 6.0 }] },
+            Phase { name: "meltdown", below: 0.24, shield: 0.0, speed: 1.5, casts: &[Cast { pattern: Pattern::ShieldRush, every: 4.5 }, Cast { pattern: Pattern::Piston, every: 5.0 }, Cast { pattern: Pattern::Nova, every: 7.0 }, Cast { pattern: Pattern::Slam, every: 4.0 }] },
         ],
     },
     BossDef {
@@ -105,9 +116,9 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         color: Color::new(0.85, 0.3, 0.15, 1.0),
         size: 130.0,
         growth: 13.0,
-        kill_seconds: 6.0,
+        kill_seconds: 6.6,
         speed: 120.0,
-        attack_share: 0.02,
+        attack_share: 0.022,
         babies_share: 0.7,
         min_army: 350,
         minion: "Swarmer",
@@ -117,9 +128,10 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         keeps_away: 0.0,
         flank: false,
         phases: &[
-            Phase { name: "the charge", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Charge, every: 5.0 }, Cast { pattern: Pattern::Brood, every: 9.0 }] },
-            Phase { name: "stampede", below: 0.6, shield: 0.0, speed: 1.15, casts: &[Cast { pattern: Pattern::Charge, every: 3.5 }, Cast { pattern: Pattern::Slam, every: 7.0 }, Cast { pattern: Pattern::Brood, every: 8.0 }, Cast { pattern: Pattern::Cleave, every: 6.0 }] },
-            Phase { name: "berserk", below: 0.25, shield: 0.0, speed: 1.5, casts: &[Cast { pattern: Pattern::Charge, every: 2.5 }, Cast { pattern: Pattern::Ring, every: 6.0 }, Cast { pattern: Pattern::Slam, every: 6.0 }, Cast { pattern: Pattern::Cleave, every: 5.0 }] },
+            Phase { name: "the charge", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Charge, every: 5.0 }, Cast { pattern: Pattern::Brood, every: 9.0 }, Cast { pattern: Pattern::Leap, every: 7.0 }] },
+            Phase { name: "stampede", below: 0.6, shield: 0.0, speed: 1.15, casts: &[Cast { pattern: Pattern::Charge, every: 3.5 }, Cast { pattern: Pattern::Slam, every: 7.0 }, Cast { pattern: Pattern::Brood, every: 8.0 }, Cast { pattern: Pattern::Cleave, every: 6.0 }, Cast { pattern: Pattern::Whirlwind, every: 8.0 }] },
+            Phase { name: "berserk", below: 0.36, shield: 0.0, speed: 1.5, casts: &[Cast { pattern: Pattern::Charge, every: 2.5 }, Cast { pattern: Pattern::Ring, every: 6.0 }, Cast { pattern: Pattern::Slam, every: 6.0 }, Cast { pattern: Pattern::Cleave, every: 5.0 }, Cast { pattern: Pattern::Leap, every: 5.5 }, Cast { pattern: Pattern::Whirlwind, every: 6.5 }] },
+            Phase { name: "rampage", below: 0.24, shield: 0.0, speed: 1.7, casts: &[Cast { pattern: Pattern::Leap, every: 4.0 }, Cast { pattern: Pattern::Whirlwind, every: 5.0 }, Cast { pattern: Pattern::Cleave, every: 4.0 }, Cast { pattern: Pattern::Charge, every: 2.2 }] },
         ],
     },
     BossDef {
@@ -127,9 +139,9 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         color: Color::new(0.6, 0.3, 0.95, 1.0),
         size: 220.0,
         growth: 17.0,
-        kill_seconds: 7.0,
+        kill_seconds: 7.7,
         speed: 80.0,
-        attack_share: 0.012,
+        attack_share: 0.0132,
         babies_share: 0.8,
         min_army: 600,
         minion: "Drone",
@@ -139,9 +151,10 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         keeps_away: 0.0,
         flank: false,
         phases: &[
-            Phase { name: "the light fails", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Meteors, every: 5.0 }, Cast { pattern: Pattern::Nova, every: 11.0 }] },
+            Phase { name: "the light fails", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Meteors, every: 5.0 }, Cast { pattern: Pattern::Nova, every: 11.0 }, Cast { pattern: Pattern::BlackHole, every: 12.0 }] },
             Phase { name: "totality", below: 0.66, shield: 0.15, speed: 1.0, casts: &[Cast { pattern: Pattern::Meteors, every: 4.5 }, Cast { pattern: Pattern::Brood, every: 8.0 }, Cast { pattern: Pattern::Burn, every: 8.0 }, Cast { pattern: Pattern::Beams, every: 8.0 }] },
-            Phase { name: "oblivion", below: 0.33, shield: 0.0, speed: 1.25, casts: &[Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Nova, every: 7.0 }, Cast { pattern: Pattern::Meteors, every: 4.0 }, Cast { pattern: Pattern::Ring, every: 5.0 }, Cast { pattern: Pattern::Beams, every: 7.0 }] },
+            Phase { name: "oblivion", below: 0.33, shield: 0.0, speed: 1.25, casts: &[Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Nova, every: 7.0 }, Cast { pattern: Pattern::Meteors, every: 4.0 }, Cast { pattern: Pattern::Ring, every: 5.0 }, Cast { pattern: Pattern::Beams, every: 7.0 }, Cast { pattern: Pattern::Sweep, every: 8.0 }] },
+            Phase { name: "the void", below: 0.24, shield: 0.1, speed: 1.3, casts: &[Cast { pattern: Pattern::Sweep, every: 5.5 }, Cast { pattern: Pattern::BlackHole, every: 7.0 }, Cast { pattern: Pattern::Beams, every: 6.0 }, Cast { pattern: Pattern::Meteors, every: 4.0 }] },
         ],
     },
     //tears in two when it is hurt, and each half does it again: four queens, each with a quarter of the health
@@ -150,9 +163,9 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         color: Color::new(0.92, 0.35, 0.65, 1.0),
         size: 120.0,
         growth: 12.5,
-        kill_seconds: 6.5,
+        kill_seconds: 7.15,
         speed: 90.0,
-        attack_share: 0.008,
+        attack_share: 0.0088,
         babies_share: 0.9,
         min_army: 700,
         minion: "Swarmer",
@@ -163,8 +176,8 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         flank: false,
         phases: &[
             Phase { name: "the swarm wakes", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Brood, every: 6.0 }, Cast { pattern: Pattern::Ring, every: 10.0 }] },
-            Phase { name: "she divides", below: 0.6, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Brood, every: 5.0 }, Cast { pattern: Pattern::Burn, every: 9.0 }, Cast { pattern: Pattern::Slam, every: 9.0 }] },
-            Phase { name: "a thousand wings", below: 0.3, shield: 0.0, speed: 1.2, casts: &[Cast { pattern: Pattern::Brood, every: 4.0 }, Cast { pattern: Pattern::Meteors, every: 8.0 }, Cast { pattern: Pattern::Ring, every: 7.0 }] },
+            Phase { name: "she divides", below: 0.6, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Brood, every: 5.0 }, Cast { pattern: Pattern::Burn, every: 9.0 }, Cast { pattern: Pattern::Slam, every: 9.0 }, Cast { pattern: Pattern::TwinSlam, every: 8.0 }] },
+            Phase { name: "a thousand wings", below: 0.3, shield: 0.0, speed: 1.2, casts: &[Cast { pattern: Pattern::Brood, every: 4.0 }, Cast { pattern: Pattern::Meteors, every: 8.0 }, Cast { pattern: Pattern::Ring, every: 7.0 }, Cast { pattern: Pattern::Surge, every: 10.0 }, Cast { pattern: Pattern::TwinSlam, every: 7.0 }] },
         ],
     },
     //drags the army in and goes off where it lands: walls hold the units back, and the player can outrun it
@@ -175,7 +188,7 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         growth: 14.0,
         kill_seconds: 7.0,
         speed: 70.0,
-        attack_share: 0.012,
+        attack_share: 0.0132,
         babies_share: 0.9,
         min_army: 900,
         minion: "Drone",
@@ -197,9 +210,9 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         color: Color::new(0.4, 0.75, 0.7, 1.0),
         size: 150.0,
         growth: 13.0,
-        kill_seconds: 8.0,
+        kill_seconds: 8.8,
         speed: 75.0,
-        attack_share: 0.01,
+        attack_share: 0.011,
         babies_share: 1.0,
         min_army: 1200,
         minion: "Spitter",
@@ -210,8 +223,8 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         flank: true,
         phases: &[
             Phase { name: "hold the line", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Volley, every: 3.6 }, Cast { pattern: Pattern::Fortify, every: 15.0 }] },
-            Phase { name: "crossfire", below: 0.6, shield: 0.1, speed: 1.0, casts: &[Cast { pattern: Pattern::Volley, every: 3.0 }, Cast { pattern: Pattern::Brood, every: 10.0 }, Cast { pattern: Pattern::Fortify, every: 12.0 }, Cast { pattern: Pattern::Meteors, every: 9.0 }] },
-            Phase { name: "no retreat", below: 0.3, shield: 0.0, speed: 1.25, casts: &[Cast { pattern: Pattern::Volley, every: 2.4 }, Cast { pattern: Pattern::Ring, every: 7.0 }, Cast { pattern: Pattern::Fortify, every: 10.0 }, Cast { pattern: Pattern::Slam, every: 7.0 }] },
+            Phase { name: "crossfire", below: 0.6, shield: 0.1, speed: 1.0, casts: &[Cast { pattern: Pattern::Volley, every: 3.0 }, Cast { pattern: Pattern::Brood, every: 10.0 }, Cast { pattern: Pattern::Fortify, every: 12.0 }, Cast { pattern: Pattern::Meteors, every: 9.0 }, Cast { pattern: Pattern::Barrage, every: 10.0 }] },
+            Phase { name: "no retreat", below: 0.3, shield: 0.0, speed: 1.25, casts: &[Cast { pattern: Pattern::Volley, every: 2.4 }, Cast { pattern: Pattern::Ring, every: 7.0 }, Cast { pattern: Pattern::Fortify, every: 10.0 }, Cast { pattern: Pattern::Slam, every: 7.0 }, Cast { pattern: Pattern::Barrage, every: 8.0 }] },
         ],
     },
 ];
@@ -223,9 +236,9 @@ pub(crate) static FINAL_BOSS: BossDef = BossDef {
     color: Color::new(0.92, 0.2, 0.3, 1.0),
     size: 240.0,
     growth: 17.0,
-    kill_seconds: 10.0,
+    kill_seconds: 11.0,
     speed: 85.0,
-    attack_share: 0.013,
+    attack_share: 0.0143,
     babies_share: 1.2,
     min_army: CITADEL_MIN_ARMY,
     minion: "Bulwark",
@@ -237,8 +250,8 @@ pub(crate) static FINAL_BOSS: BossDef = BossDef {
     phases: &[
         Phase { name: "the court assembles", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Brood, every: 8.0 }, Cast { pattern: Pattern::Slam, every: 6.0 }, Cast { pattern: Pattern::Meteors, every: 9.0 }] },
         Phase { name: "the crown burns", below: 0.75, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Pull, every: 10.0 }, Cast { pattern: Pattern::Burn, every: 8.0 }, Cast { pattern: Pattern::Ring, every: 7.0 }] },
-        Phase { name: "no mercy", below: 0.5, shield: 0.2, speed: 1.0, casts: &[Cast { pattern: Pattern::Fortify, every: 14.0 }, Cast { pattern: Pattern::Volley, every: 4.0 }, Cast { pattern: Pattern::Nova, every: 9.0 }, Cast { pattern: Pattern::Meteors, every: 6.0 }] },
-        Phase { name: "the sovereign falls", below: 0.25, shield: 0.0, speed: 1.3, casts: &[Cast { pattern: Pattern::Pull, every: 7.0 }, Cast { pattern: Pattern::Nova, every: 7.0 }, Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Meteors, every: 5.0 }, Cast { pattern: Pattern::Charge, every: 6.0 }] },
+        Phase { name: "no mercy", below: 0.5, shield: 0.2, speed: 1.0, casts: &[Cast { pattern: Pattern::Fortify, every: 14.0 }, Cast { pattern: Pattern::Volley, every: 4.0 }, Cast { pattern: Pattern::Nova, every: 9.0 }, Cast { pattern: Pattern::Meteors, every: 6.0 }, Cast { pattern: Pattern::Judgement, every: 14.0 }] },
+        Phase { name: "the sovereign falls", below: 0.25, shield: 0.0, speed: 1.3, casts: &[Cast { pattern: Pattern::Pull, every: 7.0 }, Cast { pattern: Pattern::Nova, every: 7.0 }, Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Meteors, every: 5.0 }, Cast { pattern: Pattern::Charge, every: 6.0 }, Cast { pattern: Pattern::Judgement, every: 11.0 }] },
     ],
 };
 
@@ -376,6 +389,12 @@ fn army_middle(units: &[Unit], player: Vec2) -> Vec2 {
     let step = (units.len() / 256).max(1);
     let (sum, count) = units.iter().step_by(step).fold((Vec2::ZERO, 0), |(sum, count), unit| (sum + Vec2::new(unit.x, unit.y), count + 1));
     sum / count as f32
+}
+
+//of the units of an army (256 of them, spread through it), the one furthest from a place, or the player when it has none
+fn far_from(units: &[Unit], from: Vec2, player: Vec2) -> Vec2 {
+    let step = (units.len() / 256).max(1);
+    units.iter().step_by(step).map(|unit| Vec2::new(unit.x, unit.y)).max_by(|a, b| a.distance_squared(from).total_cmp(&b.distance_squared(from))).unwrap_or(player)
 }
 
 //move a boss into its next phase: a pause in which it can't be hurt, a pulse that clears the army from round it, a new
@@ -523,6 +542,125 @@ pub(crate) fn cast_pattern(enemy: &mut Enemy, state: &mut BossState, pattern: Pa
             enemy.mode = Mode::Cast { left: warn + 0.3 };
             fx.cue(Cue::Warning);
         }
+        Pattern::AcidRain => {
+            let group = rand::rand() | 1;
+            let radius = ACID_RADIUS + root;
+            for wave in 0..ACID_WAVES {
+                for _ in 0..ACID_DROPS + tier + (army / ACID_DROPS_ARMY).min(ACID_DROPS_MORE) {
+                    let warn = BOSS_WARN_ACID + ACID_WAVE_GAP * wave as f32;
+                    fx.hazards.push(blast(in_army(ACID_SPREAD), radius, warn, 1.0, 0.03, army, state.tier, color, Cue::Explosion).vs_walls(enemy.scale).grouped(group).circle(BossCircle::Acid));
+                }
+            }
+            enemy.mode = Mode::Cast { left: 0.6 };
+            fx.cue(Cue::Warning);
+        }
+        Pattern::ShieldRush => {
+            let dir = (army_middle(units, player) - enemy.position).try_normalize().unwrap_or(Vec2::Y);
+            let length = CHARGE_SPEED * speed_multiplier(army) * CHARGE_TIME + enemy.size;
+            let width = enemy.size + RUSH_WIDTH + root;
+            let lane = blast(enemy.position + dir * length / 2.0, 0.0, BOSS_WARN_RUSH + CHARGE_TIME * 0.5, 1.0, 0.3, army, state.tier, color, Cue::Slam);
+            fx.hazards.push(lane.shaped(Shape::Rect { dir, length, width }).vs_walls(enemy.scale).circle(BossCircle::Rush));
+            enemy.mode = Mode::Windup { dir, left: BOSS_WARN_RUSH };
+            fx.cue(Cue::Warning);
+        }
+        Pattern::Whirlwind => {
+            let mut dir = (army_middle(units, player) - enemy.position).try_normalize().unwrap_or(Vec2::Y);
+            let bend = Vec2::from_angle(rand::gen_range(-WHIRL_BEND, WHIRL_BEND));
+            let radius = WHIRL_RADIUS + root * 1.5;
+            let group = rand::rand() | 1;
+            let mut at = enemy.position + dir * (enemy.size / 2.0 + radius * 0.5);
+            for k in 0..WHIRL_STEPS {
+                at += dir * WHIRL_STEP;
+                dir = bend.rotate(dir);
+                fx.hazards.push(blast(at, radius, BOSS_WARN_WHIRL + WHIRL_GAP * k as f32, 1.0, 0.08, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale).grouped(group).circle(BossCircle::Whirlwind));
+            }
+            enemy.mode = Mode::Cast { left: BOSS_WARN_WHIRL };
+            fx.cue(Cue::Warning);
+        }
+        Pattern::Leap => {
+            //it dashes as far as a charge goes, landing as the circle goes off
+            let dir = (army_middle(units, player) - enemy.position).try_normalize().unwrap_or(Vec2::Y);
+            let landing = enemy.position + dir * CHARGE_SPEED * speed_multiplier(army) * CHARGE_TIME;
+            let radius = enemy.size / 2.0 + LEAP_RADIUS + root;
+            fx.hazards.push(blast(landing, radius, BOSS_WARN_LEAP + CHARGE_TIME, 1.0, 0.35, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Leap));
+            enemy.mode = Mode::Windup { dir, left: BOSS_WARN_LEAP };
+            fx.cue(Cue::Warning);
+        }
+        Pattern::Sweep => {
+            let turn = rand::gen_range(0.0, std::f32::consts::TAU);
+            let way = if rand::gen_range(0, 2) == 0 { 1.0 } else { -1.0 };
+            let gap = rand::gen_range(0, SWEEP_WEDGES);
+            let arc = std::f32::consts::TAU / SWEEP_WEDGES as f32;
+            let reach = BEAM_LENGTH + enemy.size;
+            let group = rand::rand() | 1;
+            for k in (0..SWEEP_WEDGES).filter(|k| (k + SWEEP_WEDGES - gap) % SWEEP_WEDGES >= SWEEP_GAP_WEDGES) {
+                let dir = Vec2::from_angle(turn + way * arc * k as f32);
+                let wedge = blast(enemy.position, reach, BOSS_WARN_SWEEP + SWEEP_STEP * k as f32, 1.0, 0.06, army, state.tier, color, Cue::Slam);
+                fx.hazards.push(wedge.shaped(Shape::Cone { dir, arc }).vs_walls(enemy.scale).grouped(group).circle(BossCircle::Sweep));
+            }
+            enemy.mode = Mode::Cast { left: BOSS_WARN_SWEEP };
+            fx.cue(Cue::Warning);
+        }
+        Pattern::BlackHole => {
+            let at = in_army(150.0);
+            let warn = BOSS_WARN_PULL;
+            fx.pulls.push(Pull { position: at, radius: BLACK_HOLE_PULL + root * 4.0, left: warn, total: warn });
+            fx.hazards.push(blast(at, BLACK_HOLE_RADIUS + root * 2.0, warn, 1.2, 0.4, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Pull));
+            enemy.mode = Mode::Cast { left: 0.8 };
+            fx.cue_at(Cue::Pull, at);
+        }
+        Pattern::TwinSlam => {
+            let first = in_army(0.0);
+            let second = far_from(units, first, player);
+            let radius = TWIN_RADIUS + root * 2.0;
+            let warn = blast_warn(BOSS_WARN_TWIN, radius);
+            let group = rand::rand() | 1;
+            for at in [first, second] {
+                fx.hazards.push(blast(at, radius, warn, 1.0, 0.3, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale).grouped(group).circle(BossCircle::Twin));
+            }
+            enemy.mode = Mode::Cast { left: 0.6 };
+            fx.cue(Cue::Warning);
+        }
+        Pattern::Surge => {
+            for _ in 0..SURGE_BROODS {
+                let before = born.len();
+                cast_pattern(enemy, state, Pattern::Brood, units, player, owned + born.len(), born, shots, fx);
+                if born.len() == before {
+                    break;
+                }
+            }
+        }
+        Pattern::Barrage => {
+            let group = rand::rand() | 1;
+            let (length, width) = (BARRAGE_LENGTH + root * 4.0, BARRAGE_WIDTH + root * 0.5);
+            for wave in 0..BARRAGE_WAVES {
+                let dir = Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU));
+                for _ in 0..BARRAGE_LINES {
+                    let line = blast(in_army(BARRAGE_SPREAD), 0.0, BOSS_WARN_BARRAGE + BARRAGE_WAVE_GAP * wave as f32, 1.0, 0.05, army, state.tier, color, Cue::Explosion);
+                    fx.hazards.push(line.shaped(Shape::Rect { dir, length, width }).vs_walls(enemy.scale).grouped(group).circle(BossCircle::Barrage));
+                }
+            }
+            enemy.mode = Mode::Cast { left: 0.6 };
+            fx.cue(Cue::Warning);
+        }
+        Pattern::Judgement => {
+            let inner = enemy.size / 2.0 + RING_SAFE;
+            let outer = inner + RING_WIDTH + root * 4.0;
+            let toward = (army_middle(units, player) - enemy.position).try_normalize().unwrap_or(Vec2::Y);
+            let due = |k: f32| BOSS_WARN_RING + JUDGEMENT_GAP * k;
+            let (at, scale) = (enemy.position, enemy.scale);
+            let judged = |hazard: Hazard| hazard.vs_walls(scale).circle(BossCircle::Judgement);
+            fx.hazards.push(judged(blast(at, outer, due(0.0), 1.0, 0.4, army, state.tier, color, Cue::Slam).shaped(Shape::Ring { inner })));
+            fx.hazards.push(judged(blast(at, inner, due(1.0), 1.0, 0.4, army, state.tier, color, Cue::Slam)));
+            fx.hazards.push(judged(blast(at, CLEAVE_REACH + enemy.size, due(2.0), 1.0, 0.35, army, state.tier, color, Cue::Slam).shaped(Shape::Cone { dir: toward, arc: CLEAVE_ARC * 1.3 })));
+            let first = in_army(0.0);
+            for spot in [first, far_from(units, first, player)] {
+                fx.hazards.push(judged(blast(spot, TWIN_RADIUS + root * 2.0, due(3.0), 1.0, 0.3, army, state.tier, color, Cue::Slam)));
+            }
+            enemy.mode = Mode::Cast { left: due(3.0) };
+            fx.announce(format!("{}: JUDGEMENT", state.def.name), color);
+            fx.cue(Cue::Warning);
+        }
         Pattern::Fortify => {
             //barriers go up round it, with two gaps, and it stays put inside them until they are down
             let half = (enemy.size / 2.0 / TILE_SIZE).ceil() as i32 + 3;
@@ -623,7 +761,7 @@ pub(crate) fn boss_act_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt: f32, s
             enemy.boss = Some(state);
             continue;
         }
-        let rate = if state.last_stand { 1.6 } else { 1.0 };
+        let rate = if state.last_stand { LAST_STAND_RATE } else { 1.0 };
         let mut due = None;
         for (k, timer) in state.timers.iter_mut().enumerate() {
             *timer -= dt * rate;
@@ -655,7 +793,26 @@ pub(crate) fn blast_warn(base: f32, radius: f32) -> f32 {
 
 //whether an attack shows a circle on the ground that kills what it lands on, the ones to get out of the way of
 pub(crate) fn is_blast(pattern: Pattern) -> bool {
-    matches!(pattern, Pattern::Slam | Pattern::Meteors | Pattern::Nova | Pattern::Pull | Pattern::Piston | Pattern::GravityRing | Pattern::Beams | Pattern::Cleave)
+    matches!(
+        pattern,
+        Pattern::Slam
+            | Pattern::Meteors
+            | Pattern::Nova
+            | Pattern::Pull
+            | Pattern::Piston
+            | Pattern::GravityRing
+            | Pattern::Beams
+            | Pattern::Cleave
+            | Pattern::AcidRain
+            | Pattern::ShieldRush
+            | Pattern::Whirlwind
+            | Pattern::Leap
+            | Pattern::Sweep
+            | Pattern::BlackHole
+            | Pattern::TwinSlam
+            | Pattern::Barrage
+            | Pattern::Judgement
+    )
 }
 
 //the kinds of circle a boss puts on the ground that kill what they land on. each has a colour of its own, so the army can tell at a
@@ -673,10 +830,18 @@ pub(crate) enum BossCircle {
     Beam,        //the Eclipse's fan of beams
     Cleave,      //Warlord Grakk's cone
     GravityRing, //the Singularity's ring with a safe middle
+    Acid,        //the Hive Mother's acid rain
+    Rush,        //the Iron Warden's shield rush down a lane
+    Whirlwind,   //Warlord Grakk's storm, a circle at a time along its path
+    Leap,        //where Warlord Grakk will land
+    Twin,        //the Swarm Queen's two slams at once
+    Barrage,     //the Bastion's lines of shells
+    Sweep,       //the Eclipse's turning beam, wedge by wedge, with a gap
+    Judgement,   //the Sovereign's four in order
 }
 
 #[cfg(test)]
-pub(crate) const CIRCLES: [BossCircle; 10] = [
+pub(crate) const CIRCLES: [BossCircle; 18] = [
     BossCircle::Slam,
     BossCircle::Meteor,
     BossCircle::Nova,
@@ -687,6 +852,14 @@ pub(crate) const CIRCLES: [BossCircle; 10] = [
     BossCircle::Beam,
     BossCircle::Cleave,
     BossCircle::GravityRing,
+    BossCircle::Acid,
+    BossCircle::Rush,
+    BossCircle::Whirlwind,
+    BossCircle::Leap,
+    BossCircle::Twin,
+    BossCircle::Barrage,
+    BossCircle::Sweep,
+    BossCircle::Judgement,
 ];
 
 impl BossCircle {
@@ -702,6 +875,14 @@ impl BossCircle {
             BossCircle::Beam => "ECLIPSE BEAMS",
             BossCircle::Cleave => "CLEAVE",
             BossCircle::GravityRing => "GRAVITY RING",
+            BossCircle::Acid => "ACID RAIN",
+            BossCircle::Rush => "SHIELD RUSH",
+            BossCircle::Whirlwind => "WHIRLWIND",
+            BossCircle::Leap => "LEAP",
+            BossCircle::Twin => "TWIN SLAMS",
+            BossCircle::Barrage => "ARTILLERY",
+            BossCircle::Sweep => "ECLIPSE SWEEP",
+            BossCircle::Judgement => "JUDGEMENT",
         }
     }
 
@@ -717,6 +898,14 @@ impl BossCircle {
             BossCircle::Beam => Color::new(0.2, 0.8, 1.0, 1.0),     //cyan
             BossCircle::Cleave => Color::new(0.6, 1.0, 0.25, 1.0),  //lime
             BossCircle::GravityRing => Color::new(0.95, 0.95, 1.0, 1.0), //white
+            BossCircle::Acid => Color::new(0.3, 0.7, 0.1, 1.0),     //green
+            BossCircle::Rush => Color::new(0.15, 0.3, 0.8, 1.0),    //navy
+            BossCircle::Whirlwind => Color::new(0.75, 0.05, 0.25, 1.0), //crimson
+            BossCircle::Leap => Color::new(0.55, 0.32, 0.1, 1.0),   //brown
+            BossCircle::Twin => Color::new(0.55, 0.25, 0.55, 1.0),  //plum
+            BossCircle::Barrage => Color::new(0.85, 0.75, 0.55, 1.0), //sand
+            BossCircle::Sweep => Color::new(0.6, 0.85, 1.0, 1.0),   //sky
+            BossCircle::Judgement => Color::new(1.0, 0.1, 0.9, 1.0), //magenta
         }
     }
 
@@ -733,6 +922,14 @@ impl BossCircle {
             BossCircle::Beam => "CYAN",
             BossCircle::Cleave => "LIME",
             BossCircle::GravityRing => "WHITE",
+            BossCircle::Acid => "GREEN",
+            BossCircle::Rush => "NAVY",
+            BossCircle::Whirlwind => "CRIMSON",
+            BossCircle::Leap => "BROWN",
+            BossCircle::Twin => "PLUM",
+            BossCircle::Barrage => "SAND",
+            BossCircle::Sweep => "SKY",
+            BossCircle::Judgement => "MAGENTA",
         }
     }
 
@@ -747,6 +944,22 @@ impl BossCircle {
             BossCircle::Beam => "stand in a gap between the beams",
             BossCircle::Cleave => "get behind it or to its side",
             BossCircle::GravityRing => "stand close to the boss",
+            BossCircle::Acid => "keep moving",
+            BossCircle::Rush => "step out of the lane and take it from the side",
+            BossCircle::Whirlwind => "read its path and step off it",
+            BossCircle::Leap => "get away from where it will land",
+            BossCircle::Twin => "get out of both",
+            BossCircle::Barrage => "step out of the lines",
+            BossCircle::Sweep => "find the gap in the sweep and stand in it",
+            BossCircle::Judgement => "in close, then out, then behind it, then apart",
+        }
+    }
+
+    //the words for it in the headline when they are its own and not its shape's (see Shape::words)
+    pub(crate) fn title_words(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            BossCircle::Sweep => Some(("SWEEP", "FIND THE GAP")),
+            _ => None,
         }
     }
 }
@@ -762,6 +975,15 @@ pub(crate) fn circle_of(pattern: Pattern) -> Option<BossCircle> {
         Pattern::GravityRing => Some(BossCircle::GravityRing),
         Pattern::Beams => Some(BossCircle::Beam),
         Pattern::Cleave => Some(BossCircle::Cleave),
+        Pattern::AcidRain => Some(BossCircle::Acid),
+        Pattern::ShieldRush => Some(BossCircle::Rush),
+        Pattern::Whirlwind => Some(BossCircle::Whirlwind),
+        Pattern::Leap => Some(BossCircle::Leap),
+        Pattern::Sweep => Some(BossCircle::Sweep),
+        Pattern::BlackHole => Some(BossCircle::Pull),
+        Pattern::TwinSlam => Some(BossCircle::Twin),
+        Pattern::Barrage => Some(BossCircle::Barrage),
+        Pattern::Judgement => Some(BossCircle::Judgement),
         _ => None,
     }
 }
@@ -780,7 +1002,7 @@ impl BossState {
         if self.shifting > 0.0 {
             return None;
         }
-        let rate = if self.last_stand { 1.6 } else { 1.0 };
+        let rate = if self.last_stand { LAST_STAND_RATE } else { 1.0 };
         let whole = |every: f32| (every * 0.92f32.powi(self.tier as i32)).max(BOSS_BLAST_HOLD) / rate;
         self.def.phases[self.phase]
             .casts

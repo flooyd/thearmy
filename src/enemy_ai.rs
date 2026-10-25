@@ -98,7 +98,7 @@ pub(crate) fn patrol_enemies_among(enemies: &mut [Enemy], prey: &[Prey], dt: f32
         //(summoners) or mend (healers) stay where they are
         if enemy.provoked > 0.0 && !enemy.chasing && enemy.can_be_provoked() && !matches!(enemy.behavior, Behavior::Healer | Behavior::Summoner) {
             let goal = enemy.grudge;
-            let stop = if enemy.range > 0.0 && matches!(enemy.behavior, Behavior::Shooter | Behavior::Mortar) { enemy.range * CHASE_STANDOFF } else { CHASE_STOP };
+            let stop = if enemy.range > 0.0 && matches!(enemy.behavior, Behavior::Shooter | Behavior::Mortar | Behavior::Sniper | Behavior::Hexer | Behavior::Overseer) { enemy.range * CHASE_STANDOFF } else { CHASE_STOP };
             let speed = enemy.speed * CHASE_SPEED * speed_multiplier * enemy.pace();
             walk(enemy, goal, stop, speed, dt, true, walls, &no_route);
             continue;
@@ -120,7 +120,7 @@ pub(crate) fn patrol_enemies_among(enemies: &mut [Enemy], prey: &[Prey], dt: f32
                 continue;
             }
             //one that shoots or lobs shells (only a horde sends them running) stops at a distance and fires from there
-            let stop = if enemy.range > 0.0 && matches!(enemy.behavior, Behavior::Shooter | Behavior::Mortar) { enemy.range * CHASE_STANDOFF } else { CHASE_STOP };
+            let stop = if enemy.range > 0.0 && matches!(enemy.behavior, Behavior::Shooter | Behavior::Mortar | Behavior::Sniper | Behavior::Hexer | Behavior::Overseer) { enemy.range * CHASE_STANDOFF } else { CHASE_STOP };
             //a tank champion near it draws it off the player (a boss is not so easily led)
             let at = enemy.position;
             let taunted = if enemy.boss.is_some() { None } else { taunts[which].iter().copied().filter(|spot| spot.distance_squared(at) <= TAUNT_RANGE * TAUNT_RANGE).min_by(|a, b| a.distance_squared(at).total_cmp(&b.distance_squared(at))) };
@@ -241,6 +241,21 @@ pub(crate) fn enemy_abilities(enemies: &mut Vec<Enemy>, units: &[Unit], player: 
     enemy_abilities_among(enemies, &prey, dt, fx);
 }
 
+//a unit of an army within `reach` of a place, from a random point in the list so it isn't always the same one. none without looking when the
+//army's player is too far off for any of it to be
+fn unit_within(units: &[Unit], player: Vec2, at: Vec2, reach: f32) -> Option<Vec2> {
+    if units.is_empty() || player.distance(at) > reach + army_reach(units.len()) {
+        return None;
+    }
+    let start = rand::gen_range(0, units.len());
+    (0..units.len()).map(|k| &units[(start + k) % units.len()]).filter(|unit| unit.health > 0.0 && unit.garrison.is_none()).map(|unit| Vec2::new(unit.x, unit.y)).find(|spot| spot.distance(at) <= reach)
+}
+
+//about how far an army of this many reaches from its player
+pub(crate) fn army_reach(army: usize) -> f32 {
+    80.0 + (army as f32).sqrt() * 9.0
+}
+
 //the things enemies do on a timer: shields grow back, a bomber's fuse burns down, a healer mends the enemies near it, a
 //summoner calls up imps while a player is close, a mortar lobs a shell at the army of the player nearest to it. what depends on how
 //big an army is (the blasts, the broods of a nest) is for the army of the player nearest to the enemy
@@ -359,6 +374,111 @@ pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt:
                         fx.cue_at(Cue::Summon, enemy.position);
                     }
                 }
+            }
+            Behavior::Executioner => {
+                enemy.timer -= dt;
+                if enemy.timer > 0.0 || enemy.mode != Mode::Roam {
+                    continue;
+                }
+                let reach = enemy.size / 2.0 + EXECUTIONER_REACH;
+                let Some(target) = unit_within(units, player, enemy.position, reach) else {
+                    enemy.timer = 0.3;
+                    continue;
+                };
+                enemy.timer = EXECUTIONER_EVERY;
+                let dir = (target - enemy.position).try_normalize().unwrap_or(Vec2::Y);
+                enemy.mode = Mode::Cast { left: EXECUTIONER_WINDUP + 0.2 };
+                let cleave = Hazard::new(enemy.position, reach, EXECUTIONER_WINDUP, UNIT_HEALTH * 3.0, EXECUTIONER_VICTIMS, enemy.color, Cue::Slam);
+                fx.hazards.push(cleave.shaped(Shape::Cone { dir, arc: EXECUTIONER_ARC }).vs_walls(enemy.scale));
+                fx.cue_at(Cue::Charge, enemy.position);
+            }
+            Behavior::Sniper => {
+                enemy.timer -= dt;
+                if enemy.timer > 0.0 || enemy.mode != Mode::Roam {
+                    continue;
+                }
+                let Some(target) = unit_within(units, player, enemy.position, enemy.range) else {
+                    enemy.timer = 0.4;
+                    continue;
+                };
+                enemy.timer = SNIPER_EVERY * rand::gen_range(0.85, 1.15);
+                let dir = (target - enemy.position).try_normalize().unwrap_or(Vec2::Y);
+                enemy.mode = Mode::Cast { left: SNIPER_WARN + 0.3 };
+                let line = Hazard::new(enemy.position + dir * enemy.size / 2.0, 0.0, SNIPER_WARN, UNIT_HEALTH * 3.0, SNIPER_VICTIMS, enemy.color, Cue::Shoot);
+                fx.hazards.push(line.shaped(Shape::Line { dir, length: enemy.range * 1.1, width: SNIPER_WIDTH }).vs_walls(enemy.scale));
+            }
+            Behavior::Hexer => {
+                enemy.timer -= dt;
+                if enemy.timer > 0.0 {
+                    continue;
+                }
+                let Some(target) = unit_within(units, player, enemy.position, enemy.range) else {
+                    enemy.timer = 0.5;
+                    continue;
+                };
+                enemy.timer = HEX_EVERY * rand::gen_range(0.85, 1.15);
+                fx.hazards.push(Hazard::new(target, HEX_RADIUS * blast_scale(enemy.scale), 0.0, 0.0, 0, enemy.color, Cue::Summon).hexing(HEX_SECONDS));
+                fx.cue_at(Cue::Summon, enemy.position);
+            }
+            Behavior::Blinker => {
+                if units.is_empty() || player.distance(enemy.position) > BLINK_RANGE {
+                    enemy.timer = enemy.timer.max(BLINK_TELL + 0.5);
+                    continue;
+                }
+                //where it goes: past the far side of the army from where it is, which the ground there shows a moment before
+                let behind = {
+                    let away = (player - enemy.position).try_normalize().unwrap_or(Vec2::Y);
+                    (player + away * (army_reach(army) + BLINK_BEHIND)).clamp(Vec2::splat(enemy.size), Vec2::splat(WORLD_SIZE - enemy.size))
+                };
+                let before = enemy.timer;
+                enemy.timer -= dt;
+                if before > BLINK_TELL && enemy.timer <= BLINK_TELL {
+                    fx.ring(behind, enemy.size, enemy.color);
+                }
+                if enemy.timer <= 0.0 {
+                    fx.burst(enemy.position, enemy.color, 16, 260.0);
+                    enemy.position = behind;
+                    enemy.chasing = true;
+                    fx.burst(behind, enemy.color, 16, 260.0);
+                    fx.cue_at(Cue::Pop, behind);
+                    enemy.timer = BLINK_EVERY * rand::gen_range(0.8, 1.2);
+                }
+            }
+            Behavior::Sapper => {
+                enemy.timer -= dt;
+                if enemy.timer > 0.0 {
+                    continue;
+                }
+                if player.distance(enemy.position) > MINE_RANGE {
+                    enemy.timer = 0.5;
+                    continue;
+                }
+                enemy.timer = MINE_EVERY * rand::gen_range(0.8, 1.2);
+                let mine = Hazard::new(enemy.position, MINE_RADIUS * blast_scale(enemy.scale), MINE_LIFE, UNIT_HEALTH * 3.0, MINE_VICTIMS, enemy.color, Cue::Explosion);
+                fx.hazards.push(mine.mined().vs_walls(enemy.scale));
+            }
+            Behavior::Overseer => {
+                enemy.timer -= dt;
+                if enemy.timer > 0.0 || enemy.mode != Mode::Roam {
+                    continue;
+                }
+                //the nearest champion in reach, and failing that any unit
+                let at = enemy.position;
+                let champion = units
+                    .iter()
+                    .filter(|unit| unit.champion != 0 && unit.health > 0.0 && Vec2::new(unit.x, unit.y).distance(at) <= enemy.range)
+                    .map(|unit| Vec2::new(unit.x, unit.y))
+                    .min_by(|a, b| a.distance_squared(at).total_cmp(&b.distance_squared(at)));
+                let Some(target) = champion.or_else(|| unit_within(units, player, at, enemy.range)) else {
+                    enemy.timer = 0.5;
+                    continue;
+                };
+                enemy.timer = OVERSEER_EVERY * rand::gen_range(0.85, 1.15);
+                enemy.mode = Mode::Cast { left: 0.6 };
+                let blow = Hazard::new(target, OVERSEER_RADIUS * blast_scale(enemy.scale), OVERSEER_WARN, UNIT_HEALTH * OVERSEER_HIT, OVERSEER_VICTIMS, enemy.color, Cue::Slam);
+                fx.hazards.push(blow.vs_walls(enemy.scale));
+                fx.ring(target, OVERSEER_RADIUS * 0.4, enemy.color);
+                fx.cue_at(Cue::Warning, target);
             }
             _ => {}
         }

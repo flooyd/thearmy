@@ -235,7 +235,7 @@ fn an_enemy_with_no_aggro_never_chases_however_close_the_player_is() {
 fn every_kind_can_hurt_and_only_shooters_and_mortars_have_a_range() {
     for kind in ENEMY_KINDS.iter() {
         assert!(kind.attack > 0.0, "{} has no attack", kind.name);
-        assert_eq!(kind.range > 0.0, matches!(kind.behavior, Behavior::Shooter | Behavior::Mortar), "{}", kind.name);
+        assert_eq!(kind.range > 0.0, matches!(kind.behavior, Behavior::Shooter | Behavior::Mortar | Behavior::Sniper | Behavior::Hexer | Behavior::Overseer), "{}", kind.name);
     }
     assert!(ENEMY_KINDS.iter().filter(|kind| kind.behavior == Behavior::Shooter).count() >= 1);
     assert_eq!(the_spitter().behavior, Behavior::Shooter);

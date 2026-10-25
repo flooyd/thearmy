@@ -125,7 +125,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         }
     } else if let Some(first) = sim.players.list.first() {
         //(a showcase of the warnings puts one of each shape down, see showcase.rs)
-        let laid = showcase_hazards(first.position);
+        let laid = showcase_hazards(first.position, &sim.units);
         sim.hazards.extend(laid);
     }
     //the players at other machines that are in the game already

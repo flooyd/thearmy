@@ -138,3 +138,35 @@ def _(a):
     a.pulse(lambda: a.alpha(0.85, lambda: a.ring(0, 0, 50, 4, 'w', edge=0)), 2.4, 0.3)
     a.pulse(lambda: a.alpha(0.6, lambda: a.ring(0, 0, 62, 3, 'w', edge=0)), 3.1, 0.2)
     a.rep(3, lambda: a.line([(-10, 66), (0, 72), (10, 66)], 2.4, 'l', edge=0))
+
+
+def crack(a, points, width=3.4):
+    """A crack across a boss: dark, with light showing in it."""
+    a.line(points, width, 'k', edge=0)
+    a.line(points, width * 0.4, 'l', edge=0)
+
+
+@sym('mark_cracked_1', 'Cracked I', 'a boss in its second phase: a few cracks across it', 100, '#ffd27a', turns=False)
+def _(a):
+    crack(a, [(-8, -34), (-16, -18), (-8, -6), (-22, 10)])
+    crack(a, [(14, 8), (24, 18), (18, 32)])
+
+
+@sym('mark_cracked_2', 'Cracked II', 'a boss in its third phase: cracked all over', 100, '#ffd27a', turns=False)
+def _(a):
+    crack(a, [(-8, -34), (-16, -18), (-8, -6), (-22, 10), (-30, 14)])
+    crack(a, [(14, 8), (24, 18), (18, 32), (26, 40)])
+    crack(a, [(20, -30), (10, -20), (16, -8)])
+    crack(a, [(-6, 22), (4, 30), (-2, 42)])
+
+
+@sym('mark_cracked_3', 'Cracked III', 'a boss near its end: split open, light pouring out of it', 100, '#ffd27a', turns=False)
+def _(a):
+    a.pulse(lambda: a.glow(0, 0, 40, '#ffd27a', 0.35), 0.5, 0.3)
+    crack(a, [(-8, -40), (-16, -18), (-6, -4), (-24, 10), (-36, 16)], 4.4)
+    crack(a, [(10, 4), (24, 18), (18, 32), (28, 44)], 4.4)
+    crack(a, [(22, -34), (10, -20), (18, -6), (34, -2)], 4.0)
+    crack(a, [(-6, 20), (4, 30), (-4, 44)], 4.0)
+    crack(a, [(-6, -4), (10, 4)], 4.0)
+    crack(a, [(-34, -26), (-20, -30)], 3.0)
+    crack(a, [(30, 22), (40, 30)], 3.0)

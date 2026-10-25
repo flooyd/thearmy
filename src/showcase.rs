@@ -4,7 +4,10 @@
 //! THE_ARMY_HOME as well, to a folder of its own, so that nothing of the player's (their settings, their saves) is touched. with ARMY_SHOWCASE=statuses there are
 //! no champions, and the crowd is near and starts with what can be done to an enemy (frozen, chilled, burning, shocked, poisoned), to see the marks and a
 //! shatter's pieces. with ARMY_SHOWCASE=telegraphs there are no champions or enemies, and one of each shape of warning is put down round the player
-//! (see showcase_hazards), with a big one off the screen for its arrow
+//! (see showcase_hazards), with a big one off the screen for its arrow. ARMY_SHOWCASE_ARMY and ARMY_SHOWCASE_ZOOM, if set, are the size of the army and
+//! the zoom, in place of SHOWCASE_ARMY and SHOWCASE_ZOOM, and a big army has a crowd as wide as it ahead of it. ARMY_SHOWCASE set to the name of a boss's
+//! attack (acid, rush, whirlwind, leap, sweep, blackhole, twin, barrage or judgement) puts the boss whose it is above the army, cracked, with no champions
+//! or crowd, and has it make that attack at once (see showcase_attack)
 //!
 //!     THE_ARMY_HOME=<folder> ARMY_SHOWCASE=1 ARMY_SHOT=<shot.png> mygame
 
@@ -22,9 +25,14 @@ pub(crate) fn showcase_run() -> Snapshot {
     let mut run = new_run();
     let at = run.player;
     let statuses = showcase_is("statuses");
-    let telegraphs = showcase_is("telegraphs");
-    run.zoom = SHOWCASE_ZOOM;
-    for i in 0..SHOWCASE_ARMY {
+    let telegraphs = showcase_is("telegraphs") || showcase_attack().is_some();
+    let asked = |name: &str| std::env::var(name).ok().and_then(|text| text.parse::<f32>().ok());
+    run.zoom = asked("ARMY_SHOWCASE_ZOOM").unwrap_or(SHOWCASE_ZOOM);
+    let army = asked("ARMY_SHOWCASE_ARMY").map_or(SHOWCASE_ARMY, |count| count as usize);
+    //(how far out the army reaches, which the crowd is put ahead of and as wide as)
+    let reach = 40.0 + (army as f32).sqrt() * 14.0;
+    let spread = (reach / 450.0).max(1.0);
+    for i in 0..army {
         let spot = at + Vec2::from_angle(i as f32 * 2.399_963) * (40.0 + (i as f32).sqrt() * 14.0);
         run.units.push(Unit::new(spot.x, spot.y, UNIT_MAX_SPEED));
     }
@@ -37,7 +45,7 @@ pub(crate) fn showcase_run() -> Snapshot {
         run.units.push(champion);
     }
     for i in (0..SHOWCASE_ENEMIES).filter(|_| !telegraphs) {
-        let spot = at + Vec2::new((i % 10) as f32 * 90.0 - 405.0, if statuses { -330.0 } else { -900.0 } - (i / 10) as f32 * 90.0);
+        let spot = at + Vec2::new(((i % 10) as f32 * 90.0 - 405.0) * spread, if statuses { -330.0 } else { -900.0 - (reach - 380.0).max(0.0) } - (i / 10) as f32 * 90.0);
         let mut enemy = Enemy::new(spot, kind_named(if i % 3 == 0 { "Brute" } else { "Grunt" }), 2.0);
         if statuses {
             match i % 5 {
@@ -50,7 +58,34 @@ pub(crate) fn showcase_run() -> Snapshot {
         }
         run.enemies.push(enemy);
     }
+    if let Some((def, _)) = showcase_attack() {
+        let mut boss = Enemy::boss(def, army, 0, at + SHOWCASE_BOSS);
+        if let Some(state) = boss.boss.as_mut() {
+            state.phase = 2.min(def.phases.len() - 1);
+        }
+        run.enemies.push(boss);
+    }
     run
+}
+
+const SHOWCASE_BOSS: Vec2 = Vec2::new(0.0, -800.0); //where a showcase's boss is, from the player
+
+//the boss and the attack a showcase of one asks for
+fn showcase_attack() -> Option<(&'static BossDef, Pattern)> {
+    let asked = std::env::var("ARMY_SHOWCASE").ok()?;
+    let (boss, pattern) = match asked.as_str() {
+        "acid" => (0, Pattern::AcidRain),
+        "rush" => (1, Pattern::ShieldRush),
+        "whirlwind" => (2, Pattern::Whirlwind),
+        "leap" => (2, Pattern::Leap),
+        "sweep" => (3, Pattern::Sweep),
+        "blackhole" => (3, Pattern::BlackHole),
+        "twin" => (4, Pattern::TwinSlam),
+        "barrage" => (6, Pattern::Barrage),
+        "judgement" => (BOSSES.len(), Pattern::Judgement),
+        _ => return None,
+    };
+    Some((BOSSES.get(boss).unwrap_or(&FINAL_BOSS), pattern))
 }
 
 //whether the showcase asked for is this one
@@ -60,7 +95,14 @@ fn showcase_is(kind: &str) -> bool {
 
 //the warnings a showcase of them puts down round the player, `at`: a slam, a gravity ring, a fan of beams, a cleave and a piston line on the screen, each
 //a long way from going off, and a nova off it. none for any other showcase, or none asked for
-pub(crate) fn showcase_hazards(at: Vec2) -> Vec<Hazard> {
+pub(crate) fn showcase_hazards(at: Vec2, units: &[Unit]) -> Vec<Hazard> {
+    if let Some((def, pattern)) = showcase_attack() {
+        let mut boss = Enemy::boss(def, units.len(), 0, at + SHOWCASE_BOSS);
+        let Some(mut state) = boss.boss.take() else { return Vec::new() };
+        let (mut born, mut shots, mut fx) = (Vec::new(), Vec::new(), Effects::default());
+        cast_pattern(&mut boss, &mut state, pattern, units, at, 0, &mut born, &mut shots, &mut fx);
+        return fx.hazards;
+    }
     if !showcase_is("telegraphs") {
         return Vec::new();
     }

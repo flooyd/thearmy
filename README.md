@@ -19,8 +19,14 @@ are the fonts.
   Playing alone there is also *Free*, where the units just pile up on you; in a hosted or joined game that one is left out, as it costs too much with several armies.
 - **Survive bosses.** Seven bosses with several phases each, plus the Sovereign. They raise barriers, call meteors, charge,
   slam and mark the ground. Each kind of warning has its own colour and hatching, and not all are circles: the later phases add a
-  ring that is safe in the middle, a fan of beams with gaps, a cone and a lane. The warning says what to do, it ticks faster as it
-  comes due, and a big one off the screen gets an arrow at the edge. Slaying a boss gives you a choice of relics.
+  ring that is safe in the middle, a fan of beams with gaps, a cone and a lane. Each boss has signature attacks: the Hive Mother's
+  acid rain, the Iron Warden's shield rush, Warlord Grakk's whirlwind and leap, the Eclipse's sweeping beam and black hole, the
+  Swarm Queen's twin slams, the Bastion's barrage and the Sovereign's four-part Judgement. Three bosses enrage before the end, and
+  bosses crack as they lose their phases. The warning says what to do, it ticks faster as it comes due, and a big one off the
+  screen gets an arrow at the edge. Slaying a boss gives you a choice of relics.
+- **Learn the new enemies.** Once the army is a few hundred strong, six enemies each teach a rule: the Executioner's cleave
+  (step out of it), the Sniper's line, the Hexer's curse that makes your units take more harm, the Blinker that appears behind
+  you, the Sapper's faint mines, and the Overseer that marks a champion for a heavy blow.
   A boss makes an entrance: the camera goes to it and back, with its name across the screen (`Space` skips it). Playing alone the
   world crawls meanwhile; with others it can't be slowed for one of you, so you keep steering and the entrance ends early if your army is in trouble.
 - **Break hordes.** Hordes (Swarm Tide, Iron Column, Wildfire, Stampede, Titan March and more) are announced on screen and
@@ -30,8 +36,8 @@ are the fonts.
   Phoenix, Frostweaver and eight more, each with a power of its own that is a share of what the whole army does. Kills and a second
   of a kind raise its level, up to 10; the shooters fire longer bursts, rings and spirals as they rise, and at level 10 you choose its
   final form, once. The roster on the right shows each one's power coming round; click a row to find it in the world.
-- **The front fires.** The front of the army shoots ahead of it, the way it is going, at what is there (never behind), and sees
-  further the bigger the army grows, about the width of the screen at 10,000 units.
+- **The front fires.** The front 60% of the army shoots ahead of it, the way it is going, at anything in front of it (never
+  behind), and sees further the bigger the army grows: past the width of the screen at 10,000 units, and further still at 50,000.
 - **Build.** Earn wall points by destroying enemies, then spend them on walls, gates, towers you can man, spikes and tar.
   Enemies path around what you build, and walls decide where a fight happens.
 - **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter in a burst of frost), Volley Drill, Chain Shot, Tracer Rounds and many more stack across the run.

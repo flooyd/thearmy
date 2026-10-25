@@ -162,7 +162,7 @@ pub(crate) fn draw_minimap(
         }
     }
     //what is about to go off, as the shape it will hurt, in red or the colour of a boss's kind
-    for hazard in hazards.iter().filter(|hazard| hazard.armed) {
+    for hazard in hazards.iter().filter(|hazard| hazard.armed && !hazard.mine) {
         let point = map.to_screen(hazard.position);
         let alpha = 0.5 + 0.4 * (0.5 + 0.5 * (time * 12.0).sin());
         let color = hazard.circle.map_or(danger_color(alpha), |circle| {

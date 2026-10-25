@@ -25,7 +25,7 @@ fn the_kind_table_is_sane() {
         assert!(names.insert(kind.name), "{} is in the table twice", kind.name);
         assert!(kind.size > 0.0 && kind.health > 0.0 && kind.attack > 0.0 && kind.weight >= 0.0 && kind.shield >= 0.0, "{}", kind.name);
         assert!((kind.min_speed > 0.0 || kind.behavior == Behavior::Nest) && kind.min_speed <= kind.max_speed, "{}", kind.name);
-        assert_eq!(kind.range > 0.0, matches!(kind.behavior, Behavior::Shooter | Behavior::Mortar), "{}", kind.name);
+        assert_eq!(kind.range > 0.0, matches!(kind.behavior, Behavior::Shooter | Behavior::Mortar | Behavior::Sniper | Behavior::Hexer | Behavior::Overseer), "{}", kind.name);
         assert!(std::ptr::eq(kind_named(kind.name), kind));
         if kind.pack > 0 {
             assert!(matches!(kind.behavior, Behavior::Walker | Behavior::Ambusher), "{}", kind.name);

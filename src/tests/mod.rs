@@ -57,6 +57,7 @@ mod shortcuts;
 mod sound;
 mod status;
 mod telegraphs;
+mod signatures;
 mod squads;
 mod team;
 mod titlescene;

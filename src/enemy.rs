@@ -46,6 +46,12 @@ pub(crate) enum Behavior {
     Mortar,   //lobs shells that land a moment later
     Nest,     //stays where it is and sends out more of its own, until it is destroyed
     Ambusher, //lies hidden where it is until the player comes close, then springs
+    Executioner, //winds up a cleave at the units in front of it
+    Sniper,      //shows a long line at the army and fires down it
+    Hexer,       //lays a curse on the ground that makes the units in it take more harm
+    Blinker,     //flickers, and is behind the army in a moment
+    Sapper,      //lays mines where the army will walk
+    Overseer,    //marks a champion, and a heavy blow lands where it was
 }
 
 //what makes an elite different from the rest of its kind
@@ -117,7 +123,7 @@ pub(crate) struct EnemyKind {
     pub(crate) shot: ShotKind, //what a shooter fires
 }
 
-pub(crate) static ENEMY_KINDS: [EnemyKind; 23] = [
+pub(crate) static ENEMY_KINDS: [EnemyKind; 29] = [
     //the ordinary one
     EnemyKind { name: "Grunt", color: RED, size: 44.0, health: 100.0, babies: 1.0, min_speed: 60.0, max_speed: 120.0, weight: 6.0, from_army: 0, attack: 25.0, aggro_tiles: 7.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //small, fast and frail
@@ -160,6 +166,18 @@ pub(crate) static ENEMY_KINDS: [EnemyKind; 23] = [
     EnemyKind { name: "Shard", color: Color::new(0.75, 0.93, 1.0, 1.0), size: 26.0, health: 45.0, babies: 0.5, min_speed: 110.0, max_speed: 190.0, weight: 0.0, from_army: 0, attack: 14.0, aggro_tiles: 14.0, range: 0.0, behavior: Behavior::Walker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
     //what a lair is built round: it never moves, and is only ever put in the world by a site
     EnemyKind { name: "Nest", color: Color::new(0.8, 0.25, 0.3, 1.0), size: 96.0, health: 700.0, babies: 12.0, min_speed: 0.0, max_speed: 0.0, weight: 0.0, from_army: 0, attack: 30.0, aggro_tiles: 0.0, range: 0.0, behavior: Behavior::Nest, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    //the ones that teach a rule each (see enemy_ai.rs). a hooded brute that winds up a cleave that cuts down the units in front of it: step out of it
+    EnemyKind { name: "Executioner", color: Color::new(0.55, 0.12, 0.15, 1.0), size: 70.0, health: 600.0, babies: 6.0, min_speed: 50.0, max_speed: 80.0, weight: 1.2, from_army: 300, attack: 30.0, aggro_tiles: 12.0, range: 0.0, behavior: Behavior::Executioner, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    //shows a long thin line at the army, and fires down it
+    EnemyKind { name: "Sniper", color: Color::new(0.45, 0.55, 0.45, 1.0), size: 46.0, health: 140.0, babies: 3.0, min_speed: 30.0, max_speed: 50.0, weight: 1.2, from_army: 400, attack: 8.0, aggro_tiles: 0.0, range: 1500.0, behavior: Behavior::Sniper, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    //curses a patch of the ground, and the units in it take more harm: leave it
+    EnemyKind { name: "Hexer", color: Color::new(0.55, 0.2, 0.75, 1.0), size: 48.0, health: 180.0, babies: 3.0, min_speed: 40.0, max_speed: 60.0, weight: 1.2, from_army: 500, attack: 8.0, aggro_tiles: 0.0, range: 1000.0, behavior: Behavior::Hexer, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    //flickers, and is behind the army: turn and fight it
+    EnemyKind { name: "Blinker", color: Color::new(0.45, 0.4, 1.0, 1.0), size: 40.0, health: 160.0, babies: 3.0, min_speed: 120.0, max_speed: 170.0, weight: 1.2, from_army: 800, attack: 30.0, aggro_tiles: 12.0, range: 0.0, behavior: Behavior::Blinker, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    //lays faint mines where the army walks, that go off a moment after it steps on them: walk round them
+    EnemyKind { name: "Sapper", color: Color::new(0.6, 0.5, 0.3, 1.0), size: 44.0, health: 150.0, babies: 3.0, min_speed: 70.0, max_speed: 100.0, weight: 1.2, from_army: 250, attack: 10.0, aggro_tiles: 10.0, range: 0.0, behavior: Behavior::Sapper, shield: 0.0, pack: 0, shot: ShotKind::Plain },
+    //marks a champion, and a heavy blow lands where it was: move the champion
+    EnemyKind { name: "Overseer", color: Color::new(0.15, 0.45, 0.5, 1.0), size: 60.0, health: 300.0, babies: 5.0, min_speed: 30.0, max_speed: 50.0, weight: 1.0, from_army: 1000, attack: 8.0, aggro_tiles: 0.0, range: 1300.0, behavior: Behavior::Overseer, shield: 0.0, pack: 0, shot: ShotKind::Plain },
 ];
 
 //the kind with this name
@@ -690,6 +708,10 @@ pub(crate) fn draw_enemies_plain(enemies: &[Enemy], squads: &Squads, time: f32, 
         if enemy.boss.as_ref().is_some_and(|boss| boss.shifting > 0.0) && (time * 30.0).sin() > 0.0 {
             color = lighten(color, 0.7);
         }
+        //a blinker about to go flickers
+        if enemy.behavior == Behavior::Blinker && enemy.timer > 0.0 && enemy.timer < BLINK_TELL && (time * 34.0).sin() > 0.0 {
+            color = lighten(color, 0.8);
+        }
         //a captain's rally reaches this far, drawn under it so the crowd can be seen to be inside it
         if enemy.is_captain() {
             let reach = RALLY_TILES * TILE_SIZE + half;
@@ -869,6 +891,13 @@ pub(crate) fn marks_of(enemy: &Enemy) -> Vec<(&'static str, Color)> {
     if enemy.armor > 0.0 && enemy.boss.is_none() && enemy.modifier != Modifier::Armored {
         marks.push((Modifier::Armored.label(), Modifier::Armored.color()));
     }
+    //a boss cracks as it goes from phase to phase, the more the further on, and the most in its last stand
+    if let Some(state) = enemy.boss.as_ref() {
+        let stage = (state.phase + state.last_stand as usize).min(3);
+        if stage > 0 {
+            marks.push((["Cracked I", "Cracked II", "Cracked III"][stage - 1], lighten(enemy.color, 0.5)));
+        }
+    }
     if enemy.status.frozen > 0.0 {
         marks.push(("Frozen", ICE));
     } else if enemy.status.chill >= CHILL_FULL * CHILL_SEEN {
@@ -966,6 +995,10 @@ pub(crate) fn draw_enemy_art(enemies: &[Enemy], squads: &Squads, time: f32, spee
         }
         if enemy.boss.as_ref().is_some_and(|boss| boss.shifting > 0.0) && (time * 30.0).sin() > 0.0 {
             color = lighten(color, 0.7);
+        }
+        //a blinker about to go flickers
+        if enemy.behavior == Behavior::Blinker && enemy.timer > 0.0 && enemy.timer < BLINK_TELL && (time * 34.0).sin() > 0.0 {
+            color = lighten(color, 0.8);
         }
         //running from the army: washed out
         if enemy.routed() {

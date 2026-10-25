@@ -18,7 +18,7 @@ fn state_of(def: &'static BossDef) -> BossState {
 //the bosses' circle attacks as they are told apart: each pattern that puts a killing circle down has a kind, and no other has
 #[test]
 fn the_attacks_that_put_a_killing_circle_down_each_have_a_kind_of_circle_and_none_of_the_others_do() {
-    let patterns = [Pattern::Slam, Pattern::Meteors, Pattern::Nova, Pattern::Brood, Pattern::Ring, Pattern::Burn, Pattern::Charge, Pattern::Pull, Pattern::Fortify, Pattern::Volley, Pattern::Piston, Pattern::GravityRing, Pattern::Beams, Pattern::Cleave];
+    let patterns = [Pattern::Slam, Pattern::Meteors, Pattern::Nova, Pattern::Brood, Pattern::Ring, Pattern::Burn, Pattern::Charge, Pattern::Pull, Pattern::Fortify, Pattern::Volley, Pattern::Piston, Pattern::GravityRing, Pattern::Beams, Pattern::Cleave, Pattern::AcidRain, Pattern::ShieldRush, Pattern::Whirlwind, Pattern::Leap, Pattern::Sweep, Pattern::BlackHole, Pattern::TwinSlam, Pattern::Surge, Pattern::Barrage, Pattern::Judgement];
     for pattern in patterns {
         assert_eq!(circle_of(pattern).is_some(), is_blast(pattern), "{pattern:?}");
     }
@@ -41,14 +41,14 @@ fn every_kind_of_circle_has_a_name_a_colour_and_a_word_for_its_colour_of_its_own
             assert!(apart > 0.25, "{a:?} and {b:?} are too alike to tell apart: {apart}");
         }
     }
-    //(and the ten are all there is)
-    assert_eq!(CIRCLES.len(), 10);
+    //(and the eighteen are all there is)
+    assert_eq!(CIRCLES.len(), 18);
 }
 
 #[test]
 fn the_circle_an_attack_puts_down_is_marked_with_its_kind_and_the_attacks_that_are_not_circles_do_not_mark_one() {
     let units = army_near(MIDDLE, 200);
-    for pattern in [Pattern::Slam, Pattern::Meteors, Pattern::Nova, Pattern::Pull, Pattern::Burn, Pattern::Ring, Pattern::Volley, Pattern::Brood, Pattern::Charge, Pattern::Fortify, Pattern::Piston, Pattern::GravityRing, Pattern::Beams, Pattern::Cleave] {
+    for pattern in [Pattern::Slam, Pattern::Meteors, Pattern::Nova, Pattern::Pull, Pattern::Burn, Pattern::Ring, Pattern::Volley, Pattern::Brood, Pattern::Charge, Pattern::Fortify, Pattern::Piston, Pattern::GravityRing, Pattern::Beams, Pattern::Cleave, Pattern::AcidRain, Pattern::ShieldRush, Pattern::Whirlwind, Pattern::Leap, Pattern::Sweep, Pattern::BlackHole, Pattern::TwinSlam, Pattern::Surge, Pattern::Barrage, Pattern::Judgement] {
         let mut boss = Enemy::boss(&BOSSES[0], 800, 0, MIDDLE + Vec2::new(0.0, 900.0));
         let mut state = boss.boss.take().unwrap();
         let (mut born, mut shots, mut fx) = (Vec::new(), Vec::new(), Effects::default());
@@ -143,7 +143,7 @@ fn the_gauge_counts_faster_in_the_last_stand_and_says_nothing_between_phases() {
     assert!((normal - 8.0).abs() < 1.0e-4);
     state.last_stand = true;
     let rushed = state.next_circle().unwrap().seconds;
-    assert!((rushed - 8.0 / 1.6).abs() < 1.0e-3, "{rushed}");
+    assert!((rushed - 8.0 / LAST_STAND_RATE).abs() < 1.0e-3, "{rushed}");
     state.shifting = 1.0;
     assert!(state.next_circle().is_none(), "a boss that is changing phase puts none down");
 }

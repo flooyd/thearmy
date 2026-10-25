@@ -292,7 +292,7 @@ impl Stored for &'static BossDef {
     }
 }
 
-stored_words!(Behavior { Walker, Shooter, Splitter, Charger, Bomber, Healer, Summoner, Mortar, Nest, Ambusher });
+stored_words!(Behavior { Walker, Shooter, Splitter, Charger, Bomber, Healer, Summoner, Mortar, Nest, Ambusher, Executioner, Sniper, Hexer, Blinker, Sapper, Overseer });
 stored_words!(Modifier { None, Swift, Armored, Volatile, Frenzied, Captain });
 stored_words!(WallKind { Wall, Gate, Tower, Spikes, Tar, Barrier });
 stored_words!(Side { Friendly, Hostile });
@@ -424,7 +424,7 @@ impl Stored for Unit {
     }
 
     fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
-        Ok(Unit { x: r.get()?, y: r.get()?, speed: r.get()?, steer: r.get()?, steer_in: r.get()?, velocity: r.get()?, nose: Vec2::new(0.0, -1.0), target: r.get()?, health: r.get()?, garrison: r.get()?, guard: r.get()?, calm: r.get()?, age: 99.0, champion: 0, power: 0.0, might: 1.0, ward: 1.0, level: 0, xp: 0.0, evolutions: 0, slot: rand::rand(), id: NEXT_UNIT_ID.fetch_add(1, Ordering::Relaxed), owner: 0 })
+        Ok(Unit { x: r.get()?, y: r.get()?, speed: r.get()?, steer: r.get()?, steer_in: r.get()?, velocity: r.get()?, nose: Vec2::new(0.0, -1.0), target: r.get()?, health: r.get()?, garrison: r.get()?, guard: r.get()?, calm: r.get()?, age: 99.0, champion: 0, power: 0.0, might: 1.0, ward: 1.0, hexed: 0.0, level: 0, xp: 0.0, evolutions: 0, slot: rand::rand(), id: NEXT_UNIT_ID.fetch_add(1, Ordering::Relaxed), owner: 0 })
     }
 }
 stored_fields!(Baby { position, age });

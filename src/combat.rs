@@ -587,11 +587,13 @@ pub(crate) struct Hazard {
     pub(crate) circle: Option<BossCircle>, //which of a boss's circles it is, if it is one, which sets its colour
     pub(crate) shape: Shape,      //its shape (see telegraphs.rs): `position` and `radius` are where it is and how far from there it reaches at most
     pub(crate) group: u32,        //the ones put down together (a fan of beams) share a number, and are warned of as one. 0 for one alone
+    pub(crate) mine: bool,        //a mine: it waits, faint, for `warn` seconds for a unit to come into it, and goes off MINE_FUSE after one does
+    pub(crate) hex: bool,         //a curse: while it lingers, the units in it take HEX_EXTRA more harm
 }
 
 impl Hazard {
     pub(crate) fn new(position: Vec2, radius: f32, warn: f32, damage: f32, victims: usize, color: Color, boom: Cue) -> Hazard {
-        Hazard { position, radius, armed: true, warn, warn_total: warn.max(0.001), damage, victims, linger: 0.0, burn: 0.0, flash: 0.0, color, boom, wall_damage: damage * BLAST_WALL_FACTOR, circle: None, shape: Shape::Circle, group: 0 }
+        Hazard { position, radius, armed: true, warn, warn_total: warn.max(0.001), damage, victims, linger: 0.0, burn: 0.0, flash: 0.0, color, boom, wall_damage: damage * BLAST_WALL_FACTOR, circle: None, shape: Shape::Circle, group: 0, mine: false, hex: false }
     }
 
     //it hurts walls this many times as much as usual: a bigger enemy's blast breaks a wall that was built for a bigger army
@@ -617,6 +619,19 @@ impl Hazard {
     pub(crate) fn shaped(mut self, shape: Shape) -> Hazard {
         self.shape = shape;
         self.radius = shape.reach(self.radius);
+        self
+    }
+
+    //it is a mine (see `mine`)
+    pub(crate) fn mined(mut self) -> Hazard {
+        self.mine = true;
+        self
+    }
+
+    //it is a curse that lasts `seconds` (see `hex`)
+    pub(crate) fn hexing(mut self, seconds: f32) -> Hazard {
+        self.linger = seconds;
+        self.hex = true;
         self
     }
 
@@ -649,7 +664,24 @@ impl Hazard {
 //count the hazards down, set off the ones that are due and burn the units in the ones that are burning
 pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, units: &mut [Unit], relics: &R, dt: f32, fx: &mut Effects) {
     let mut burning: Vec<(Vec2, f32, Shape, f32)> = Vec::new(); //where, how far it reaches, its shape and how hard it burns
+    let mut cursing: Vec<(Vec2, f32, Shape)> = Vec::new();
     hazards.retain_mut(|hazard| {
+        //a mine waits out its life for a unit to come into it (looking at MINE_CHECKS of them a frame), and then its fuse burns
+        if hazard.mine {
+            hazard.warn -= dt;
+            if hazard.warn <= 0.0 {
+                return false;
+            }
+            let stride = (units.len() / MINE_CHECKS).max(1);
+            let offset = (hazard.warn * 97.0) as usize % stride;
+            if units.iter().skip(offset).step_by(stride).any(|unit| unit.health > 0.0 && unit.garrison.is_none() && hazard.contains(Vec2::new(unit.x, unit.y))) {
+                hazard.mine = false;
+                hazard.warn = MINE_FUSE;
+                hazard.warn_total = MINE_FUSE;
+                fx.cue_at(Cue::Tick, hazard.position);
+            }
+            return true;
+        }
         if hazard.armed {
             hazard.warn -= dt;
             if hazard.warn > 0.0 {
@@ -693,9 +725,21 @@ pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, unit
             if hazard.burn > 0.0 {
                 burning.push((hazard.position, hazard.radius, hazard.shape, hazard.burn));
             }
+            if hazard.hex {
+                cursing.push((hazard.position, hazard.radius, hazard.shape));
+            }
         }
         hazard.linger > 0.0 || hazard.flash > 0.0
     });
+    //a unit in a curse takes more harm until a moment after it leaves
+    if !cursing.is_empty() {
+        for unit in units.iter_mut().filter(|unit| unit.health > 0.0) {
+            let at = Vec2::new(unit.x, unit.y);
+            if cursing.iter().any(|(position, radius, shape)| inside(*position, *radius, *shape, at)) {
+                unit.hexed = HEX_HOLD;
+            }
+        }
+    }
     //fire doesn't add up: a unit standing in several burning places takes the worst of them, so a pile of them on one army can't
     //melt it in a moment
     if !burning.is_empty() {

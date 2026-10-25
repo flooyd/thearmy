@@ -1,4 +1,4 @@
-"""The 23 kinds of enemy, in the colours and sizes of ENEMY_KINDS in src/enemy.rs. Each faces up, and fills the square of its hitbox (the dashed one in the preview)."""
+"""The 29 kinds of enemy, in the colours and sizes of ENEMY_KINDS in src/enemy.rs. Each faces up, and fills the square of its hitbox (the dashed one in the preview)."""
 
 from dsl import sym
 
@@ -294,3 +294,66 @@ def _(a):
     a.rep(10, lambda: a.poly([(-5, -23), (5, -23), (0, -10)], 'bone', o='ot'), start=18)
     a.glow(0, 0, 22, '#ff3a3a')
     a.circ(0, 0, 7, 'er', o='')
+
+
+@sym('executioner', 'Executioner', 'winds up a cleave that cuts down what is in front of it: a hooded brute with a great axe', 70, '#8c1f26')
+def _(a):
+    a.line([(26, 10), (42, 20), (44, 36)], 6, 'd', mirror=True)
+    a.poly([(0, -30), (26, -24), (36, 0), (32, 30), (0, 42)], 'b', mirror='axis')
+    a.poly([(0, -42), (16, -36), (18, -18), (0, -12)], 'x', mirror='axis')
+    a.circ(7, -26, 3, 'er', mirror=True, o='')
+    a.line([(30, -6), (30, -54)], 4, 'bd')
+    a.poly([(30, -54), (48, -60), (50, -38), (30, -42)], 'm')
+    a.line([(48, -60), (50, -38)], 2.4, 'ml', edge=0)
+
+
+@sym('sniper', 'Sniper', 'shows a long line at the army and fires down it: a gaunt marksman with a long rifle', 46, '#738c73')
+def _(a):
+    a.line([(18, 14), (30, 26), (30, 42)], 4.5, 'd', mirror=True)
+    a.poly([(0, -22), (18, -16), (22, 10), (16, 34), (0, 38)], 'b', mirror='axis')
+    a.circ(0, -18, 12, 'd')
+    a.poly([(-3, -12), (3, -12), (3, -66), (-3, -66)], 'md')
+    a.poly([(-6, -30), (6, -30), (6, -44), (-6, -44)], 'm', o='ot')
+    a.pulse(lambda: a.glow(0, -66, 10, '#ff4a3a', 0.8), 0.8, 0.3)
+    a.circ(0, -20, 3.2, 'er', o='')
+
+
+@sym('hexer', 'Hexer', 'curses the ground so the units in it take more harm: a robed witch with a turning ring of runes', 48, '#8c33bf')
+def _(a):
+    a.spin(lambda: a.rep(6, lambda: a.poly([(-4, -48), (4, -48), (0, -40)], 'ep', o='')), 6.0)
+    a.poly([(0, -28), (18, -18), (26, 30), (0, 40)], 'b', mirror='axis')
+    a.poly([(0, -42), (14, -32), (12, -16), (0, -12)], 'x', mirror='axis')
+    a.circ(6, -24, 3, 'ep', mirror=True, o='')
+    a.pulse(lambda: a.glow(0, 6, 16, '#d9a6ff', 0.7), 1.2, 0.3)
+    a.circ(0, 6, 6, 'ep', o='ot')
+
+
+@sym('blinker', 'Blinker', 'flickers, and is behind the army in a moment: a shard of a creature with an afterimage', 40, '#7366ff')
+def _(a):
+    a.alpha(0.35, lambda: a.poly([(0, -24), (22, 12), (12, 46), (0, 38)], 'l', mirror='axis'))
+    a.poly([(0, -46), (24, -6), (14, 30), (0, 20)], 'b', mirror='axis')
+    a.poly([(0, -32), (10, -10), (0, 2)], 'l', mirror='axis', o='')
+    a.circ(7, -16, 3, 'ec', mirror=True, o='')
+    a.pulse(lambda: a.glow(0, -8, 18, '#69f0ff', 0.6), 0.4, 0.2)
+
+
+@sym('sapper', 'Sapper', 'lays mines where the army walks: a crouched digger with a pack of mines', 44, '#99804d')
+def _(a):
+    a.line([(20, 8), (34, 16), (38, 30)], 5, 'd', mirror=True)
+    a.poly([(0, -24), (20, -18), (26, 8), (20, 30), (0, 36)], 'b', mirror='axis')
+    a.circ(0, 16, 14, 'md')
+    a.circ(-6, 12, 4, 'm', o='ot')
+    a.circ(6, 20, 4, 'm', o='ot')
+    a.circ(0, -22, 10, 'd')
+    a.circ(0, -44, 9, 'md')
+    a.pulse(lambda: a.circ(0, -44, 3.4, 'er', o=''), 0.6, 0.1)
+
+
+@sym('overseer', 'Overseer', 'marks a champion, and a heavy blow lands where it was: a floating eye that watches', 60, '#267380')
+def _(a):
+    a.rep(4, lambda: a.line([(0, 28), (0, 48)], 4, 'd'), start=45)
+    a.circ(0, 0, 34, 'b')
+    a.circ(0, -4, 22, 'w', o='ot')
+    a.circ(0, -6, 11, 'g', o='')
+    a.circ(0, -6, 5, 'k', o='')
+    a.pulse(lambda: a.glow(0, -6, 26, '#f2c14e', 0.5), 1.4, 0.3)

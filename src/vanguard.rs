@@ -25,10 +25,15 @@ pub(crate) fn gunner_rate(front: &Front) -> f32 {
 }
 
 //how far the front of an army of `army` units sees and fires: GUNNERY_RANGE for a small one, growing (as the square root of its size, as the army's
-//reach does) to GUNNERY_WIDE_RANGE, about the width of the screen zoomed out to see it, at GUNNERY_WIDE_ARMY units, and no further
+//reach does) to GUNNERY_WIDE_RANGE, more than the width of the screen zoomed out to see it, at GUNNERY_WIDE_ARMY units, and on more slowly to
+//GUNNERY_HUGE_RANGE at GUNNERY_HUGE_ARMY, and no further
 pub(crate) fn gunnery_range(army: usize) -> f32 {
-    let grown = (army as f32 / GUNNERY_WIDE_ARMY as f32).clamp(0.0, 1.0).sqrt();
-    GUNNERY_RANGE + (GUNNERY_WIDE_RANGE - GUNNERY_RANGE) * grown
+    if army <= GUNNERY_WIDE_ARMY {
+        let grown = (army as f32 / GUNNERY_WIDE_ARMY as f32).sqrt();
+        return GUNNERY_RANGE + (GUNNERY_WIDE_RANGE - GUNNERY_RANGE) * grown;
+    }
+    let grown = ((army - GUNNERY_WIDE_ARMY) as f32 / (GUNNERY_HUGE_ARMY - GUNNERY_WIDE_ARMY) as f32).min(1.0).sqrt();
+    GUNNERY_WIDE_RANGE + (GUNNERY_HUGE_RANGE - GUNNERY_WIDE_RANGE) * grown
 }
 
 //the enemy a gunner at a place fires at: the nearest within `range` in the narrow cone round the heading, or failing that the nearest in the wide one.
@@ -112,7 +117,11 @@ pub(crate) fn fire_vanguard(fronts: &[Front], units: &[Unit], enemies: &[Enemy],
         if due.is_empty() {
             continue;
         }
-        let taken = due.len().min(((GUNNERY_BOLTS_A_SECOND * dt).round() as usize).max(1));
+        //(and no more than there is room for under BOLT_CAP, so that the cap makes the bolts fewer and heavier, not the fire weaker)
+        let taken = due.len().min(((GUNNERY_BOLTS_A_SECOND * dt).round() as usize).max(1)).min(BOLT_CAP.saturating_sub(bolts.len()));
+        if taken == 0 {
+            continue;
+        }
         let stride = due.len() as f32 / taken as f32;
         let heavier = stride / density;
         let mut fired = 0;

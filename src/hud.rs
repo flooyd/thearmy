@@ -152,7 +152,7 @@ pub(crate) struct BlastWarning {
 pub(crate) fn blast_warning(hazards: &[Hazard], player: Vec2, units: &[Unit]) -> Option<BlastWarning> {
     //(the ones put down together, like a fan of beams, are one warning, of what is at stake in all of them)
     let mut found: Vec<(u32, BlastWarning)> = Vec::new();
-    for hazard in hazards.iter().filter(|hazard| hazard.armed && hazard.damage >= UNIT_HEALTH && hazard.warn_total >= BLAST_WARNING_MIN_SECONDS) {
+    for hazard in hazards.iter().filter(|hazard| hazard.armed && !hazard.mine && hazard.damage >= UNIT_HEALTH && hazard.warn_total >= BLAST_WARNING_MIN_SECONDS) {
         let inside = units.iter().filter(|unit| unit.health > 0.0 && unit.garrison.is_none() && hazard.contains(Vec2::new(unit.x, unit.y))).count();
         let at_stake = inside.min(hazard.victims);
         let player_inside = hazard.contains(player);
@@ -315,6 +315,12 @@ pub(crate) fn traits(enemy: &Enemy) -> Vec<String> {
         Behavior::Mortar => traits.push("lobs shells".to_owned()),
         Behavior::Nest => traits.push("sends out more of its own".to_owned()),
         Behavior::Ambusher => traits.push("springs from hiding".to_owned()),
+        Behavior::Executioner => traits.push("winds up a deadly cleave".to_owned()),
+        Behavior::Sniper => traits.push("fires down a long line".to_owned()),
+        Behavior::Hexer => traits.push("curses the ground: units in it take more harm".to_owned()),
+        Behavior::Blinker => traits.push("blinks behind the army".to_owned()),
+        Behavior::Sapper => traits.push("lays mines".to_owned()),
+        Behavior::Overseer => traits.push("marks a champion for a heavy blow".to_owned()),
     }
     if enemy.provoked > 0.0 && !enemy.chasing {
         traits.push("fighting back".to_owned());
