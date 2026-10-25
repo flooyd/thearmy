@@ -27,12 +27,13 @@ fn busy_world() -> Snapshot {
         world.units.push(unit);
     }
     //three champions among them, one with a timer part way, at different levels and part way to the next
-    for (at, name, power, level, xp) in [(7, "Juggernaut", 0.0, 1, 0.0), (101, "Phoenix", 41.5, 4, 37.5), (222, "Frostweaver", 3.25, CHAMPION_MAX_LEVEL, 0.0)] {
+    for (at, name, power, level, xp, evolutions) in [(7, "Juggernaut", 0.0, 1, 0.0, 0), (101, "Phoenix", 41.5, 4, 37.5, 0), (222, "Frostweaver", 3.25, CHAMPION_MAX_LEVEL, 0.0, 0b10)] {
         let unit = &mut world.units[at];
         unit.champion = champion_named(name).unwrap() as u8 + 1;
         unit.power = power;
         unit.level = level;
         unit.xp = xp;
+        unit.evolutions = evolutions;
         unit.health = unit.max_health() - 13.0;
     }
     world.babies =(0..40).map(|i| Baby { position: Vec2::new(14000.0 + i as f32 * 17.0, 14500.0), age: i as f32 * 0.37 }).collect();
@@ -121,6 +122,7 @@ fn a_saved_run_reads_back_as_the_same_run() {
     assert_eq!((loaded.units[7].level, loaded.units[101].level, loaded.units[222].level), (1, 4, CHAMPION_MAX_LEVEL));
     assert_eq!((loaded.units[101].xp, loaded.units[101].health), (37.5, loaded.units[101].max_health() - 13.0));
     assert_eq!(loaded.units[0].level, 0, "an ordinary unit has no level");
+    assert_eq!((loaded.units[7].evolutions, loaded.units[101].evolutions, loaded.units[222].evolutions), (0, 0, 0b10));
     assert_eq!(loaded.units.len(), world.units.len());
     assert_eq!(loaded.walls.len(), world.walls.len());
     assert_eq!(loaded.enemies.len(), world.enemies.len());
@@ -588,4 +590,19 @@ fn a_freeze_is_not_kept_in_a_save() {
     let loaded = Snapshot::from_text(&world.to_text()).unwrap();
     assert_eq!(loaded.enemies[0].frozen, 0.0);
     assert_eq!(loaded.enemies[0].id, world.enemies[0].id, "and it is the same enemy otherwise");
+}
+
+#[test]
+fn champions_in_a_save_from_before_they_could_evolve_come_back_with_nothing_chosen() {
+    let text = busy_world().to_text();
+    let cut = text.rfind("\nevolutions ").expect("a save says how the champions have grown");
+    let old = Snapshot::from_text(&text[..cut + 1]).expect("a save without evolutions still reads");
+    assert!(old.units.iter().all(|unit| unit.evolutions == 0));
+    assert_eq!(old.units[222].level, CHAMPION_MAX_LEVEL);
+    //a choice that can't have been made is dropped rather than refused, but an evolution for a unit that is no champion is a damaged file
+    let (head, tail) = text.split_at(cut);
+    let wild = format!("{head}{}", tail.replacen("\n222 2", "\n222 6", 1));
+    assert_ne!(wild, text, "the line to change is there");
+    assert_eq!(Snapshot::from_text(&wild).expect("a choice out of reach is put right").units[222].evolutions, 0b10);
+    assert!(Snapshot::from_text(&format!("{head}{}", tail.replacen("\n222 2", "\n223 2", 1))).is_err());
 }

@@ -302,6 +302,7 @@ fn busy_input() -> PlayerInput {
         recall: true,
         send: Some(4_000_000_001),
         relic: Some(RelicAct::Pick(2)),
+        evolve: Some(EvolvePick { champion: 4_000_000_002, tier: 0, choice: 1 }),
     }
 }
 
@@ -370,6 +371,7 @@ fn an_input_is_put_right_as_far_as_it_can_be() {
         place: vec![(1, 1); 1000],
         delete: vec![(2, 2); 1000],
         relic: Some(RelicAct::Pick(9)),
+        evolve: Some(EvolvePick { champion: 1, tier: 1, choice: 0 }),
         ..busy_input()
     }
     .tidy();
@@ -378,6 +380,8 @@ fn an_input_is_put_right_as_far_as_it_can_be() {
     assert_eq!(wild.select, None);
     assert_eq!((wild.place.len(), wild.delete.len()), (MAX_SQUARES_AN_INPUT, MAX_SQUARES_AN_INPUT));
     assert_eq!(wild.relic, None);
+    assert_eq!(wild.evolve, None, "there is only the one choice");
+    assert_eq!(PlayerInput { evolve: Some(EvolvePick { champion: 1, tier: 0, choice: 2 }), ..busy_input() }.tidy().evolve, None, "and two ways at each");
     //an input that is fine is left as it is
     assert_eq!(busy_input().tidy(), busy_input());
     //(walking slower than walking is fine)
@@ -830,6 +834,7 @@ fn two_players_stepped_for_a_while_with_every_kind_of_input_keep_the_world_sane(
                         1 => Some(RelicAct::Reroll),
                         _ => None,
                     },
+                    evolve: (noise(&mut seed) % 30 == 0).then(|| EvolvePick { champion: noise(&mut seed) as u32, tier: (noise(&mut seed) % 4) as u8, choice: (noise(&mut seed) % 3) as u8 }),
                 }
             })
             .collect();
@@ -842,4 +847,70 @@ fn two_players_stepped_for_a_while_with_every_kind_of_input_keep_the_world_sane(
     }
     assert!(sim.units.iter().all(|unit| unit.x.is_finite() && unit.y.is_finite() && (unit.owner as usize) < 2));
     assert!(sim.run.seconds > 14.0);
+}
+
+#[test]
+fn a_player_chooses_how_their_own_champion_grows_and_only_once() {
+    let mut sim = quiet();
+    let mut champion = champion_unit(champion_named("Medic").unwrap(), sim.players.list[0].position);
+    champion.level = EVOLUTION_LEVELS[0];
+    let id = champion.id;
+    sim.units.push(champion);
+    sim.add_player("Bob").expect("room for another player");
+    let evolutions = |sim: &Sim| sim.units.iter().find(|unit| unit.id == id).expect("the medic is there").evolutions;
+    let pick = |champion: u32, choice: u8| PlayerInput { evolve: Some(EvolvePick { champion, tier: 0, choice }), ..idle() };
+    //a choice for a champion that isn't there, a way that isn't one of the two, or a choice by another player, is nothing
+    step(&mut sim, vec![pick(id + 100_000, 0)]);
+    step(&mut sim, vec![pick(id, 7)]);
+    step(&mut sim, vec![idle(), pick(id, 0)]);
+    assert_eq!(evolutions(&sim), 0);
+    let chose = step(&mut sim, vec![pick(id, 1)]);
+    assert_eq!(evolutions(&sim), 0b10);
+    assert!(chose.report.save_soon, "a good moment to save");
+    step(&mut sim, vec![pick(id, 0)]);
+    assert_eq!(evolutions(&sim), 0b10, "a choice once made is kept");
+}
+
+#[test]
+fn a_champions_volley_flies_in_the_world_and_its_watchers_are_told_of_it_once() {
+    let mut sim = quiet();
+    let at = sim.players.list[0].position;
+    let mut champion = champion_unit(champion_named("Sharpshooter").unwrap(), at);
+    champion.power = 0.0;
+    sim.units.push(champion);
+    let mut target = kind_at("Grunt", at + Vec2::new(350.0, 0.0));
+    target.max_health = 1.0e9;
+    target.health = 1.0e9;
+    target.attack = 0.0;
+    sim.enemies.push(target);
+    let fired = step(&mut sim, vec![idle()]);
+    assert_eq!(fired.events.iter().filter(|event| matches!(event, Event::Volley(_))).count(), 1);
+    assert!(read_events(&write_events(&fired.events)).is_some(), "the volley can be sent");
+    for _ in 0..30 {
+        step(&mut sim, vec![idle()]);
+    }
+    assert!(sim.enemies.iter().any(|enemy| enemy.health < 1.0e9), "the round hit");
+    assert!(sim.bolts.is_empty() || sim.bolts.iter().all(|bolt| bolt.kind == BoltKind::Round));
+}
+
+#[test]
+fn the_front_of_the_army_fires_at_an_enemy_ahead_and_no_message_carries_its_bolts() {
+    let mut sim = quiet();
+    let at = sim.players.list[0].position;
+    let ahead = sim.players.list[0].facing.normalize() * 600.0;
+    let mut target = kind_at("Grunt", at + ahead);
+    target.max_health = 1.0e9;
+    target.health = 1.0e9;
+    target.attack = 0.0;
+    sim.enemies.push(target);
+    let mut told = 0;
+    let mut tracers = 0;
+    for _ in 0..90 {
+        let step = step(&mut sim, vec![idle()]);
+        told += step.events.iter().filter(|event| matches!(event, Event::Volley(_))).count();
+        tracers = tracers.max(sim.bolts.iter().filter(|bolt| bolt.kind == BoltKind::Tracer).count());
+    }
+    assert!(tracers > 0, "the army fired");
+    assert_eq!(told, 0, "a guest works the vanguard's fire out for itself");
+    assert!(sim.enemies.iter().any(|enemy| enemy.health < 1.0e9), "and it hit");
 }

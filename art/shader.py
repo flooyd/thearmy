@@ -21,6 +21,7 @@ sys.path.insert(0, HERE)
 import bosses  # noqa: E402,F401
 import enemies  # noqa: E402,F401
 import marks  # noqa: E402,F401
+import champions  # noqa: E402,F401
 from dsl import COLORS, REGISTRY  # noqa: E402
 
 OUT = os.path.join(HERE, '..', 'src', 'creature_art.rs')

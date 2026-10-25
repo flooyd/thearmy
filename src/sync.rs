@@ -116,6 +116,7 @@ pub(crate) struct UnitLook {
     pub(crate) bits: u8,   //see the LOOK_ numbers
     pub(crate) champion: u8,
     pub(crate) level: u8,
+    pub(crate) evolutions: u8, //the ways a champion has grown (see `chosen_at`)
     pub(crate) age: u8,       //how long since it grew from a baby, in 255ths of UNIT_GROW_SECONDS, while it is that new
     pub(crate) target: u32,   //the enemy it was sent at, but only what a player is told of their own units
 }
@@ -155,6 +156,7 @@ impl UnitLook {
             bits,
             champion: if unit.champion != 0 { unit.champion } else { 0 },
             level: if unit.champion != 0 { unit.level } else { 0 },
+            evolutions: if unit.champion != 0 { unit.evolutions } else { 0 },
             age: if young { share_byte(unit.age / UNIT_GROW_SECONDS) } else { 0 },
             target,
         }
@@ -166,6 +168,7 @@ impl UnitLook {
         if self.bits & LOOK_CHAMPION != 0 {
             out.u8(self.champion);
             out.u8(self.level);
+            out.u8(self.evolutions);
         }
         if self.bits & LOOK_YOUNG != 0 {
             out.u8(self.age);
@@ -180,10 +183,11 @@ impl UnitLook {
         if bits & 0b1100_0000 != 0 {
             return None;
         }
-        let (mut champion, mut level, mut age, mut target) = (0, 0, 0, 0);
+        let (mut champion, mut level, mut evolutions, mut age, mut target) = (0, 0, 0, 0, 0);
         if bits & LOOK_CHAMPION != 0 {
             champion = input.u8()?;
             level = input.u8()?;
+            evolutions = input.u8()?;
             if champion == 0 || champion as usize > CHAMPIONS.len() {
                 return None;
             }
@@ -194,7 +198,8 @@ impl UnitLook {
         if bits & LOOK_TARGET != 0 {
             target = input.varint()?;
         }
-        Some(UnitLook { health, bits, champion, level: level.clamp(if champion != 0 { 1 } else { 0 }, CHAMPION_MAX_LEVEL), age, target })
+        let level = level.clamp(if champion != 0 { 1 } else { 0 }, CHAMPION_MAX_LEVEL);
+        Some(UnitLook { health, bits, champion, level, evolutions: tidy_evolutions(evolutions, level), age, target })
     }
 
     //put what is seen onto a unit
@@ -204,6 +209,7 @@ impl UnitLook {
         unit.garrison = (self.bits & LOOK_GARRISON != 0).then_some((0, 0));
         unit.champion = self.champion;
         unit.level = self.level;
+        unit.evolutions = self.evolutions;
         unit.age = if self.bits & LOOK_YOUNG != 0 { byte_share(self.age) * UNIT_GROW_SECONDS } else { 99.0 };
         unit.health = byte_share(self.health) * unit.max_health();
     }

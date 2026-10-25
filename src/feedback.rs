@@ -41,6 +41,7 @@ impl Feedback {
                     }
                 }
                 Event::Destroyed(count) => destroyed += count as usize,
+                Event::Volley(_) => {} //(its bolts are the world's: the host's flies them, a guest's makes them from it, see `launch_told`)
             }
         }
         if let Some((size, name)) = self.combo.add(destroyed) {

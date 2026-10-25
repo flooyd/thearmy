@@ -116,12 +116,35 @@ fn a_champion_stays_close_to_the_player_in_any_formation_and_free_has_no_places_
     let champion = champion_unit(champion_named("Juggernaut").unwrap(), player);
     let ordinary = unit_at(player.x, player.y);
     for formation in [Formation::Ring, Formation::Wedge, Formation::Line] {
-        let drill = Drill { formation, facing: Vec2::X };
+        let drill = Drill::new(formation, Vec2::X);
         let guard = drill.goal(&champion, player, 8000).unwrap();
         assert!(guard.distance(player) <= FORMATION_GUARD + 0.01, "{formation:?}");
+        assert!(guard.distance(player) >= FORMATION_GUARD * GUARD_INNER - 0.01, "never on the player, {formation:?}");
         assert!(drill.goal(&ordinary, player, 8000).is_some());
     }
-    assert!(Drill { formation: Formation::Free, facing: Vec2::X }.goal(&ordinary, player, 8000).is_none());
+    assert!(Drill::new(Formation::Free, Vec2::X).goal(&ordinary, player, 8000).is_none());
+}
+
+#[test]
+fn the_champions_ring_grows_to_fit_them_all() {
+    let player = Vec2::new(5000.0, 5000.0);
+    let one = vec![champion_unit(champion_named("Medic").unwrap(), player)];
+    assert_eq!(guard_radius(one.iter()), FORMATION_GUARD, "one champion stands at the usual distance");
+    let dozen: Vec<Unit> = (0..MAX_CHAMPIONS).map(|i| champion_unit(i % CHAMPIONS.len(), player)).collect();
+    let guard = guard_radius(dozen.iter());
+    assert!(guard > FORMATION_GUARD, "twelve big champions need a bigger ring: {guard}");
+    //the ring, round the middle of where they stand, has room for every width with room between
+    let widths: f32 = dozen.iter().map(|unit| unit.radius() * 2.0).sum();
+    assert!(guard * (1.0 + GUARD_INNER) / 2.0 * std::f32::consts::TAU >= widths * GUARD_SPACING - 0.01);
+    let drill = Drill::new(Formation::Ring, Vec2::X).guarding(guard);
+    for champion in &dozen {
+        let out = drill.goal(champion, player, 8000).unwrap().distance(player);
+        assert!(out >= guard * GUARD_INNER - 0.01 && out <= guard + 0.01, "{out} of {guard}");
+    }
+    //ordinary units are not counted, and a drill made plain has the usual ring
+    let crowd: Vec<Unit> = (0..500).map(|i| unit_at(player.x + i as f32, player.y)).collect();
+    assert_eq!(guard_radius(crowd.iter()), FORMATION_GUARD);
+    assert_eq!(Drill::new(Formation::Wedge, Vec2::X).guard, FORMATION_GUARD);
 }
 
 #[test]
@@ -150,7 +173,7 @@ fn drill_for(formation: Formation, count: usize, seconds: f32) -> (Vec<Unit>, Ve
     let player = Vec2::new(8000.0, 8000.0);
     let walls = Walls::default();
     let field = field_for(player, &walls);
-    let drill = Drill { formation, facing: Vec2::new(1.0, 0.0) };
+    let drill = Drill::new(formation, Vec2::new(1.0, 0.0));
     let mut units: Vec<Unit> = (0..count).map(|i| unit_at(player.x + (i % 40) as f32 * 3.0 - 60.0, player.y + (i / 40) as f32 * 3.0 - 40.0)).collect();
     units.push(champion_unit(champion_named("Medic").unwrap(), player));
     let squads = Squads::new();
@@ -195,7 +218,7 @@ fn units_far_behind_their_place_hurry_to_catch_up() {
     let walls = Walls::default();
     let field = field_for(player, &walls);
     let squads = Squads::new();
-    let drill = Drill { formation: Formation::Ring, facing: Vec2::X };
+    let drill = Drill::new(Formation::Ring, Vec2::X);
     let travelled = |far: f32| {
         let mut units = vec![unit_at(player.x - far, player.y)];
         let start = Vec2::new(units[0].x, units[0].y);

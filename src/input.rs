@@ -19,6 +19,14 @@ pub(crate) enum RelicAct {
     Reroll,   //ask for three others
 }
 
+//a player choosing how one of their champions grows: which champion (by its id), at which of EVOLUTION_LEVELS, and which of the two ways
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct EvolvePick {
+    pub(crate) champion: u32,
+    pub(crate) tier: u8,
+    pub(crate) choice: u8,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) struct PlayerInput {
     pub(crate) direction: Vec2,        //the way they walk: no longer than 1, zero to stand still
@@ -31,12 +39,13 @@ pub(crate) struct PlayerInput {
     pub(crate) recall: bool,           //they called every squad back
     pub(crate) send: Option<u32>,      //the enemy (by its id) they sent a squad at
     pub(crate) relic: Option<RelicAct>,
+    pub(crate) evolve: Option<EvolvePick>, //how they chose for a champion of theirs to grow
 }
 
 impl PlayerInput {
     //a player doing nothing: standing still, their window as it is and their army in the shape it was
     pub(crate) fn idle(formation: Formation, screen: Vec2) -> PlayerInput {
-        PlayerInput { direction: Vec2::ZERO, screen, formation, select: None, place: Vec::new(), delete: Vec::new(), tower: None, recall: false, send: None, relic: None }
+        PlayerInput { direction: Vec2::ZERO, screen, formation, select: None, place: Vec::new(), delete: Vec::new(), tower: None, recall: false, send: None, relic: None, evolve: None }
     }
 
     //the same thing with whatever couldn't be asked for put right: walking no faster than walking, a window of a believable size, no more squares than a drag
@@ -48,11 +57,12 @@ impl PlayerInput {
         self.place.truncate(MAX_SQUARES_AN_INPUT);
         self.delete.truncate(MAX_SQUARES_AN_INPUT);
         self.relic = self.relic.filter(|act| !matches!(act, RelicAct::Pick(place) if *place >= 3));
+        self.evolve = self.evolve.filter(|pick| (pick.tier as usize) < EVOLUTION_LEVELS.len() && pick.choice < 2);
         self
     }
 
     //this input and the one after it as one, for a world that takes a step between two of them: what was asked for in either is asked for, and of two things
-    //that can't both happen the later is the one that does (but not the relic, as the first thing a player does about the ones on offer is what they meant)
+    //that can't both happen the later is the one that does (but not the relic or an evolution, as the first thing a player does about a choice on offer is what they meant)
     pub(crate) fn then(mut self, later: PlayerInput) -> PlayerInput {
         self.direction = later.direction;
         self.screen = later.screen;
@@ -66,6 +76,7 @@ impl PlayerInput {
         self.recall |= later.recall;
         self.send = later.send.or(self.send);
         self.relic = self.relic.or(later.relic);
+        self.evolve = self.evolve.or(later.evolve);
         self
     }
 
@@ -102,6 +113,11 @@ impl PlayerInput {
             }
             Some(RelicAct::Reroll) => out.u8(2),
         }
+        out.flag(self.evolve.is_some());
+        let pick = self.evolve.unwrap_or(EvolvePick { champion: 0, tier: 0, choice: 0 });
+        out.u32(pick.champion);
+        out.u8(pick.tier);
+        out.u8(pick.choice);
     }
 
     pub(crate) fn read(input: &mut Reader) -> Option<PlayerInput> {
@@ -120,6 +136,7 @@ impl PlayerInput {
             2 => Some(RelicAct::Reroll),
             _ => return None,
         };
+        let (has_evolve, champion, tier, choice) = (input.flag()?, input.u32()?, input.u8()?, input.u8()?);
         Some(PlayerInput {
             direction,
             screen,
@@ -131,6 +148,7 @@ impl PlayerInput {
             recall,
             send: has_send.then_some(send),
             relic,
+            evolve: has_evolve.then_some(EvolvePick { champion, tier, choice }),
         })
     }
 
@@ -211,6 +229,7 @@ pub(crate) struct ControlView<'a> {
     pub(crate) formation: Formation,
     pub(crate) map: &'a Minimap,
     pub(crate) enemies: &'a [Enemy],
+    pub(crate) over_roster: bool, //the mouse is over the roster of champions, whose clicks are its own
 }
 
 //the keyboard and mouse of the player at this machine: what they do becomes input. holds the two drags (building and deleting) that go on
@@ -228,7 +247,8 @@ impl Controls {
 
     //what they ask for in a frame in which they can act: walking (WASD), recalling the squads (R), a click on an enemy (in the world or on the map)
     //to send a squad at it, G over a tower to man it, the number keys to choose a kind of wall, and dragging the left button to build and the right
-    //to delete. a left click that is on an enemy, or on the map, builds nothing, nor does the drag it would have started
+    //to delete. a left click that is on an enemy, or on the map, builds nothing, nor does the drag it would have started, and nothing in the world under
+    //the roster of champions is clicked, built on or deleted
     pub(crate) fn read(&mut self, view: &ControlView) -> PlayerInput {
         let mut input = PlayerInput::idle(view.formation, view.screen);
         input.direction = keyboard_direction();
@@ -236,7 +256,7 @@ impl Controls {
         let mouse = Vec2::from(mouse_position());
         let over_map = view.map.contains(mouse);
         let mut clicked_enemy = false;
-        if is_mouse_button_pressed(MouseButton::Left) {
+        if is_mouse_button_pressed(MouseButton::Left) && !view.over_roster {
             if over_map {
                 //(the map covers the world under it, so a click that misses every dot does nothing)
                 input.send = minimap_enemy_at(view.map, mouse, view.enemies).map(|clicked| view.enemies[clicked].id);
@@ -246,7 +266,7 @@ impl Controls {
                 clicked_enemy = true;
             }
         }
-        let hovered = if over_map { None } else { hovered_tile(view.position.x, view.position.y, view.zoom) };
+        let hovered = if over_map || view.over_roster { None } else { hovered_tile(view.position.x, view.position.y, view.zoom) };
         if is_key_pressed(KeyCode::G) {
             input.tower = hovered;
         }
@@ -270,4 +290,12 @@ pub(crate) fn read_relic_act(screen: Vec2) -> Option<RelicAct> {
         None if is_key_pressed(KeyCode::R) => Some(RelicAct::Reroll),
         None => None,
     }
+}
+
+//which of the two ways a champion can grow they take: 1 or 2, or a click on a card
+pub(crate) fn read_evolution_pick(screen: Vec2) -> Option<u8> {
+    let key = [KeyCode::Key1, KeyCode::Key2].iter().position(|&key| is_key_pressed(key));
+    let mouse = Vec2::from(mouse_position());
+    let click = if is_mouse_button_pressed(MouseButton::Left) { choice_cards(screen, 2).iter().position(|card| card.contains(mouse)) } else { None };
+    key.or(click).map(|place| place as u8)
 }

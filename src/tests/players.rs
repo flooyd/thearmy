@@ -305,8 +305,11 @@ fn an_army_goes_after_its_player_when_they_walk_off() {
 fn armies_of_different_players_do_not_push_each_other_about() {
     let (mut players, walls) = pair();
     let spot = Vec2::new(4000.0, 2000.0);
-    players.list[0].position = spot;
-    players.list[1].position = spot;
+    //(with no shape to stand in: a formation gives each unit a place of its own, which would hold them apart whatever the pushing did)
+    for player in players.list.iter_mut() {
+        player.position = spot;
+        player.formation = Formation::Free;
+    }
     //two units of one player stacked on top of each other are pushed apart, and one of each player's are not
     let mut same = vec![unit_at(spot.x, spot.y), unit_at(spot.x + 1.0, spot.y)];
     let mut apart = vec![unit_at(spot.x, spot.y).owned_by(0), unit_at(spot.x + 1.0, spot.y).owned_by(1)];

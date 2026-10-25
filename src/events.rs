@@ -16,6 +16,7 @@ pub(crate) enum Event {
     Shake(f32),                                                //the camera shakes
     Punch(f32),                                                //the camera jumps in
     PickedUp { player: u8, count: u32 },                       //babies grew into units of a player's army
+    Volley(Volley), //a champion's volley, which every machine makes the same bolts from (see `launch_volley`)
     Destroyed(u32),                                            //enemies were destroyed, which is what a kill streak is made of
 }
 
@@ -32,6 +33,7 @@ const SHAKE: u8 = 9;
 const PUNCH: u8 = 10;
 const PICKED_UP: u8 = 11;
 const DESTROYED: u8 = 12;
+const VOLLEY: u8 = 13;
 
 //the most events one message holds, so a message that says it holds more is not believed
 pub(crate) const MAX_EVENTS_A_MESSAGE: usize = 1024;
@@ -42,6 +44,7 @@ impl Event {
         match self {
             Event::Popup { at, .. } | Event::Burst { at, .. } | Event::Ring { at, .. } | Event::Mark { at, .. } | Event::Debris { at, .. } => Some(*at),
             Event::Beam { from, .. } => Some(*from),
+            Event::Volley(volley) => Some(volley.from),
             Event::Cue { at, .. } => *at,
             Event::Announce { .. } | Event::Shake(_) | Event::Punch(_) | Event::PickedUp { .. } | Event::Destroyed(_) => None,
         }
@@ -121,6 +124,24 @@ impl Event {
                 out.u8(DESTROYED);
                 out.u32(*count);
             }
+            Event::Volley(volley) => {
+                out.u8(VOLLEY);
+                out.vec2(volley.from);
+                out.vec2(volley.aim);
+                out.u8(volley.kind as u8);
+                out.u8(volley.shape as u8);
+                out.u8(volley.count);
+                out.f32(volley.scatter);
+                out.f32(volley.speed);
+                out.f32(volley.reach);
+                out.u8(volley.pierce);
+                out.u8(volley.bounce);
+                out.f32(volley.homing);
+                out.f32(volley.splash);
+                out.u8(volley.embers);
+                out.u8(volley.champion);
+                out.u32(volley.seed);
+            }
         }
     }
 
@@ -152,6 +173,29 @@ impl Event {
             PUNCH => Event::Punch(input.f32()?),
             PICKED_UP => Event::PickedUp { player: input.u8().filter(|&player| (player as usize) < MAX_PLAYERS)?, count: input.u32()? },
             DESTROYED => Event::Destroyed(input.u32()?),
+            VOLLEY => {
+                let volley = Volley {
+                    from: input.vec2()?,
+                    aim: input.vec2()?,
+                    kind: *BOLT_KINDS.get(input.u8()? as usize)?,
+                    shape: *VOLLEY_SHAPES.get(input.u8()? as usize)?,
+                    count: input.u8()?,
+                    scatter: input.f32()?,
+                    speed: input.f32()?,
+                    reach: input.f32()?,
+                    pierce: input.u8()?,
+                    bounce: input.u8()?,
+                    homing: input.f32()?,
+                    splash: input.f32()?,
+                    embers: input.u8()?,
+                    champion: input.u8()?,
+                    seed: input.u32()?,
+                };
+                if !volley.is_believable() {
+                    return None;
+                }
+                Event::Volley(volley)
+            }
             _ => return None,
         })
     }
@@ -205,6 +249,9 @@ impl Effects {
         }
         for shards in self.shards.drain(..) {
             events.push(Event::Debris { at: shards.position, color: shards.color, size: shards.size });
+        }
+        for (volley, _) in self.volleys.drain(..) {
+            events.push(Event::Volley(volley));
         }
         for (cue, at) in self.take_cues() {
             events.push(Event::Cue { cue, at });

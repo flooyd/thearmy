@@ -424,7 +424,7 @@ impl Stored for Unit {
     }
 
     fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
-        Ok(Unit { x: r.get()?, y: r.get()?, speed: r.get()?, steer: r.get()?, steer_in: r.get()?, velocity: r.get()?, nose: Vec2::new(0.0, -1.0), target: r.get()?, health: r.get()?, garrison: r.get()?, guard: r.get()?, calm: r.get()?, age: 99.0, champion: 0, power: 0.0, might: 1.0, ward: 1.0, level: 0, xp: 0.0, slot: rand::rand(), id: NEXT_UNIT_ID.fetch_add(1, Ordering::Relaxed), owner: 0 })
+        Ok(Unit { x: r.get()?, y: r.get()?, speed: r.get()?, steer: r.get()?, steer_in: r.get()?, velocity: r.get()?, nose: Vec2::new(0.0, -1.0), target: r.get()?, health: r.get()?, garrison: r.get()?, guard: r.get()?, calm: r.get()?, age: 99.0, champion: 0, power: 0.0, might: 1.0, ward: 1.0, level: 0, xp: 0.0, evolutions: 0, slot: rand::rand(), id: NEXT_UNIT_ID.fetch_add(1, Ordering::Relaxed), owner: 0 })
     }
 }
 stored_fields!(Baby { position, age });
@@ -515,7 +515,7 @@ stored_fields!(
         id, name, position, size, color, max_health, health, babies, speed, route, heading_for, attack, aggro, chasing, range, volley, shot_in,
         hurt, killed, popup_in, behavior, modifier, scale, owner, armor, shield, max_shield, shield_idle, mode, timer, flash, blew_up, boss,
         site, steer, steer_in, stuck, pressing, slow
-    } ; frozen: 0.0, provoked: 0.0, grudge: Vec2::ZERO, rout: 0.0, rallied: false, credit: 0 //(a freeze lasts a moment, and so do a grudge and a rout, and the rally is worked out again at once, and whose army hurt it is a matter of the next frame, so they are not kept)
+    } ; frozen: 0.0, provoked: 0.0, grudge: Vec2::ZERO, rout: 0.0, rallied: false, credit: 0, struck: 0.0 //(a freeze lasts a moment, and so do a grudge and a rout, and the rally is worked out again at once, and whose army hurt it is a matter of the next frame, so they are not kept)
 );
 
 //the walls are kept in order of their squares, so the same walls make the same file
@@ -736,6 +736,16 @@ impl Snapshot {
             w.number(unit.xp);
             w.end_line();
         }
+        //the ways the champions have grown, in a section of their own which a save from before they could has not got
+        let evolved: Vec<(usize, &Unit)> = self.units.iter().enumerate().filter(|(_, unit)| unit.champion != 0 && unit.evolutions != 0).collect();
+        w.word("evolutions");
+        w.number(evolved.len());
+        w.end_line();
+        for (i, unit) in evolved {
+            w.number(i);
+            w.number(unit.evolutions);
+            w.end_line();
+        }
         //the hordes, in a section of their own which a save from before they were kept has not got
         w.word("hordes");
         w.put(&self.hordes);
@@ -867,8 +877,27 @@ impl Snapshot {
                 }
                 unit.level = level.clamp(1, CHAMPION_MAX_LEVEL);
                 unit.xp = xp.max(0.0);
-                unit.health = unit.health.min(unit.max_health());
             }
+        }
+        if r.next_is("evolutions") {
+            r.expect("evolutions")?;
+            let count: usize = r.number()?;
+            if count > units.len() {
+                return Err(SaveError(format!("{count} evolved champions in an army of {}", units.len())));
+            }
+            for _ in 0..count {
+                let at: usize = r.number()?;
+                let evolutions: u8 = r.number()?;
+                let unit = units.get_mut(at).ok_or_else(|| SaveError(format!("evolved champion {at} is not a unit")))?;
+                if unit.champion == 0 {
+                    return Err(SaveError(format!("unit {at} has evolved but is not a champion")));
+                }
+                unit.evolutions = tidy_evolutions(evolutions, unit.level);
+            }
+        }
+        //(a champion has no more health than its level and its evolutions give it)
+        for unit in units.iter_mut().filter(|unit| unit.champion != 0) {
+            unit.health = unit.health.min(unit.max_health());
         }
         let hordes: Hordes = if r.next_is("hordes") {
             r.expect("hordes")?;
@@ -969,9 +998,14 @@ pub(crate) struct Saves {
 }
 
 impl Saves {
-    //the folder the player's saves go in: the one for application data, or failing that the one the game is run from
+    //the folder the player's saves, settings and high scores go in: the one THE_ARMY_HOME names, if it is set (so a test build, or a game run
+    //to take screenshots, keeps its own settings apart from the owner's), else the one for application data, or failing that the one the game
+    //is run from
     pub(crate) fn in_home() -> Saves {
         let var = |name: &str| std::env::var_os(name).filter(|value| !value.is_empty()).map(PathBuf::from);
+        if let Some(home) = var("THE_ARMY_HOME") {
+            return Saves::in_dir(home);
+        }
         let base = var("APPDATA").or_else(|| var("XDG_DATA_HOME")).or_else(|| var("HOME").map(|home| home.join(".local").join("share")));
         Saves::in_dir(base.map_or_else(|| PathBuf::from("."), |base| base.join("TheArmy")))
     }

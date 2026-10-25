@@ -377,6 +377,7 @@ pub(crate) struct Unit {
     pub(crate) ward: f32,          //the share of the damage that reaches it, likewise, 1 for an ordinary unit
     pub(crate) level: u8,          //0 for an ordinary unit, otherwise the champion's level, from 1
     pub(crate) xp: f32,            //a champion's experience towards its next level
+    pub(crate) evolutions: u8,     //a champion's evolutions: two bits for each of EVOLUTION_LEVELS, 0 for none chosen yet, 1 or 2 for the way chosen
     pub(crate) slot: u32,          //where it stands in a formation, as two random numbers (see `slot_coords`) that it keeps for good
     pub(crate) id: u32,           //different for every unit ever made, which is how a machine that is shown the army (see `Viewer`) tells one from another as they come and go
     pub(crate) owner: u8,          //which player's army it is in (their index in `Players`), 0 when there is only one
@@ -422,6 +423,7 @@ impl Unit {
             ward: 1.0,
             level: 0,
             xp: 0.0,
+            evolutions: 0,
             slot: rand::rand(),
             id: NEXT_UNIT_ID.fetch_add(1, Ordering::Relaxed),
             owner: 0,
@@ -459,12 +461,12 @@ pub(crate) fn bury_units(units: &mut Vec<Unit>, fx: &mut Effects) -> usize {
             return true;
         }
         if let Some(kind) = unit.champion_kind() {
-            if let Power::Rebirth { recharge, .. } = kind.power.at_level(unit.level) {
+            if let Power::Rebirth { recharge, .. } = kind.power.grown(unit.level, &unit.growth()) {
                 if unit.power <= 0.0 {
                     unit.health = unit.max_health();
                     unit.guard = 0.0;
                     unit.power = recharge;
-                    fx.rebirths.push((Vec2::new(unit.x, unit.y), unit.champion, unit.level, unit.owner));
+                    fx.rebirths.push((Vec2::new(unit.x, unit.y), unit.champion, unit.level, unit.evolutions, unit.owner));
                     return true;
                 }
             }
@@ -592,6 +594,7 @@ impl Unit {
             ward: 1.0,
             level: 0,
             xp: 0.0,
+            evolutions: 0,
             slot: 0,
             id,
             owner: owner as u8,

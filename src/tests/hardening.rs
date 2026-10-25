@@ -68,6 +68,7 @@ fn hostile(noise: &mut Noise) -> PlayerInput {
             2 => Some(RelicAct::Reroll),
             _ => Some(RelicAct::Pick(noise.below(3) as u8)),
         },
+        evolve: (noise.below(2) == 0).then(|| EvolvePick { champion: noise.next() as u32, tier: noise.next() as u8, choice: noise.next() as u8 }),
     };
     //(as the host gets it: in a message, read, and put right as far as it can be)
     let frame = ClientFrame { seq: 1, tick_ack: noise.next() as u32, zoom: noise.unit() * 50.0, input };
@@ -126,6 +127,7 @@ fn what_a_hostile_input_asks_for_is_put_right_by_the_time_the_world_has_it() {
         assert!(input.select.is_none_or(|kind| (kind as usize) < BUILDABLE.len()));
         assert!(input.place.len() <= MAX_SQUARES_AN_INPUT && input.delete.len() <= MAX_SQUARES_AN_INPUT);
         assert!(!matches!(input.relic, Some(RelicAct::Pick(place)) if place >= 3));
+        assert!(input.evolve.is_none_or(|pick| (pick.tier as usize) < EVOLUTION_LEVELS.len() && pick.choice < 2));
     }
 }
 
@@ -165,6 +167,7 @@ fn a_full_frame() -> Vec<u8> {
             recall: true,
             send: Some(9),
             relic: Some(RelicAct::Pick(1)),
+            evolve: Some(EvolvePick { champion: 77, tier: 0, choice: 0 }),
         },
     }
     .to_bytes()

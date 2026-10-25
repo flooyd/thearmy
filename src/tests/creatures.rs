@@ -29,8 +29,9 @@ fn every_enemy_and_boss_and_mark_has_a_drawing() {
     for name in MARKS {
         assert!(shape_named(name).is_some_and(|shape| ARTS[shape - 1].mark), "no drawing for the mark {name}");
     }
-    //(and nothing is drawn that nothing in the game is)
-    assert_eq!(ARTS.len(), ENEMY_KINDS.len() + BOSSES.len() + 1 + MARKS.len());
+    //(and nothing is drawn that nothing in the game is: the rest are the champions' pictures)
+    let champions = (0..CHAMPIONS.len()).filter(|&kind| champion_shape(kind).is_some()).count();
+    assert_eq!(ARTS.len(), ENEMY_KINDS.len() + BOSSES.len() + 1 + MARKS.len() + champions);
     assert_eq!(shape_named("nothing"), None);
 }
 

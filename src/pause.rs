@@ -40,6 +40,7 @@ pub(crate) enum Act {
     Colours,
     UnitShape,
     SimpleShapes,
+    Bolts,
     Hints,
     Difficulty,
     Formation,
@@ -82,7 +83,7 @@ pub(crate) fn page_rows_in(page: Page, mode: MenuMode) -> &'static [Act] {
         Page::Main if mode == MenuMode::Hosting => &[Act::Resume, Act::Save, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
         Page::Main if mode == MenuMode::Guest => &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
         Page::Main => &[Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
-        Page::Settings => &[Act::Master, Act::Effects, Act::Music, Act::Shake, Act::Fullscreen, Act::Colours, Act::UnitShape, Act::SimpleShapes, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit, Act::Back],
+        Page::Settings => &[Act::Master, Act::Effects, Act::Music, Act::Shake, Act::Fullscreen, Act::Colours, Act::UnitShape, Act::SimpleShapes, Act::Bolts, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit, Act::Back],
         Page::Controls => &[Act::Back],
     }
 }
@@ -118,6 +119,7 @@ pub(crate) fn describe_in(act: Act, settings: &Settings, mode: MenuMode) -> (&'s
         Act::Colours => ("Colour-blind colours", Look::Toggle(settings.colourblind)),
         Act::UnitShape => ("Unit shape", Look::Choice(settings.unit_shape.name().to_owned())),
         Act::SimpleShapes => ("Simple shapes", Look::Toggle(settings.simple_shapes)),
+        Act::Bolts => ("Army bolts", Look::Choice(settings.bolts.name().to_owned())),
         Act::Hints => ("Hints", Look::Toggle(settings.hints)),
         Act::Difficulty => ("Enemy difficulty", Look::Choice(settings.difficulty.name().to_owned())),
         Act::Formation => ("Army formation", Look::Choice(settings.formation.name().to_owned())),
@@ -143,6 +145,7 @@ pub(crate) fn explain_in(act: Act, settings: &Settings, mode: MenuMode) -> &'sta
         Act::Colours => "blue and orange where the game uses green and red",
         Act::UnitShape => settings.unit_shape.blurb(),
         Act::SimpleShapes => "enemies and bosses drawn as plain squares, as they were before they had pictures",
+        Act::Bolts => settings.bolts.blurb(),
         Act::Hints => "tips at the start of a run",
         Act::Difficulty => settings.difficulty.blurb(),
         Act::Formation => settings.formation.blurb(),
@@ -170,6 +173,10 @@ pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32, online: b
         Act::UnitShape => {
             let at = UNIT_SHAPES.iter().position(|&shape| shape == settings.unit_shape).unwrap_or(0) as i32;
             settings.unit_shape = UNIT_SHAPES[(at + direction.signum()).rem_euclid(UNIT_SHAPES.len() as i32) as usize];
+        }
+        Act::Bolts => {
+            let at = DENSITIES.iter().position(|&density| density == settings.bolts).unwrap_or(2) as i32;
+            settings.bolts = DENSITIES[(at + direction.signum()).rem_euclid(DENSITIES.len() as i32) as usize];
         }
         Act::Difficulty => {
             let at = DIFFICULTIES.iter().position(|&difficulty| difficulty == settings.difficulty).unwrap_or(1) as i32;
@@ -226,8 +233,8 @@ pub(crate) struct MenuLayout {
 //with a page that would not otherwise fit. the rows are never less than MIN_ROW_HEIGHT, which is as small as a row is still easy to click
 const HEADER: f32 = 78.0;
 const FOOTER: f32 = 56.0;
-const TIGHT_HEADER: f32 = 56.0;
-const TIGHT_FOOTER: f32 = 40.0;
+const TIGHT_HEADER: f32 = 48.0;
+const TIGHT_FOOTER: f32 = 34.0;
 const MIN_ROW_HEIGHT: f32 = 26.0;
 
 pub(crate) fn layout(page: Page, count: usize, screen: Vec2) -> MenuLayout {
@@ -475,7 +482,7 @@ impl Pause {
             Page::Settings => "SETTINGS",
             Page::Controls => "CONTROLS",
         };
-        let (title_at, title_size, line_at) = if frame.tight { (36.0, 26.0, 44.0) } else { (50.0, 34.0, 60.0) };
+        let (title_at, title_size, line_at) = if frame.tight { (32.0, 24.0, 40.0) } else { (50.0, 34.0, 60.0) };
         draw_label_centered(title, p.x + p.w / 2.0, p.y + title_at, title_size, INK, Face::Header);
         draw_line(p.x + p.w / 2.0 - 60.0, p.y + line_at, p.x + p.w / 2.0 + 60.0, p.y + line_at, 2.0, CYAN);
         if self.page == Page::Controls {
@@ -524,7 +531,7 @@ impl Pause {
             Some((text, color, _)) => (text.as_str(), *color),
             None => (acts.get(self.selected).map_or("", |&act| explain_in(act, settings, self.mode)), MUTED),
         };
-        let (note_up, keys_up) = if frame.tight { (28.0, 9.0) } else { (34.0, 12.0) };
+        let (note_up, keys_up) = if frame.tight { (26.0, 8.0) } else { (34.0, 12.0) };
         draw_label_centered(note, p.x + p.w / 2.0, p.y + p.h - note_up, 16.0, tint, Face::Body);
         draw_label_centered("up and down choose   left and right change   enter selects   esc goes back", p.x + p.w / 2.0, p.y + p.h - keys_up, 13.0, Color::new(MUTED.r, MUTED.g, MUTED.b, 0.6), Face::Body);
     }

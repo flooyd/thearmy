@@ -208,14 +208,15 @@ fn what_a_player_sends_is_written_and_read_back_and_put_right() {
 
 #[test]
 fn two_frames_before_a_step_are_one_asking_for_what_either_asked_for() {
-    let first = PlayerInput { direction: Vec2::X, place: vec![(1, 1)], select: Some(2), relic: Some(RelicAct::Pick(1)), ..idle() };
-    let second = PlayerInput { direction: Vec2::Y, place: vec![(2, 2)], delete: vec![(9, 9)], recall: true, send: Some(5), relic: Some(RelicAct::Reroll), ..idle() };
+    let first = PlayerInput { direction: Vec2::X, place: vec![(1, 1)], select: Some(2), relic: Some(RelicAct::Pick(1)), evolve: Some(EvolvePick { champion: 3, tier: 0, choice: 1 }), ..idle() };
+    let second = PlayerInput { direction: Vec2::Y, place: vec![(2, 2)], delete: vec![(9, 9)], recall: true, send: Some(5), relic: Some(RelicAct::Reroll), evolve: Some(EvolvePick { champion: 4, tier: 1, choice: 0 }), ..idle() };
     let both = first.then(second);
     assert_eq!(both.direction, Vec2::Y, "the later way");
     assert_eq!(both.place, [(1, 1), (2, 2)]);
     assert_eq!(both.delete, [(9, 9)]);
     assert_eq!((both.select, both.send, both.recall), (Some(2), Some(5), true));
     assert_eq!(both.relic, Some(RelicAct::Pick(1)), "the first thing they did about the relics is what they meant");
+    assert_eq!(both.evolve, Some(EvolvePick { champion: 3, tier: 0, choice: 1 }), "and about an evolution");
     let mut many = idle();
     for i in 0..10 {
         many = many.then(PlayerInput { place: (0..100).map(|j| (i, j)).collect(), ..idle() });

@@ -1,8 +1,14 @@
-# Enemy and boss art
+# Enemy, boss and champion art
 
-Drawings for the 23 enemies, the 8 bosses (the 7 and the Sovereign) and the overlays that go on top of them (elite marks, a captain's crown, ice, a shield),
-made to be drawn the way the ships are: flat colours, a black outline round every part, nothing the instanced shader can't also do. Nothing in `src/` uses
-them yet: they are the look to build towards.
+Drawings for the 23 enemies, the 8 bosses (the 7 and the Sovereign), the overlays that go on top of them (elite marks, a captain's crown, ice, a shield) and the
+champions (`champions.py`, named "Champion <name>"; the first seven so far), made to be drawn the way the ships are: flat colours, a black outline round every
+part, nothing the instanced shader can't also do. The game draws them through `src/creatures.rs` from `src/creature_art.rs`, which `shader.py` writes:
+
+    python art/shader.py                     writes src/creature_art.rs from the drawings (never edit that file by hand)
+    python art/shader.py --check             says whether it is up to date
+    python art/glpreview.py <page.html>      a page that draws them with the game's own shaders in WebGL (--only "Grunt,Champion Medic" for some), and says if one
+                                             would not compile; a headless browser can screenshot it:
+    msedge --headless=new --use-angle=swiftshader --enable-unsafe-swiftshader --window-size=1600,1000 --screenshot=<shot.png> file:///<page.html>
 
     python art/build.py                      writes sprites.svg (every drawing as a <symbol>) and svg/<id>.svg (each on its own, in its colour in the game)
     python art/build.py --preview <dir>      and <dir>/preview.html, a page to look at them in (--only a,b,c for some)

@@ -264,6 +264,35 @@ pub(crate) fn warm_up() {
     });
 }
 
+//make the programs of the kinds that are not made yet, one after another, until `budget` has gone by (a kind is never cut off half way, so one that takes long can go
+//past it, and one is always made if any is left): the game makes a slice of them before the title screen and a little in each frame of it, rather than all of them in
+//one long wait at the start, and whatever is left when a run starts is made then (`warm_up`). true once every kind is made
+pub(crate) fn warm_up_some(budget: Duration) -> bool {
+    let started = Instant::now();
+    let done = ENGINE.with(|engine| {
+        let mut engine = engine.borrow_mut();
+        // SAFETY: macroquad's drawing is only done from this thread, and nothing it hands out is kept past this call
+        let gl = unsafe { get_internal_gl() };
+        let Some(engine) = engine.get_or_insert_with(|| Engine::new(gl.quad_context)).as_mut() else {
+            return true;
+        };
+        for (kind, art) in engine.kinds.iter_mut().zip(ARTS.iter()) {
+            if kind.is_some() {
+                continue;
+            }
+            if started.elapsed() >= budget {
+                return false;
+            }
+            *kind = Some(Kind::new(&mut *gl.quad_context, art));
+        }
+        true
+    });
+    if std::env::var_os("ARMY_TIMING").is_some() && started.elapsed().as_secs_f32() > 0.0005 {
+        eprintln!("creatures: {:.0} ms of making shaders, {}", started.elapsed().as_secs_f32() * 1000.0, if done { "all made" } else { "more to come" });
+    }
+    done
+}
+
 //a creature drawn the slow way, as a square in its colour: what there is when the graphics card can't do better
 fn draw_square(instance: &Instance) {
     let half = instance.radius / PICTURE;

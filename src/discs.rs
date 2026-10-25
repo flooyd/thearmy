@@ -197,9 +197,10 @@ pub(crate) enum Layer {
     Army,
     Babies,
     Player,
+    Bolts,
 }
 
-const LAYERS: usize = 5;
+const LAYERS: usize = 6;
 
 //the spare room a buffer is made with, so it only has to be made bigger now and then
 const START_CAPACITY: usize = 4096;
@@ -398,7 +399,7 @@ fn draw_ship(disc: &Disc, color: Color) {
 
 thread_local! {
     //None until the first circles are drawn, and None for good if this graphics card can't do it (they are drawn the slow way)
-    static BATCHES: RefCell<[Option<Option<Batch>>; LAYERS]> = const { RefCell::new([None, None, None, None, None]) };
+    static BATCHES: RefCell<[Option<Option<Batch>>; LAYERS]> = const { RefCell::new([None, None, None, None, None, None]) };
 }
 
 //draw discs in the world, over what has been drawn so far and under what is drawn next. `camera` is the one the world is

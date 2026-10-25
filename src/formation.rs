@@ -102,22 +102,44 @@ pub(crate) fn formation_offset(formation: Formation, slot: u32, army: usize, fac
     facing * local.x + facing.perp() * local.y
 }
 
-//where a champion stands in any formation: close to the player, among the others like it, where the army shields it
-pub(crate) fn guard_offset(slot: u32) -> Vec2 {
+//where a champion stands in any formation: on a ring round the player, among the others like it, where the army shields it. the ring
+//reaches `guard` pixels from the player (see `guard_radius`), and they stand on the outer part of it, never on the player
+pub(crate) fn guard_offset(slot: u32, guard: f32) -> Vec2 {
     let (a, b) = slot_coords(slot);
-    Vec2::from_angle(b * std::f32::consts::TAU) * FORMATION_GUARD * a.sqrt()
+    Vec2::from_angle(b * std::f32::consts::TAU) * guard * (GUARD_INNER + (1.0 - GUARD_INNER) * a.sqrt())
 }
 
-//how the army is drilled for a frame: the shape, and the way it faces
+pub(crate) const GUARD_INNER: f32 = 0.55; //the share of the ring's reach the champions stand out from, at the least
+
+//how far out from the player the champions of an army stand: FORMATION_GUARD, or further when they are so many and so big that they would
+//not fit round a ring that size, with GUARD_SPACING times their widths of ring between them (measured round the middle of where they stand)
+pub(crate) fn guard_radius<'a>(units: impl IntoIterator<Item = &'a Unit>) -> f32 {
+    let widths: f32 = units.into_iter().filter(|unit| unit.champion != 0).map(|unit| unit.radius() * 2.0).sum();
+    let middle = (1.0 + GUARD_INNER) / 2.0;
+    FORMATION_GUARD.max(widths * GUARD_SPACING / (std::f32::consts::TAU * middle))
+}
+
+//how the army is drilled for a frame: the shape, the way it faces, and how far out its champions stand
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Drill {
     pub(crate) formation: Formation,
     pub(crate) facing: Vec2, //a unit vector
+    pub(crate) guard: f32,   //pixels from the player to the outer edge of the ring the champions stand on (see `guard_radius`)
 }
 
 impl Drill {
     #[cfg(test)]
-    pub(crate) const FREE: Drill = Drill { formation: Formation::Free, facing: Vec2::new(0.0, -1.0) };
+    pub(crate) const FREE: Drill = Drill { formation: Formation::Free, facing: Vec2::new(0.0, -1.0), guard: FORMATION_GUARD };
+
+    //a drill with the champions at the usual distance, which `guarding` sets for the army they are in
+    pub(crate) fn new(formation: Formation, facing: Vec2) -> Drill {
+        Drill { formation, facing, guard: FORMATION_GUARD }
+    }
+
+    //the same with the champions standing `guard` pixels out
+    pub(crate) fn guarding(self, guard: f32) -> Drill {
+        Drill { guard, ..self }
+    }
 
     //the place a unit is to be at, if the army has a shape. a champion stays by the player
     pub(crate) fn goal(&self, unit: &Unit, player: Vec2, army: usize) -> Option<Vec2> {
@@ -125,7 +147,7 @@ impl Drill {
             return None;
         }
         if unit.champion != 0 {
-            return Some(player + guard_offset(unit.slot));
+            return Some(player + guard_offset(unit.slot, self.guard));
         }
         Some(player + formation_offset(self.formation, unit.slot, army, self.facing))
     }

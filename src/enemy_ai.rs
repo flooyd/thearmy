@@ -40,8 +40,14 @@ pub(crate) fn patrol_enemies_among(enemies: &mut [Enemy], prey: &[Prey], dt: f32
         Vec::new()
     };
     let no_route = FlowField::new();
+    //the tank champions of each player: an enemy chasing a player that comes near one goes for it instead (see `Champion::taunts`)
+    let taunts: Vec<Vec<Vec2>> = prey
+        .iter()
+        .map(|hunted| hunted.units.iter().filter(|unit| unit.garrison.is_none() && unit.health > 0.0 && unit.champion_kind().is_some_and(|kind| kind.taunts())).map(|unit| Vec2::new(unit.x, unit.y)).collect())
+        .collect();
     for enemy in enemies {
-        let hunted = nearest(prey, enemy.position);
+        let which = nearest_to(prey, enemy.position);
+        let hunted = &prey[which];
         let (player, speed_multiplier, field) = (hunted.position, hunted.boost, hunted.field);
         enemy.pressing = None;
         enemy.provoked = (enemy.provoked - dt).max(0.0);
@@ -115,7 +121,13 @@ pub(crate) fn patrol_enemies_among(enemies: &mut [Enemy], prey: &[Prey], dt: f32
             }
             //one that shoots or lobs shells (only a horde sends them running) stops at a distance and fires from there
             let stop = if enemy.range > 0.0 && matches!(enemy.behavior, Behavior::Shooter | Behavior::Mortar) { enemy.range * CHASE_STANDOFF } else { CHASE_STOP };
-            walk(enemy, player, stop, speed, dt, true, walls, field);
+            //a tank champion near it draws it off the player (a boss is not so easily led)
+            let at = enemy.position;
+            let taunted = if enemy.boss.is_some() { None } else { taunts[which].iter().copied().filter(|spot| spot.distance_squared(at) <= TAUNT_RANGE * TAUNT_RANGE).min_by(|a, b| a.distance_squared(at).total_cmp(&b.distance_squared(at))) };
+            match taunted {
+                Some(champion) => walk(enemy, champion, stop, speed, dt, true, walls, &no_route),
+                None => walk(enemy, player, stop, speed, dt, true, walls, field),
+            }
             continue;
         }
         if enemy.behavior == Behavior::Healer {

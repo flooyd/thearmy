@@ -54,7 +54,7 @@ pub(super) fn wander_with(upgrades: Upgrades, army: usize, formation: Formation,
     let pressure_for = |units: usize| ((units as f32 * pressure) as usize).max(1);
     //the army gets into its shape before there is anyone to fight
     for _ in 0..(8.0 / dt) as usize {
-        let drill = Drill { formation, facing };
+        let drill = Drill::new(formation, facing);
         let boost = speed_multiplier(units.len());
         update_units_in(&mut units, player.x, player.y, dt, &walls, &routes.army, boost, &squads, &drill);
     }
@@ -69,7 +69,7 @@ pub(super) fn wander_with(upgrades: Upgrades, army: usize, formation: Formation,
         player = player.clamp(Vec2::splat(RADIUS), Vec2::splat(WORLD_SIZE - RADIUS));
         velocity = velocity * 0.9 + (player - before) / dt * 0.1;
         facing = turn_to_face(facing, velocity, dt);
-        let drill = Drill { formation, facing };
+        let drill = Drill::new(formation, facing);
         routes.update(player, &walls, false);
         update_units_in(&mut units, player.x, player.y, dt, &walls, &routes.army, boost, &squads, &drill);
         terrain_effects(&mut enemies, &walls, dt, &mut fx);

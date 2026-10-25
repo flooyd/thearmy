@@ -229,7 +229,7 @@ fn fight_a_horde(def: &'static HordeDef, army: usize, formation: Formation, seed
     let mut fx = Effects::default();
     let upgrades = Upgrades::default();
     let mut routes = Routes::new(player, &walls);
-    let drill = Drill { formation, facing: Vec2::X };
+    let drill = Drill::new(formation, Vec2::X);
     let dt = 1.0 / 60.0;
     let mut out = HordeFight { lost: 0, start: army, seconds: 0.0, left: 0 };
     let settle_boost = speed_multiplier(units.len());
@@ -246,7 +246,7 @@ fn fight_a_horde(def: &'static HordeDef, army: usize, formation: Formation, seed
             player += (target - player).normalize_or_zero() * 500.0 * dt;
         }
         facing = turn_to_face(facing, (player - before) / dt, dt);
-        let drill = Drill { formation, facing };
+        let drill = Drill::new(formation, facing);
         routes.update(player, &walls, false);
         update_units_in(&mut units, player.x, player.y, dt, &walls, &routes.army, boost, &squads, &drill);
         terrain_effects(&mut enemies, &walls, dt, &mut fx);

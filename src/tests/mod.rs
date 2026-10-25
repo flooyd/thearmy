@@ -7,6 +7,7 @@ mod ambush;
 mod arena;
 mod army;
 mod boost;
+mod bolts;
 mod boss_fights;
 mod champions;
 mod chests;
@@ -58,6 +59,7 @@ mod squads;
 mod team;
 mod titlescene;
 mod trails;
+mod vanguard;
 mod variety;
 mod wilds;
 

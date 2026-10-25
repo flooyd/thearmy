@@ -85,7 +85,7 @@ void lamp(inout vec4 c, vec2 p, float r, vec3 col, float strength) {
 "#;
 
 //the shape number of one is its place here, counting from 1 (0 is no shape)
-pub(crate) static ARTS: [Art; 38] = [
+pub(crate) static ARTS: [Art; 52] = [
     Art {
         name: "The Hive Mother",
         turns: true,
@@ -7166,6 +7166,2042 @@ vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
             float d = ar(vec2(dot(q27, vec2(-0.913545, 0.406737)), dot(q27, vec2(0.406737, 0.913545))), vec2(0.275637, 0.961262), 66.0) - 1.5;
             fill(c, d, aa, vec3(0.956863, 0.968627, 1.0));
         }
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Juggernaut",
+        turns: true,
+        mark: false,
+        size: 96.0,
+        glsl: r#"//Champion Juggernaut
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec2 q1 = vec2(abs(p.x), p.y);
+        if (length(q1 - vec2(39.0, -3.0)) < 22.783 + 2.0 * aa) {
+            float d = sg(q1, vec2(34.0, 8.0), vec2(10.0, -22.0), 0.00171233) - 7.5;
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(44.0, -22.0)) - 14.0;
+        paint(c, d, 2.2, aa, vec3(0.337255, 0.380392, 0.454902));
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(44.0, -22.0)) - 6.0;
+        fill(c, d, aa, vec3(0.541176, 0.592157, 0.666667));
+    }
+    {
+        vec2 q2 = vec2(abs(p.x), p.y);
+        if (length(q2 - vec2(22.0, 6.0)) < 48.8508 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q2 - vec2(0.0, -34.0), q2 - vec2(0.0, -34.0));
+            ps(s0, q2, vec2(0.0, -34.0), vec2(0.0, 46.0));
+            pe(d0, s0, q2, vec2(26.0, -32.0), vec2(0.0, -34.0), 0.00147059);
+            pe(d0, s0, q2, vec2(42.0, -16.0), vec2(26.0, -32.0), 0.00195312);
+            pe(d0, s0, q2, vec2(44.0, 16.0), vec2(42.0, -16.0), 0.000972763);
+            pe(d0, s0, q2, vec2(30.0, 40.0), vec2(44.0, 16.0), 0.00129534);
+            pe(d0, s0, q2, vec2(0.0, 46.0), vec2(30.0, 40.0), 0.00106838);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cb);
+        }
+    }
+    {
+        vec2 q3 = vec2(abs(p.x), p.y);
+        if (length(q3 - vec2(12.0, 26.0)) < 19.4391 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q3 - vec2(0.0, 12.0), q3 - vec2(0.0, 12.0));
+            ps(s0, q3, vec2(0.0, 12.0), vec2(0.0, 40.0));
+            pe(d0, s0, q3, vec2(20.0, 14.0), vec2(0.0, 12.0), 0.00247525);
+            pe(d0, s0, q3, vec2(24.0, 34.0), vec2(20.0, 14.0), 0.00240385);
+            pe(d0, s0, q3, vec2(0.0, 40.0), vec2(24.0, 34.0), 0.00163399);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cd);
+        }
+    }
+    {
+        vec2 q4 = vec2(abs(p.x), p.y);
+        if (length(q4 - vec2(39.0, -12.0)) < 27.9588 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q4 - vec2(22.0, -30.0), q4 - vec2(22.0, -30.0));
+            pe(d0, s0, q4, vec2(22.0, -30.0), vec2(28.0, -6.0), 0.00163399);
+            pe(d0, s0, q4, vec2(48.0, -30.0), vec2(22.0, -30.0), 0.00147929);
+            pe(d0, s0, q4, vec2(56.0, -8.0), vec2(48.0, -30.0), 0.00182482);
+            pe(d0, s0, q4, vec2(46.0, 6.0), vec2(56.0, -8.0), 0.00337838);
+            pe(d0, s0, q4, vec2(28.0, -6.0), vec2(46.0, 6.0), 0.00213675);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(42.0, -22.0)) - 2.6;
+        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(48.0, -6.0)) - 2.6;
+        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(30.0, 20.0)) - 2.6;
+        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(22.0, 32.0)) - 2.6;
+        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+    }
+    {
+        vec2 q5 = vec2(abs(p.x), p.y);
+        if (length(q5 - vec2(16.0, -41.0)) < 23.8155 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q5 - vec2(0.0, -54.0), q5 - vec2(0.0, -54.0));
+            ps(s0, q5, vec2(0.0, -54.0), vec2(0.0, -28.0));
+            pe(d0, s0, q5, vec2(24.0, -50.0), vec2(0.0, -54.0), 0.00168919);
+            pe(d0, s0, q5, vec2(32.0, -34.0), vec2(24.0, -50.0), 0.003125);
+            pe(d0, s0, q5, vec2(0.0, -28.0), vec2(32.0, -34.0), 0.000943396);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, vec3(0.541176, 0.592157, 0.666667));
+        }
+    }
+    {
+        vec2 q6 = vec2(abs(p.x), p.y);
+        if (length(q6 - vec2(10.5, -42.5)) < 13.9035 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q6 - vec2(0.0, -50.0), q6 - vec2(0.0, -50.0));
+            ps(s0, q6, vec2(0.0, -50.0), vec2(0.0, -35.0));
+            pe(d0, s0, q6, vec2(16.0, -47.0), vec2(0.0, -50.0), 0.00377358);
+            pe(d0, s0, q6, vec2(21.0, -38.0), vec2(16.0, -47.0), 0.00943396);
+            pe(d0, s0, q6, vec2(0.0, -35.0), vec2(21.0, -38.0), 0.00222222);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, -4.0)) - 16.0;
+        paint(c, d, 2.2, aa, cl);
+    }
+    {
+        vec2 q7 = vec2(abs(p.x), p.y);
+        if (length(q7 - vec2(6.5, -4.0)) < 14.6473 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q7 - vec2(0.0, -16.0), q7 - vec2(0.0, -16.0));
+            ps(s0, q7, vec2(0.0, -16.0), vec2(0.0, 8.0));
+            pe(d0, s0, q7, vec2(12.0, -12.0), vec2(0.0, -16.0), 0.00625);
+            pe(d0, s0, q7, vec2(13.0, 4.0), vec2(12.0, -12.0), 0.00389105);
+            pe(d0, s0, q7, vec2(0.0, 8.0), vec2(13.0, 4.0), 0.00540541);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cd);
+        }
+    }
+    lamp(c, p - vec2(0.0, -12.0), 16.0, vec3(1.0, 0.823529, 0.478431), 0.8);
+    {
+        vec2 q8 = p;
+        if (length(q8 - vec2(0.0, -12.5)) < 12.7078 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q8 - vec2(-10.0, -15.0), q8 - vec2(-10.0, -15.0));
+            pe(d0, s0, q8, vec2(-10.0, -15.0), vec2(-9.0, -10.0), 0.0384615);
+            pe(d0, s0, q8, vec2(10.0, -15.0), vec2(-10.0, -15.0), 0.0025);
+            pe(d0, s0, q8, vec2(9.0, -10.0), vec2(10.0, -15.0), 0.0384615);
+            pe(d0, s0, q8, vec2(-9.0, -10.0), vec2(9.0, -10.0), 0.00308642);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, vec3(1.0, 0.894118, 0.368627));
+        }
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Berserker",
+        turns: true,
+        mark: false,
+        size: 77.0,
+        glsl: r#"//Champion Berserker
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec2 q1 = vec2(abs(p.x), p.y);
+        if (length(q1 - vec2(31.0, -18.0)) < 27.1165 + 2.0 * aa) {
+            float d = min(sg(q1, vec2(20.0, -2.0), vec2(18.0, -16.0), 0.00172414), sg(q1, vec2(38.0, -18.0), vec2(4.0, -16.0), 0.00367647)) - 4.5;
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        vec2 q2 = vec2(abs(p.x), p.y);
+        if (length(q2 - vec2(49.0, -44.0)) < 20.2 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q2 - vec2(34.0, -36.0), q2 - vec2(34.0, -36.0));
+            pe(d0, s0, q2, vec2(34.0, -36.0), vec2(50.0, -28.0), 0.003125);
+            pe(d0, s0, q2, vec2(52.0, -60.0), vec2(34.0, -36.0), 0.00111111);
+            pe(d0, s0, q2, vec2(64.0, -52.0), vec2(52.0, -60.0), 0.00480769);
+            pe(d0, s0, q2, vec2(50.0, -28.0), vec2(64.0, -52.0), 0.00129534);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, vec3(0.811765, 0.847059, 0.901961));
+        }
+    }
+    {
+        vec2 q3 = vec2(abs(p.x), p.y);
+        if (length(q3 - vec2(59.0, -38.0)) < 15.8661 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q3 - vec2(50.0, -28.0), q3 - vec2(50.0, -28.0));
+            pe(d0, s0, q3, vec2(50.0, -28.0), vec2(56.0, -24.0), 0.0192308);
+            pe(d0, s0, q3, vec2(64.0, -52.0), vec2(50.0, -28.0), 0.00129534);
+            pe(d0, s0, q3, vec2(68.0, -48.0), vec2(64.0, -52.0), 0.03125);
+            pe(d0, s0, q3, vec2(56.0, -24.0), vec2(68.0, -48.0), 0.00138889);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, vec3(0.956863, 0.968627, 1.0));
+        }
+    }
+    {
+        vec2 q4 = vec2(abs(p.x), p.y);
+        if (length(q4 - vec2(39.0, -31.0)) < 9.84264 + 2.0 * aa) {
+            float d = sg(q4, vec2(42.0, -34.0), vec2(-6.0, 6.0), 0.0138889) - 3.0;
+            paint(c, d, 1.6, aa, vec3(0.721569, 0.529412, 0.164706));
+        }
+    }
+    {
+        vec2 q5 = vec2(abs(p.x), p.y);
+        if (length(q5 - vec2(17.0, 9.0)) < 40.3214 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q5 - vec2(0.0, -24.0), q5 - vec2(0.0, -24.0));
+            ps(s0, q5, vec2(0.0, -24.0), vec2(0.0, 42.0));
+            pe(d0, s0, q5, vec2(22.0, -22.0), vec2(0.0, -24.0), 0.00204918);
+            pe(d0, s0, q5, vec2(34.0, -6.0), vec2(22.0, -22.0), 0.0025);
+            pe(d0, s0, q5, vec2(32.0, 20.0), vec2(34.0, -6.0), 0.00147059);
+            pe(d0, s0, q5, vec2(18.0, 38.0), vec2(32.0, 20.0), 0.00192308);
+            pe(d0, s0, q5, vec2(0.0, 42.0), vec2(18.0, 38.0), 0.00294118);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cb);
+        }
+    }
+    {
+        vec2 q6 = vec2(abs(p.x), p.y);
+        if (length(q6 - vec2(13.0, 7.0)) < 19.3848 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q6 - vec2(0.0, -6.0), q6 - vec2(0.0, -6.0));
+            ps(s0, q6, vec2(0.0, -6.0), vec2(0.0, 18.0));
+            pe(d0, s0, q6, vec2(16.0, -8.0), vec2(0.0, -6.0), 0.00384615);
+            pe(d0, s0, q6, vec2(26.0, 6.0), vec2(16.0, -8.0), 0.00337838);
+            pe(d0, s0, q6, vec2(18.0, 22.0), vec2(26.0, 6.0), 0.003125);
+            pe(d0, s0, q6, vec2(0.0, 18.0), vec2(18.0, 22.0), 0.00294118);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cd);
+        }
+    }
+    {
+        vec2 q7 = p;
+        if (length(q7 - vec2(-9.0, 9.0)) < 9.27107 + 2.0 * aa) {
+            float d = sg(q7, vec2(-14.0, 4.0), vec2(10.0, 10.0), 0.005) - 1.2;
+            fill(c, d, aa, cx);
+        }
+    }
+    {
+        vec2 q8 = p;
+        if (length(q8 - vec2(14.0, 6.0)) < 7.85685 + 2.0 * aa) {
+            float d = sg(q8, vec2(10.0, 10.0), vec2(8.0, -8.0), 0.0078125) - 1.2;
+            fill(c, d, aa, cx);
+        }
+    }
+    {
+        vec2 q9 = vec2(abs(p.x), p.y);
+        if (length(q9 - vec2(18.0, -40.0)) < 23.7913 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q9 - vec2(8.0, -26.0), q9 - vec2(8.0, -26.0));
+            pe(d0, s0, q9, vec2(8.0, -26.0), vec2(16.0, -22.0), 0.0125);
+            pe(d0, s0, q9, vec2(18.0, -42.0), vec2(8.0, -26.0), 0.00280899);
+            pe(d0, s0, q9, vec2(28.0, -58.0), vec2(18.0, -42.0), 0.00280899);
+            pe(d0, s0, q9, vec2(24.0, -40.0), vec2(28.0, -58.0), 0.00294118);
+            pe(d0, s0, q9, vec2(16.0, -22.0), vec2(24.0, -40.0), 0.00257732);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, vec3(0.917647, 0.87451, 0.760784));
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, -18.0)) - 14.0;
+        paint(c, d, 2.2, aa, cd);
+    }
+    lamp(c, p - vec2(0.0, -22.0), 16.0, vec3(1.0, 0.290196, 0.227451), 0.7);
+    {
+        vec2 q10 = p;
+        if (length(q10 - vec2(-7.0, -21.5)) < 6.31507 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q10 - vec2(-11.0, -25.0), q10 - vec2(-11.0, -25.0));
+            pe(d0, s0, q10, vec2(-11.0, -25.0), vec2(-11.0, -18.0), 0.0204082);
+            pe(d0, s0, q10, vec2(-3.0, -21.0), vec2(-11.0, -25.0), 0.0125);
+            pe(d0, s0, q10, vec2(-11.0, -18.0), vec2(-3.0, -21.0), 0.0136986);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, vec3(1.0, 0.290196, 0.227451));
+        }
+    }
+    {
+        vec2 q11 = p;
+        if (length(q11 - vec2(7.0, -21.5)) < 6.31507 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q11 - vec2(11.0, -25.0), q11 - vec2(11.0, -25.0));
+            pe(d0, s0, q11, vec2(11.0, -25.0), vec2(11.0, -18.0), 0.0204082);
+            pe(d0, s0, q11, vec2(3.0, -21.0), vec2(11.0, -25.0), 0.0125);
+            pe(d0, s0, q11, vec2(11.0, -18.0), vec2(3.0, -21.0), 0.0136986);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, vec3(1.0, 0.290196, 0.227451));
+        }
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Bulwark",
+        turns: true,
+        mark: false,
+        size: 83.0,
+        glsl: r#"//Champion Bulwark
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec2 q1 = vec2(abs(p.x), p.y);
+        if (length(q1 - vec2(18.0, 5.0)) < 44.3461 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q1 - vec2(0.0, -32.0), q1 - vec2(0.0, -32.0));
+            ps(s0, q1, vec2(0.0, -32.0), vec2(0.0, 42.0));
+            pe(d0, s0, q1, vec2(24.0, -28.0), vec2(0.0, -32.0), 0.00168919);
+            pe(d0, s0, q1, vec2(36.0, -10.0), vec2(24.0, -28.0), 0.00213675);
+            pe(d0, s0, q1, vec2(34.0, 18.0), vec2(36.0, -10.0), 0.00126904);
+            pe(d0, s0, q1, vec2(20.0, 38.0), vec2(34.0, 18.0), 0.00167785);
+            pe(d0, s0, q1, vec2(0.0, 42.0), vec2(20.0, 38.0), 0.00240385);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, vec3(0.541176, 0.592157, 0.666667));
+        }
+    }
+    {
+        vec2 q2 = vec2(abs(p.x), p.y);
+        if (length(q2 - vec2(7.0, 7.0)) < 30.8329 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q2 - vec2(0.0, -22.0), q2 - vec2(0.0, -22.0));
+            ps(s0, q2, vec2(0.0, -22.0), vec2(0.0, 36.0));
+            pe(d0, s0, q2, vec2(12.0, -20.0), vec2(0.0, -22.0), 0.00675676);
+            pe(d0, s0, q2, vec2(14.0, 30.0), vec2(12.0, -20.0), 0.000399361);
+            pe(d0, s0, q2, vec2(0.0, 36.0), vec2(14.0, 30.0), 0.00431034);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cb);
+        }
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(30.0, -18.0)) - 12.0;
+        paint(c, d, 2.2, aa, vec3(0.811765, 0.847059, 0.901961));
+    }
+    {
+        float d = length(p - vec2(0.0, -10.0)) - 13.0;
+        paint(c, d, 2.2, aa, vec3(0.811765, 0.847059, 0.901961));
+    }
+    {
+        vec2 q3 = p;
+        if (length(q3 - vec2(0.0, -10.0)) < 17.1 + 2.0 * aa) {
+            float d = sg(q3, vec2(0.0, -22.0), vec2(0.0, 24.0), 0.00173611) - 2.5;
+            paint(c, d, 1.6, aa, cb);
+        }
+    }
+    {
+        vec2 q4 = p;
+        if (length(q4 - vec2(0.0, -14.0)) < 10.2195 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q4 - vec2(-9.0, -16.0), q4 - vec2(-9.0, -16.0));
+            pe(d0, s0, q4, vec2(-9.0, -16.0), vec2(-8.0, -12.0), 0.0588235);
+            pe(d0, s0, q4, vec2(9.0, -16.0), vec2(-9.0, -16.0), 0.00308642);
+            pe(d0, s0, q4, vec2(8.0, -12.0), vec2(9.0, -16.0), 0.0588235);
+            pe(d0, s0, q4, vec2(-8.0, -12.0), vec2(8.0, -12.0), 0.00390625);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, vec3(0.0235294, 0.0352941, 0.0509804));
+        }
+    }
+    {
+        vec2 q5 = vec2(abs(p.x), p.y);
+        if (length(q5 - vec2(25.0, -48.0)) < 32.8531 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q5 - vec2(0.0, -62.0), q5 - vec2(0.0, -62.0));
+            ps(s0, q5, vec2(0.0, -62.0), vec2(0.0, -44.0));
+            pe(d0, s0, q5, vec2(32.0, -58.0), vec2(0.0, -62.0), 0.000961538);
+            pe(d0, s0, q5, vec2(50.0, -46.0), vec2(32.0, -58.0), 0.00213675);
+            pe(d0, s0, q5, vec2(48.0, -34.0), vec2(50.0, -46.0), 0.00675676);
+            pe(d0, s0, q5, vec2(28.0, -42.0), vec2(48.0, -34.0), 0.00215517);
+            pe(d0, s0, q5, vec2(0.0, -44.0), vec2(28.0, -42.0), 0.00126904);
+            d = s0 * sqrt(d0);
+            paint(c, d, 3.2, aa, cb);
+        }
+    }
+    {
+        vec2 q6 = vec2(abs(p.x), p.y);
+        if (length(q6 - vec2(21.0, -52.5)) < 22.9829 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q6 - vec2(0.0, -59.0), q6 - vec2(0.0, -59.0));
+            ps(s0, q6, vec2(0.0, -59.0), vec2(0.0, -52.0));
+            pe(d0, s0, q6, vec2(28.0, -55.0), vec2(0.0, -59.0), 0.00125);
+            pe(d0, s0, q6, vec2(42.0, -46.0), vec2(28.0, -55.0), 0.00361011);
+            pe(d0, s0, q6, vec2(26.0, -50.0), vec2(42.0, -46.0), 0.00367647);
+            pe(d0, s0, q6, vec2(0.0, -52.0), vec2(26.0, -50.0), 0.00147059);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cl);
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, -52.0)) - 7.0;
+        paint(c, d, 1.4, aa, vec3(0.94902, 0.756863, 0.305882));
+    }
+    {
+        float d = length(p - vec2(0.0, -52.0)) - 3.0;
+        fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(20.0, -52.0)) - 2.4;
+        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(38.0, -46.0)) - 2.4;
+        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Medic",
+        turns: false,
+        mark: false,
+        size: 64.0,
+        glsl: r#"//Champion Medic
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    lamp(c, p - vec2(0.0, 0.0), 62.0, vec3(0.552941, 1.0, 0.415686), 0.35);
+    {
+        vec4 g1 = vec4(0.0);
+        {
+            float d = abs(length(p - vec2(0.0, 0.0)) - 40.0) - 1.25;
+            fill(g1, d, aa, cl);
+        }
+        float k = mix(0.2, 1.0, abs(2.0 * fract(T / 1.6) - 1.0));
+        c = g1 * k + c * (1.0 - g1.a * k);
+    }
+    {
+        vec2 p2 = vec2(dot(p - vec2(0.0, 0.0), vec2(0.707107, 0.707107)), dot(p - vec2(0.0, 0.0), vec2(-0.707107, 0.707107))) + vec2(0.0, 0.0);
+        {
+            vec2 q3 = p2;
+            if (length(q3 - vec2(0.0, -24.0)) < 16.7 + 2.0 * aa) {
+                float d = sg(q3, vec2(0.0, -14.0), vec2(0.0, -20.0), 0.0025) - 3.5;
+                paint(c, d, 2.2, aa, vec3(0.337255, 0.380392, 0.454902));
+            }
+        }
+    }
+    {
+        vec2 p4 = vec2(dot(p - vec2(0.0, 0.0), vec2(-0.707107, 0.707107)), dot(p - vec2(0.0, 0.0), vec2(-0.707107, -0.707107))) + vec2(0.0, 0.0);
+        {
+            vec2 q5 = p4;
+            if (length(q5 - vec2(0.0, -24.0)) < 16.7 + 2.0 * aa) {
+                float d = sg(q5, vec2(0.0, -14.0), vec2(0.0, -20.0), 0.0025) - 3.5;
+                paint(c, d, 2.2, aa, vec3(0.337255, 0.380392, 0.454902));
+            }
+        }
+    }
+    {
+        vec2 p6 = vec2(dot(p - vec2(0.0, 0.0), vec2(-0.707107, -0.707107)), dot(p - vec2(0.0, 0.0), vec2(0.707107, -0.707107))) + vec2(0.0, 0.0);
+        {
+            vec2 q7 = p6;
+            if (length(q7 - vec2(0.0, -24.0)) < 16.7 + 2.0 * aa) {
+                float d = sg(q7, vec2(0.0, -14.0), vec2(0.0, -20.0), 0.0025) - 3.5;
+                paint(c, d, 2.2, aa, vec3(0.337255, 0.380392, 0.454902));
+            }
+        }
+    }
+    {
+        vec2 p8 = vec2(dot(p - vec2(0.0, 0.0), vec2(0.707107, -0.707107)), dot(p - vec2(0.0, 0.0), vec2(0.707107, 0.707107))) + vec2(0.0, 0.0);
+        {
+            vec2 q9 = p8;
+            if (length(q9 - vec2(0.0, -24.0)) < 16.7 + 2.0 * aa) {
+                float d = sg(q9, vec2(0.0, -14.0), vec2(0.0, -20.0), 0.0025) - 3.5;
+                paint(c, d, 2.2, aa, vec3(0.337255, 0.380392, 0.454902));
+            }
+        }
+    }
+    {
+        vec2 p10 = vec2(dot(p - vec2(0.0, 0.0), vec2(0.707107, 0.707107)), dot(p - vec2(0.0, 0.0), vec2(-0.707107, 0.707107))) + vec2(0.0, 0.0);
+        {
+            float d = length(p10 - vec2(0.0, -40.0)) - 13.0;
+            paint(c, d, 2.2, aa, cx);
+        }
+    }
+    {
+        vec2 p11 = vec2(dot(p - vec2(0.0, 0.0), vec2(-0.707107, 0.707107)), dot(p - vec2(0.0, 0.0), vec2(-0.707107, -0.707107))) + vec2(0.0, 0.0);
+        {
+            float d = length(p11 - vec2(0.0, -40.0)) - 13.0;
+            paint(c, d, 2.2, aa, cx);
+        }
+    }
+    {
+        vec2 p12 = vec2(dot(p - vec2(0.0, 0.0), vec2(-0.707107, -0.707107)), dot(p - vec2(0.0, 0.0), vec2(0.707107, -0.707107))) + vec2(0.0, 0.0);
+        {
+            float d = length(p12 - vec2(0.0, -40.0)) - 13.0;
+            paint(c, d, 2.2, aa, cx);
+        }
+    }
+    {
+        vec2 p13 = vec2(dot(p - vec2(0.0, 0.0), vec2(0.707107, -0.707107)), dot(p - vec2(0.0, 0.0), vec2(0.707107, 0.707107))) + vec2(0.0, 0.0);
+        {
+            float d = length(p13 - vec2(0.0, -40.0)) - 13.0;
+            paint(c, d, 2.2, aa, cx);
+        }
+    }
+    {
+        vec2 p14 = vec2(dot(p - vec2(0.0, 0.0), vec2(0.707107, 0.707107)), dot(p - vec2(0.0, 0.0), vec2(-0.707107, 0.707107))) + vec2(0.0, 0.0);
+        {
+            vec2 p15 = vec2(dot(p14 - vec2(0.0, -40.0), vec2(1.0, 0.0)), dot(p14 - vec2(0.0, -40.0), vec2(0.0, 1.0)));
+            {
+                float a16 = 17.952 * T * 1.0;
+                vec2 p17 = vec2(dot(p15 - vec2(0.0, 0.0), vec2(cos(a16), sin(a16))), dot(p15 - vec2(0.0, 0.0), vec2(-sin(a16), cos(a16)))) + vec2(0.0, 0.0);
+                {
+                    vec2 q18 = p17;
+                    if (length(q18 - vec2(0.0, 0.0)) < 13.5 + 2.0 * aa) {
+                        float d = sg(q18, vec2(-11.0, 0.0), vec2(22.0, 0.0), 0.00206612) - 1.5;
+                        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+                    }
+                }
+            }
+        }
+    }
+    {
+        vec2 p19 = vec2(dot(p - vec2(0.0, 0.0), vec2(-0.707107, 0.707107)), dot(p - vec2(0.0, 0.0), vec2(-0.707107, -0.707107))) + vec2(0.0, 0.0);
+        {
+            vec2 p20 = vec2(dot(p19 - vec2(0.0, -40.0), vec2(1.0, 0.0)), dot(p19 - vec2(0.0, -40.0), vec2(0.0, 1.0)));
+            {
+                float a21 = 17.952 * T * 1.0;
+                vec2 p22 = vec2(dot(p20 - vec2(0.0, 0.0), vec2(cos(a21), sin(a21))), dot(p20 - vec2(0.0, 0.0), vec2(-sin(a21), cos(a21)))) + vec2(0.0, 0.0);
+                {
+                    vec2 q23 = p22;
+                    if (length(q23 - vec2(0.0, 0.0)) < 13.5 + 2.0 * aa) {
+                        float d = sg(q23, vec2(-11.0, 0.0), vec2(22.0, 0.0), 0.00206612) - 1.5;
+                        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+                    }
+                }
+            }
+        }
+    }
+    {
+        vec2 p24 = vec2(dot(p - vec2(0.0, 0.0), vec2(-0.707107, -0.707107)), dot(p - vec2(0.0, 0.0), vec2(0.707107, -0.707107))) + vec2(0.0, 0.0);
+        {
+            vec2 p25 = vec2(dot(p24 - vec2(0.0, -40.0), vec2(1.0, 0.0)), dot(p24 - vec2(0.0, -40.0), vec2(0.0, 1.0)));
+            {
+                float a26 = 17.952 * T * 1.0;
+                vec2 p27 = vec2(dot(p25 - vec2(0.0, 0.0), vec2(cos(a26), sin(a26))), dot(p25 - vec2(0.0, 0.0), vec2(-sin(a26), cos(a26)))) + vec2(0.0, 0.0);
+                {
+                    vec2 q28 = p27;
+                    if (length(q28 - vec2(0.0, 0.0)) < 13.5 + 2.0 * aa) {
+                        float d = sg(q28, vec2(-11.0, 0.0), vec2(22.0, 0.0), 0.00206612) - 1.5;
+                        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+                    }
+                }
+            }
+        }
+    }
+    {
+        vec2 p29 = vec2(dot(p - vec2(0.0, 0.0), vec2(0.707107, -0.707107)), dot(p - vec2(0.0, 0.0), vec2(0.707107, 0.707107))) + vec2(0.0, 0.0);
+        {
+            vec2 p30 = vec2(dot(p29 - vec2(0.0, -40.0), vec2(1.0, 0.0)), dot(p29 - vec2(0.0, -40.0), vec2(0.0, 1.0)));
+            {
+                float a31 = 17.952 * T * 1.0;
+                vec2 p32 = vec2(dot(p30 - vec2(0.0, 0.0), vec2(cos(a31), sin(a31))), dot(p30 - vec2(0.0, 0.0), vec2(-sin(a31), cos(a31)))) + vec2(0.0, 0.0);
+                {
+                    vec2 q33 = p32;
+                    if (length(q33 - vec2(0.0, 0.0)) < 13.5 + 2.0 * aa) {
+                        float d = sg(q33, vec2(-11.0, 0.0), vec2(22.0, 0.0), 0.00206612) - 1.5;
+                        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+                    }
+                }
+            }
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, 0.0)) - 25.0;
+        paint(c, d, 2.2, aa, vec3(0.956863, 0.968627, 1.0));
+    }
+    {
+        float d = abs(length(p - vec2(0.0, 0.0)) - 19.0) - 1.0;
+        fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+    }
+    {
+        vec2 q34 = p;
+        if (length(q34 - vec2(0.0, 0.0)) < 19.488 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q34 - vec2(-6.0, -16.0), q34 - vec2(-6.0, -16.0));
+            pe(d0, s0, q34, vec2(-6.0, -16.0), vec2(-6.0, -6.0), 0.01);
+            pe(d0, s0, q34, vec2(6.0, -16.0), vec2(-6.0, -16.0), 0.00694444);
+            pe(d0, s0, q34, vec2(6.0, -6.0), vec2(6.0, -16.0), 0.01);
+            pe(d0, s0, q34, vec2(16.0, -6.0), vec2(6.0, -6.0), 0.01);
+            pe(d0, s0, q34, vec2(16.0, 6.0), vec2(16.0, -6.0), 0.00694444);
+            pe(d0, s0, q34, vec2(6.0, 6.0), vec2(16.0, 6.0), 0.01);
+            pe(d0, s0, q34, vec2(6.0, 16.0), vec2(6.0, 6.0), 0.01);
+            pe(d0, s0, q34, vec2(-6.0, 16.0), vec2(6.0, 16.0), 0.00694444);
+            pe(d0, s0, q34, vec2(-6.0, 6.0), vec2(-6.0, 16.0), 0.01);
+            pe(d0, s0, q34, vec2(-16.0, 6.0), vec2(-6.0, 6.0), 0.01);
+            pe(d0, s0, q34, vec2(-16.0, -6.0), vec2(-16.0, 6.0), 0.00694444);
+            pe(d0, s0, q34, vec2(-6.0, -6.0), vec2(-16.0, -6.0), 0.01);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, cb);
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, -22.0)) - 3.4;
+        paint(c, d, 1.4, aa, vec3(0.411765, 0.941176, 1.0));
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Drummer",
+        turns: true,
+        mark: false,
+        size: 64.0,
+        glsl: r#"//Champion Drummer
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec4 g1 = vec4(0.0);
+        {
+            vec2 q2 = p - vec2(0.0, -20.0);
+            if (length(q2) < 48.5 + 2.0 * aa) {
+                float d = ar(vec2(dot(q2, vec2(1.0, 0.0)), dot(q2, vec2(0.0, -1.0))), vec2(0.642788, 0.766044), 46.0) - 1.5;
+                fill(g1, d, aa, cl);
+            }
+        }
+        float k = mix(0.15, 1.0, abs(2.0 * fract(T / 0.7) - 1.0));
+        c = g1 * k + c * (1.0 - g1.a * k);
+    }
+    {
+        vec4 g3 = vec4(0.0);
+        {
+            vec2 q4 = p - vec2(0.0, -20.0);
+            if (length(q4) < 60.2 + 2.0 * aa) {
+                float d = ar(vec2(dot(q4, vec2(1.0, 0.0)), dot(q4, vec2(0.0, -1.0))), vec2(0.529919, 0.848048), 58.0) - 1.2;
+                fill(g3, d, aa, cl);
+            }
+        }
+        float k = mix(0.0, 1.0, abs(2.0 * fract(T / 0.7) - 1.0));
+        c = g3 * k + c * (1.0 - g3.a * k);
+    }
+    {
+        vec2 q5 = vec2(abs(p.x), p.y);
+        if (length(q5 - vec2(16.0, 17.0)) < 31.2179 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q5 - vec2(0.0, -6.0), q5 - vec2(0.0, -6.0));
+            ps(s0, q5, vec2(0.0, -6.0), vec2(0.0, 40.0));
+            pe(d0, s0, q5, vec2(22.0, -4.0), vec2(0.0, -6.0), 0.00204918);
+            pe(d0, s0, q5, vec2(32.0, 14.0), vec2(22.0, -4.0), 0.00235849);
+            pe(d0, s0, q5, vec2(26.0, 34.0), vec2(32.0, 14.0), 0.00229358);
+            pe(d0, s0, q5, vec2(0.0, 40.0), vec2(26.0, 34.0), 0.00140449);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        vec2 q6 = vec2(abs(p.x), p.y);
+        if (length(q6 - vec2(7.0, 19.0)) < 17.5529 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q6 - vec2(0.0, 4.0), q6 - vec2(0.0, 4.0));
+            ps(s0, q6, vec2(0.0, 4.0), vec2(0.0, 34.0));
+            pe(d0, s0, q6, vec2(12.0, 6.0), vec2(0.0, 4.0), 0.00675676);
+            pe(d0, s0, q6, vec2(14.0, 30.0), vec2(12.0, 6.0), 0.00172414);
+            pe(d0, s0, q6, vec2(0.0, 34.0), vec2(14.0, 30.0), 0.00471698);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cb);
+        }
+    }
+    {
+        vec2 q7 = vec2(abs(p.x), p.y);
+        if (length(q7 - vec2(20.0, -18.0)) < 24.6391 + 2.0 * aa) {
+            float d = min(sg(q7, vec2(22.0, 0.0), vec2(2.0, -20.0), 0.00247525), sg(q7, vec2(24.0, -20.0), vec2(-8.0, -16.0), 0.003125)) - 3.0;
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, -22.0)) - 26.0;
+        paint(c, d, 2.2, aa, cb);
+    }
+    {
+        vec2 p8 = vec2(dot(p - vec2(0.0, -22.0), vec2(1.0, 0.0)), dot(p - vec2(0.0, -22.0), vec2(0.0, 1.0)));
+        {
+            vec2 p9 = vec2(dot(p8 - vec2(0.0, 0.0), vec2(0.951057, 0.309017)), dot(p8 - vec2(0.0, 0.0), vec2(-0.309017, 0.951057))) + vec2(0.0, 0.0);
+            {
+                vec2 q10 = p9;
+                if (length(q10 - vec2(0.0, -22.0)) < 5.5 + 2.0 * aa) {
+                    float d = sg(q10, vec2(0.0, -19.0), vec2(0.0, -6.0), 0.0277778) - 1.5;
+                    fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+                }
+            }
+        }
+        {
+            vec2 p11 = vec2(dot(p8 - vec2(0.0, 0.0), vec2(0.587785, 0.809017)), dot(p8 - vec2(0.0, 0.0), vec2(-0.809017, 0.587785))) + vec2(0.0, 0.0);
+            {
+                vec2 q12 = p11;
+                if (length(q12 - vec2(0.0, -22.0)) < 5.5 + 2.0 * aa) {
+                    float d = sg(q12, vec2(0.0, -19.0), vec2(0.0, -6.0), 0.0277778) - 1.5;
+                    fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+                }
+            }
+        }
+        {
+            vec2 p13 = vec2(dot(p8 - vec2(0.0, 0.0), vec2(6.12323e-17, 1.0)), dot(p8 - vec2(0.0, 0.0), vec2(-1.0, 6.12323e-17))) + vec2(0.0, 0.0);
+            {
+                vec2 q14 = p13;
+                if (length(q14 - vec2(0.0, -22.0)) < 5.5 + 2.0 * aa) {
+                    float d = sg(q14, vec2(0.0, -19.0), vec2(0.0, -6.0), 0.0277778) - 1.5;
+                    fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+                }
+            }
+        }
+        {
+            vec2 p15 = vec2(dot(p8 - vec2(0.0, 0.0), vec2(-0.587785, 0.809017)), dot(p8 - vec2(0.0, 0.0), vec2(-0.809017, -0.587785))) + vec2(0.0, 0.0);
+            {
+                vec2 q16 = p15;
+                if (length(q16 - vec2(0.0, -22.0)) < 5.5 + 2.0 * aa) {
+                    float d = sg(q16, vec2(0.0, -19.0), vec2(0.0, -6.0), 0.0277778) - 1.5;
+                    fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+                }
+            }
+        }
+        {
+            vec2 p17 = vec2(dot(p8 - vec2(0.0, 0.0), vec2(-0.951057, 0.309017)), dot(p8 - vec2(0.0, 0.0), vec2(-0.309017, -0.951057))) + vec2(0.0, 0.0);
+            {
+                vec2 q18 = p17;
+                if (length(q18 - vec2(0.0, -22.0)) < 5.5 + 2.0 * aa) {
+                    float d = sg(q18, vec2(0.0, -19.0), vec2(0.0, -6.0), 0.0277778) - 1.5;
+                    fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+                }
+            }
+        }
+        {
+            vec2 p19 = vec2(dot(p8 - vec2(0.0, 0.0), vec2(-0.951057, -0.309017)), dot(p8 - vec2(0.0, 0.0), vec2(0.309017, -0.951057))) + vec2(0.0, 0.0);
+            {
+                vec2 q20 = p19;
+                if (length(q20 - vec2(0.0, -22.0)) < 5.5 + 2.0 * aa) {
+                    float d = sg(q20, vec2(0.0, -19.0), vec2(0.0, -6.0), 0.0277778) - 1.5;
+                    fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+                }
+            }
+        }
+        {
+            vec2 p21 = vec2(dot(p8 - vec2(0.0, 0.0), vec2(-0.587785, -0.809017)), dot(p8 - vec2(0.0, 0.0), vec2(0.809017, -0.587785))) + vec2(0.0, 0.0);
+            {
+                vec2 q22 = p21;
+                if (length(q22 - vec2(0.0, -22.0)) < 5.5 + 2.0 * aa) {
+                    float d = sg(q22, vec2(0.0, -19.0), vec2(0.0, -6.0), 0.0277778) - 1.5;
+                    fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+                }
+            }
+        }
+        {
+            vec2 p23 = vec2(dot(p8 - vec2(0.0, 0.0), vec2(-1.83697e-16, -1.0)), dot(p8 - vec2(0.0, 0.0), vec2(1.0, -1.83697e-16))) + vec2(0.0, 0.0);
+            {
+                vec2 q24 = p23;
+                if (length(q24 - vec2(0.0, -22.0)) < 5.5 + 2.0 * aa) {
+                    float d = sg(q24, vec2(0.0, -19.0), vec2(0.0, -6.0), 0.0277778) - 1.5;
+                    fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+                }
+            }
+        }
+        {
+            vec2 p25 = vec2(dot(p8 - vec2(0.0, 0.0), vec2(0.587785, -0.809017)), dot(p8 - vec2(0.0, 0.0), vec2(0.809017, 0.587785))) + vec2(0.0, 0.0);
+            {
+                vec2 q26 = p25;
+                if (length(q26 - vec2(0.0, -22.0)) < 5.5 + 2.0 * aa) {
+                    float d = sg(q26, vec2(0.0, -19.0), vec2(0.0, -6.0), 0.0277778) - 1.5;
+                    fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+                }
+            }
+        }
+        {
+            vec2 p27 = vec2(dot(p8 - vec2(0.0, 0.0), vec2(0.951057, -0.309017)), dot(p8 - vec2(0.0, 0.0), vec2(0.309017, 0.951057))) + vec2(0.0, 0.0);
+            {
+                vec2 q28 = p27;
+                if (length(q28 - vec2(0.0, -22.0)) < 5.5 + 2.0 * aa) {
+                    float d = sg(q28, vec2(0.0, -19.0), vec2(0.0, -6.0), 0.0277778) - 1.5;
+                    fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+                }
+            }
+        }
+    }
+    {
+        float d = abs(length(p - vec2(0.0, -22.0)) - 19.0) - 1.5;
+        paint(c, d, 1.2, aa, vec3(0.721569, 0.529412, 0.164706));
+    }
+    {
+        float d = length(p - vec2(0.0, -22.0)) - 16.0;
+        fill(c, d, aa, vec3(0.917647, 0.87451, 0.760784));
+    }
+    {
+        float d = length(p - vec2(0.0, -22.0)) - 6.0;
+        fill(c, d, aa, vec3(0.72549, 0.662745, 0.509804));
+    }
+    {
+        vec2 q29 = p;
+        if (length(q29 - vec2(0.0, 2.0)) < 28.2311 + 2.0 * aa) {
+            float d = min(sg(q29, vec2(-24.0, 6.0), vec2(24.0, -8.0), 0.0015625), sg(q29, vec2(0.0, -2.0), vec2(24.0, 8.0), 0.0015625)) - 1.7;
+            paint(c, d, 1.2, aa, cx);
+        }
+    }
+    {
+        vec2 q30 = p;
+        if (length(q30 - vec2(-14.0, -12.0)) < 14.4 + 2.0 * aa) {
+            float d = sg(q30, vec2(-22.0, -6.0), vec2(16.0, -12.0), 0.0025) - 1.8;
+            paint(c, d, 1.6, aa, vec3(0.917647, 0.87451, 0.760784));
+        }
+    }
+    {
+        float d = length(p - vec2(-5.0, -19.0)) - 4.0;
+        paint(c, d, 1.4, aa, vec3(0.956863, 0.968627, 1.0));
+    }
+    {
+        vec2 q31 = p;
+        if (length(q31 - vec2(28.0, -18.0)) < 17.8164 + 2.0 * aa) {
+            float d = sg(q31, vec2(22.0, -6.0), vec2(12.0, -24.0), 0.00138889) - 1.8;
+            paint(c, d, 1.6, aa, vec3(0.917647, 0.87451, 0.760784));
+        }
+    }
+    {
+        float d = length(p - vec2(35.0, -32.0)) - 4.0;
+        paint(c, d, 1.4, aa, vec3(0.956863, 0.968627, 1.0));
+    }
+    {
+        float d = length(p - vec2(0.0, 16.0)) - 10.0;
+        paint(c, d, 2.2, aa, cl);
+    }
+    {
+        float d = abs(length(p - vec2(0.0, 16.0)) - 10.0) - 1.2;
+        paint(c, d, 1.2, aa, vec3(0.721569, 0.529412, 0.164706));
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Pyromancer",
+        turns: true,
+        mark: false,
+        size: 67.0,
+        glsl: r#"//Champion Pyromancer
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec2 q1 = vec2(abs(p.x), p.y);
+        if (length(q1 - vec2(17.0, 15.0)) < 40.3214 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q1 - vec2(0.0, -18.0), q1 - vec2(0.0, -18.0));
+            ps(s0, q1, vec2(0.0, -18.0), vec2(0.0, 48.0));
+            pe(d0, s0, q1, vec2(22.0, -14.0), vec2(0.0, -18.0), 0.002);
+            pe(d0, s0, q1, vec2(34.0, 10.0), vec2(22.0, -14.0), 0.00138889);
+            pe(d0, s0, q1, vec2(30.0, 42.0), vec2(34.0, 10.0), 0.000961538);
+            pe(d0, s0, q1, vec2(0.0, 48.0), vec2(30.0, 42.0), 0.00106838);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        vec2 q2 = vec2(abs(p.x), p.y);
+        if (length(q2 - vec2(15.0, 35.0)) < 20.8494 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q2 - vec2(0.0, 22.0), q2 - vec2(0.0, 22.0));
+            ps(s0, q2, vec2(0.0, 22.0), vec2(0.0, 48.0));
+            pe(d0, s0, q2, vec2(24.0, 24.0), vec2(0.0, 22.0), 0.00172414);
+            pe(d0, s0, q2, vec2(30.0, 42.0), vec2(24.0, 24.0), 0.00277778);
+            pe(d0, s0, q2, vec2(0.0, 48.0), vec2(30.0, 42.0), 0.00106838);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cb);
+        }
+    }
+    {
+        vec2 q3 = p;
+        if (length(q3 - vec2(29.0, -17.0)) < 36.8448 + 2.0 * aa) {
+            float d = sg(q3, vec2(26.0, 14.0), vec2(6.0, -62.0), 0.000257732) - 2.5;
+            paint(c, d, 2.2, aa, vec3(0.721569, 0.529412, 0.164706));
+        }
+    }
+    {
+        float d = length(p - vec2(26.0, 0.0)) - 6.5;
+        paint(c, d, 2.2, aa, cl);
+    }
+    {
+        vec2 q4 = vec2(abs(p.x), p.y);
+        if (length(q4 - vec2(11.0, -14.0)) < 27.7967 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q4 - vec2(0.0, -36.0), q4 - vec2(0.0, -36.0));
+            ps(s0, q4, vec2(0.0, -36.0), vec2(0.0, 8.0));
+            pe(d0, s0, q4, vec2(16.0, -28.0), vec2(0.0, -36.0), 0.003125);
+            pe(d0, s0, q4, vec2(22.0, -8.0), vec2(16.0, -28.0), 0.00229358);
+            pe(d0, s0, q4, vec2(12.0, 6.0), vec2(22.0, -8.0), 0.00337838);
+            pe(d0, s0, q4, vec2(0.0, 8.0), vec2(12.0, 6.0), 0.00675676);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cb);
+        }
+    }
+    {
+        float d = el(p - vec2(0.0, -16.0), vec2(10.0, 9.0));
+        fill(c, d, aa, vec3(0.0235294, 0.0352941, 0.0509804));
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(4.0, -18.0)) - 2.2;
+        fill(c, d, aa, vec3(1.0, 0.658824, 0.227451));
+    }
+    {
+        vec2 q5 = p;
+        if (length(q5 - vec2(32.0, -50.0)) < 9.6111 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q5 - vec2(32.0, -48.0), q5 - vec2(32.0, -48.0));
+            pe(d0, s0, q5, vec2(32.0, -48.0), vec2(26.0, -54.0), 0.0138889);
+            pe(d0, s0, q5, vec2(38.0, -54.0), vec2(32.0, -48.0), 0.0138889);
+            pe(d0, s0, q5, vec2(36.0, -46.0), vec2(38.0, -54.0), 0.0147059);
+            pe(d0, s0, q5, vec2(28.0, -46.0), vec2(36.0, -46.0), 0.015625);
+            pe(d0, s0, q5, vec2(26.0, -54.0), vec2(28.0, -46.0), 0.0147059);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, vec3(0.94902, 0.756863, 0.305882));
+        }
+    }
+    lamp(c, p - vec2(32.0, -64.0), 26.0, vec3(1.0, 0.690196, 0.290196), 0.9);
+    {
+        vec4 g6 = vec4(0.0);
+        {
+            vec2 q7 = p;
+            if (length(q7 - vec2(32.0, -67.0)) < 17.9242 + 2.0 * aa) {
+                float d = 1.0e9;
+                float s0 = 1.0; float d0 = dot(q7 - vec2(32.0, -82.0), q7 - vec2(32.0, -82.0));
+                pe(d0, s0, q7, vec2(32.0, -82.0), vec2(24.0, -64.0), 0.00257732);
+                pe(d0, s0, q7, vec2(40.0, -64.0), vec2(32.0, -82.0), 0.00257732);
+                pe(d0, s0, q7, vec2(36.0, -52.0), vec2(40.0, -64.0), 0.00625);
+                pe(d0, s0, q7, vec2(28.0, -52.0), vec2(36.0, -52.0), 0.015625);
+                pe(d0, s0, q7, vec2(24.0, -64.0), vec2(28.0, -52.0), 0.00625);
+                d = s0 * sqrt(d0);
+                paint(g6, d, 1.4, aa, vec3(1.0, 0.658824, 0.227451));
+            }
+        }
+        float k = mix(0.7, 1.0, abs(2.0 * fract(T / 0.5) - 1.0));
+        c = g6 * k + c * (1.0 - g6.a * k);
+    }
+    {
+        vec2 q8 = p;
+        if (length(q8 - vec2(32.0, -63.5)) < 9.5 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q8 - vec2(32.0, -72.0), q8 - vec2(32.0, -72.0));
+            pe(d0, s0, q8, vec2(32.0, -72.0), vec2(28.0, -62.0), 0.00862069);
+            pe(d0, s0, q8, vec2(36.0, -62.0), vec2(32.0, -72.0), 0.00862069);
+            pe(d0, s0, q8, vec2(32.0, -55.0), vec2(36.0, -62.0), 0.0153846);
+            pe(d0, s0, q8, vec2(28.0, -62.0), vec2(32.0, -55.0), 0.0153846);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, vec3(1.0, 0.894118, 0.368627));
+        }
+    }
+    {
+        float a9 = 4.48799 * T * 1.0;
+        vec2 p10 = vec2(dot(p - vec2(32.0, -64.0), vec2(cos(a9), sin(a9))), dot(p - vec2(32.0, -64.0), vec2(-sin(a9), cos(a9)))) + vec2(32.0, -64.0);
+        {
+            float d = length(p10 - vec2(18.0, -64.0)) - 2.4;
+            fill(c, d, aa, vec3(1.0, 0.894118, 0.368627));
+        }
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Sharpshooter",
+        turns: true,
+        mark: false,
+        size: 64.0,
+        glsl: r#"//Champion Sharpshooter
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec2 q1 = p;
+        if (length(q1 - vec2(-13.0, 21.0)) < 30.513 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q1 - vec2(-2.0, -4.0), q1 - vec2(-2.0, -4.0));
+            pe(d0, s0, q1, vec2(-2.0, -4.0), vec2(-6.0, 16.0), 0.00240385);
+            pe(d0, s0, q1, vec2(-14.0, 12.0), vec2(-2.0, -4.0), 0.0025);
+            pe(d0, s0, q1, vec2(-24.0, 44.0), vec2(-14.0, 12.0), 0.00088968);
+            pe(d0, s0, q1, vec2(-14.0, 46.0), vec2(-24.0, 44.0), 0.00961538);
+            pe(d0, s0, q1, vec2(-6.0, 16.0), vec2(-14.0, 46.0), 0.00103734);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cb);
+        }
+    }
+    {
+        vec2 q2 = vec2(abs(p.x), p.y);
+        if (length(q2 - vec2(13.0, 9.0)) < 34.9805 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q2 - vec2(0.0, -20.0), q2 - vec2(0.0, -20.0));
+            ps(s0, q2, vec2(0.0, -20.0), vec2(0.0, 38.0));
+            pe(d0, s0, q2, vec2(18.0, -16.0), vec2(0.0, -20.0), 0.00294118);
+            pe(d0, s0, q2, vec2(26.0, 4.0), vec2(18.0, -16.0), 0.00215517);
+            pe(d0, s0, q2, vec2(22.0, 30.0), vec2(26.0, 4.0), 0.00144509);
+            pe(d0, s0, q2, vec2(0.0, 38.0), vec2(22.0, 30.0), 0.00182482);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cx);
+        }
+    }
+    {
+        vec2 q3 = vec2(abs(p.x), p.y);
+        if (length(q3 - vec2(8.0, 10.0)) < 22.5407 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q3 - vec2(0.0, -10.0), q3 - vec2(0.0, -10.0));
+            ps(s0, q3, vec2(0.0, -10.0), vec2(0.0, 30.0));
+            pe(d0, s0, q3, vec2(12.0, -8.0), vec2(0.0, -10.0), 0.00675676);
+            pe(d0, s0, q3, vec2(16.0, 24.0), vec2(12.0, -8.0), 0.000961538);
+            pe(d0, s0, q3, vec2(0.0, 30.0), vec2(16.0, 24.0), 0.00342466);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cd);
+        }
+    }
+    {
+        vec2 q4 = p;
+        if (length(q4 - vec2(-10.0, -18.0)) < 19.6164 + 2.0 * aa) {
+            float d = sg(q4, vec2(-16.0, -6.0), vec2(12.0, -24.0), 0.00138889) - 3.0;
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        vec2 q5 = p;
+        if (length(q5 - vec2(14.0, -8.0)) < 13.4111 + 2.0 * aa) {
+            float d = sg(q5, vec2(18.0, -2.0), vec2(-8.0, -12.0), 0.00480769) - 3.0;
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        vec2 q6 = p;
+        if (length(q6 - vec2(8.0, 13.0)) < 16.7 + 2.0 * aa) {
+            float d = sg(q6, vec2(8.0, 22.0), vec2(0.0, -18.0), 0.00308642) - 4.5;
+            paint(c, d, 2.2, aa, vec3(0.721569, 0.529412, 0.164706));
+        }
+    }
+    {
+        vec2 q7 = p;
+        if (length(q7 - vec2(8.0, -37.0)) < 46.7 + 2.0 * aa) {
+            float d = sg(q7, vec2(8.0, 4.0), vec2(0.0, -82.0), 0.000148721) - 2.5;
+            paint(c, d, 2.2, aa, vec3(0.337255, 0.380392, 0.454902));
+        }
+    }
+    {
+        vec2 q8 = p;
+        if (length(q8 - vec2(8.0, -79.0)) < 9.1 + 2.0 * aa) {
+            float d = sg(q8, vec2(8.0, -76.0), vec2(0.0, -6.0), 0.0277778) - 3.5;
+            paint(c, d, 1.6, aa, cx);
+        }
+    }
+    {
+        vec2 q9 = p;
+        if (length(q9 - vec2(8.0, -31.0)) < 16.2 + 2.0 * aa) {
+            float d = sg(q9, vec2(8.0, -22.0), vec2(0.0, -18.0), 0.00308642) - 4.0;
+            paint(c, d, 2.2, aa, cx);
+        }
+    }
+    {
+        float d = length(p - vec2(8.0, -42.0)) - 3.0;
+        fill(c, d, aa, vec3(0.956863, 0.968627, 1.0));
+    }
+    lamp(c, p - vec2(8.0, -42.0), 9.0, vec3(1.0, 1.0, 1.0), 0.8);
+    {
+        float d = length(p - vec2(0.0, -10.0)) - 11.0;
+        paint(c, d, 2.2, aa, cl);
+    }
+    {
+        float d = el(p - vec2(0.0, -10.0), vec2(15.0, 6.0));
+        paint(c, d, 1.4, aa, cx);
+    }
+    {
+        vec2 q10 = p;
+        if (length(q10 - vec2(0.0, 0.0)) < 11.3443 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q10 - vec2(-6.0, -4.0), q10 - vec2(-6.0, -4.0));
+            pe(d0, s0, q10, vec2(-6.0, -4.0), vec2(-8.0, 4.0), 0.0147059);
+            pe(d0, s0, q10, vec2(6.0, -4.0), vec2(-6.0, -4.0), 0.00694444);
+            pe(d0, s0, q10, vec2(8.0, 4.0), vec2(6.0, -4.0), 0.0147059);
+            pe(d0, s0, q10, vec2(-8.0, 4.0), vec2(8.0, 4.0), 0.00390625);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, cb);
+        }
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Pathfinder",
+        turns: true,
+        mark: false,
+        size: 64.0,
+        glsl: r#"//Champion Pathfinder
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec2 q1 = vec2(abs(p.x), p.y);
+        if (length(q1 - vec2(33.0, -6.0)) < 30.9308 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q1 - vec2(8.0, -6.0), q1 - vec2(8.0, -6.0));
+            pe(d0, s0, q1, vec2(8.0, -6.0), vec2(14.0, 12.0), 0.00277778);
+            pe(d0, s0, q1, vec2(40.0, -24.0), vec2(8.0, -6.0), 0.00074184);
+            pe(d0, s0, q1, vec2(58.0, -16.0), vec2(40.0, -24.0), 0.00257732);
+            pe(d0, s0, q1, vec2(50.0, -4.0), vec2(58.0, -16.0), 0.00480769);
+            pe(d0, s0, q1, vec2(58.0, 6.0), vec2(50.0, -4.0), 0.00609756);
+            pe(d0, s0, q1, vec2(40.0, 12.0), vec2(58.0, 6.0), 0.00277778);
+            pe(d0, s0, q1, vec2(14.0, 12.0), vec2(40.0, 12.0), 0.00147929);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cb);
+        }
+    }
+    {
+        vec2 q2 = vec2(abs(p.x), p.y);
+        if (length(q2 - vec2(31.0, -9.0)) < 16.8648 + 2.0 * aa) {
+            float d = sg(q2, vec2(18.0, -2.0), vec2(26.0, -14.0), 0.00114679) - 1.1;
+            fill(c, d, aa, cl);
+        }
+    }
+    {
+        vec2 q3 = vec2(abs(p.x), p.y);
+        if (length(q3 - vec2(32.0, 4.0)) < 16.2421 + 2.0 * aa) {
+            float d = sg(q3, vec2(18.0, 6.0), vec2(28.0, -4.0), 0.00125) - 1.1;
+            fill(c, d, aa, cl);
+        }
+    }
+    {
+        vec2 q4 = vec2(abs(p.x), p.y);
+        if (length(q4 - vec2(8.0, 6.0)) < 34.2483 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q4 - vec2(0.0, -24.0), q4 - vec2(0.0, -24.0));
+            ps(s0, q4, vec2(0.0, -24.0), vec2(0.0, 36.0));
+            pe(d0, s0, q4, vec2(12.0, -20.0), vec2(0.0, -24.0), 0.00625);
+            pe(d0, s0, q4, vec2(16.0, 6.0), vec2(12.0, -20.0), 0.00144509);
+            pe(d0, s0, q4, vec2(10.0, 30.0), vec2(16.0, 6.0), 0.00163399);
+            pe(d0, s0, q4, vec2(0.0, 36.0), vec2(10.0, 30.0), 0.00735294);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        vec2 p5 = vec2(dot(p - vec2(0.0, 12.0), vec2(1.0, 0.0)), dot(p - vec2(0.0, 12.0), vec2(0.0, 1.0)));
+        {
+            vec2 q6 = p5;
+            if (length(q6 - vec2(0.0, 0.0)) < 15.4 + 2.0 * aa) {
+                float d = 1.0e9;
+                float s0 = 1.0; float d0 = dot(q6 - vec2(0.0, -13.0), q6 - vec2(0.0, -13.0));
+                pe(d0, s0, q6, vec2(0.0, -13.0), vec2(-3.0, -3.0), 0.00917431);
+                pe(d0, s0, q6, vec2(3.0, -3.0), vec2(0.0, -13.0), 0.00917431);
+                pe(d0, s0, q6, vec2(13.0, 0.0), vec2(3.0, -3.0), 0.00917431);
+                pe(d0, s0, q6, vec2(3.0, 3.0), vec2(13.0, 0.0), 0.00917431);
+                pe(d0, s0, q6, vec2(0.0, 13.0), vec2(3.0, 3.0), 0.00917431);
+                pe(d0, s0, q6, vec2(-3.0, 3.0), vec2(0.0, 13.0), 0.00917431);
+                pe(d0, s0, q6, vec2(-13.0, 0.0), vec2(-3.0, 3.0), 0.00917431);
+                pe(d0, s0, q6, vec2(-3.0, -3.0), vec2(-13.0, 0.0), 0.00917431);
+                d = s0 * sqrt(d0);
+                paint(c, d, 1.4, aa, vec3(0.94902, 0.756863, 0.305882));
+            }
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, 12.0)) - 3.0;
+        fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+    }
+    {
+        float d = length(p - vec2(0.0, -16.0)) - 10.0;
+        paint(c, d, 2.2, aa, cl);
+    }
+    {
+        vec2 q7 = p;
+        if (length(q7 - vec2(0.0, -18.0)) < 10.4868 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q7 - vec2(-9.0, -21.0), q7 - vec2(-9.0, -21.0));
+            pe(d0, s0, q7, vec2(-9.0, -21.0), vec2(-8.0, -15.0), 0.027027);
+            pe(d0, s0, q7, vec2(9.0, -21.0), vec2(-9.0, -21.0), 0.00308642);
+            pe(d0, s0, q7, vec2(8.0, -15.0), vec2(9.0, -21.0), 0.027027);
+            pe(d0, s0, q7, vec2(-8.0, -15.0), vec2(8.0, -15.0), 0.00390625);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cx);
+        }
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(4.0, -18.0)) - 2.4;
+        fill(c, d, aa, vec3(0.411765, 0.941176, 1.0));
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Quartermaster",
+        turns: true,
+        mark: false,
+        size: 67.0,
+        glsl: r#"//Champion Quartermaster
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec2 q1 = p;
+        if (length(q1 - vec2(-10.0, -14.0)) < 10.4462 + 2.0 * aa) {
+            float d = sg(q1, vec2(-8.0, -22.0), vec2(-4.0, 16.0), 0.00367647) - 1.2;
+            fill(c, d, aa, cx);
+        }
+    }
+    {
+        vec2 q2 = p;
+        if (length(q2 - vec2(10.0, -14.0)) < 10.4462 + 2.0 * aa) {
+            float d = sg(q2, vec2(8.0, -22.0), vec2(4.0, 16.0), 0.00367647) - 1.2;
+            fill(c, d, aa, cx);
+        }
+    }
+    {
+        float d = el(p - vec2(0.0, -34.0), vec2(9.0, 15.0));
+        paint(c, d, 2.2, aa, vec3(0.541176, 0.592157, 0.666667));
+    }
+    {
+        float d = length(p - vec2(0.0, -50.0)) - 7.0;
+        paint(c, d, 2.2, aa, vec3(0.541176, 0.592157, 0.666667));
+    }
+    {
+        vec2 q3 = vec2(abs(p.x), p.y);
+        if (length(q3 - vec2(6.5, -59.0)) < 7.99017 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q3 - vec2(4.0, -55.0), q3 - vec2(4.0, -55.0));
+            pe(d0, s0, q3, vec2(4.0, -55.0), vec2(9.0, -54.0), 0.0384615);
+            pe(d0, s0, q3, vec2(8.0, -64.0), vec2(4.0, -55.0), 0.0103093);
+            pe(d0, s0, q3, vec2(9.0, -54.0), vec2(8.0, -64.0), 0.00990099);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, vec3(0.337255, 0.380392, 0.454902));
+        }
+    }
+    {
+        vec2 q4 = vec2(abs(p.x), p.y);
+        if (length(q4 - vec2(31.0, 1.0)) < 8.61577 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q4 - vec2(28.0, -6.0), q4 - vec2(28.0, -6.0));
+            pe(d0, s0, q4, vec2(28.0, -6.0), vec2(28.0, 8.0), 0.00510204);
+            pe(d0, s0, q4, vec2(34.0, -6.0), vec2(28.0, -6.0), 0.0277778);
+            pe(d0, s0, q4, vec2(34.0, 8.0), vec2(34.0, -6.0), 0.00510204);
+            pe(d0, s0, q4, vec2(28.0, 8.0), vec2(34.0, 8.0), 0.0277778);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cx);
+        }
+    }
+    {
+        vec2 q5 = vec2(abs(p.x), p.y);
+        if (length(q5 - vec2(31.0, 29.0)) < 8.61577 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q5 - vec2(28.0, 22.0), q5 - vec2(28.0, 22.0));
+            pe(d0, s0, q5, vec2(28.0, 22.0), vec2(28.0, 36.0), 0.00510204);
+            pe(d0, s0, q5, vec2(34.0, 22.0), vec2(28.0, 22.0), 0.0277778);
+            pe(d0, s0, q5, vec2(34.0, 36.0), vec2(34.0, 22.0), 0.00510204);
+            pe(d0, s0, q5, vec2(28.0, 36.0), vec2(34.0, 36.0), 0.0277778);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cx);
+        }
+    }
+    {
+        vec2 q6 = p;
+        if (length(q6 - vec2(0.0, 15.0)) < 39.2694 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q6 - vec2(-26.0, -10.0), q6 - vec2(-26.0, -10.0));
+            pe(d0, s0, q6, vec2(-26.0, -10.0), vec2(-26.0, 40.0), 0.0004);
+            pe(d0, s0, q6, vec2(26.0, -10.0), vec2(-26.0, -10.0), 0.000369822);
+            pe(d0, s0, q6, vec2(26.0, 40.0), vec2(26.0, -10.0), 0.0004);
+            pe(d0, s0, q6, vec2(-26.0, 40.0), vec2(26.0, 40.0), 0.000369822);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, vec3(0.721569, 0.529412, 0.164706));
+        }
+    }
+    {
+        vec2 q7 = p;
+        if (length(q7 - vec2(-12.0, 4.0)) < 16.5421 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q7 - vec2(-22.0, -6.0), q7 - vec2(-22.0, -6.0));
+            pe(d0, s0, q7, vec2(-22.0, -6.0), vec2(-22.0, 14.0), 0.0025);
+            pe(d0, s0, q7, vec2(-2.0, -6.0), vec2(-22.0, -6.0), 0.0025);
+            pe(d0, s0, q7, vec2(-2.0, 14.0), vec2(-2.0, -6.0), 0.0025);
+            pe(d0, s0, q7, vec2(-22.0, 14.0), vec2(-2.0, 14.0), 0.0025);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, cb);
+        }
+    }
+    {
+        vec2 q8 = p;
+        if (length(q8 - vec2(12.0, 4.0)) < 16.5421 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q8 - vec2(2.0, -6.0), q8 - vec2(2.0, -6.0));
+            pe(d0, s0, q8, vec2(2.0, -6.0), vec2(2.0, 14.0), 0.0025);
+            pe(d0, s0, q8, vec2(22.0, -6.0), vec2(2.0, -6.0), 0.0025);
+            pe(d0, s0, q8, vec2(22.0, 14.0), vec2(22.0, -6.0), 0.0025);
+            pe(d0, s0, q8, vec2(2.0, 14.0), vec2(22.0, 14.0), 0.0025);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, cd);
+        }
+    }
+    {
+        vec2 q9 = p;
+        if (length(q9 - vec2(0.0, 27.0)) < 26.1697 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q9 - vec2(-22.0, 18.0), q9 - vec2(-22.0, 18.0));
+            pe(d0, s0, q9, vec2(-22.0, 18.0), vec2(-22.0, 36.0), 0.00308642);
+            pe(d0, s0, q9, vec2(22.0, 18.0), vec2(-22.0, 18.0), 0.000516529);
+            pe(d0, s0, q9, vec2(22.0, 36.0), vec2(22.0, 18.0), 0.00308642);
+            pe(d0, s0, q9, vec2(-22.0, 36.0), vec2(22.0, 36.0), 0.000516529);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, cb);
+        }
+    }
+    {
+        vec2 q10 = p;
+        if (length(q10 - vec2(0.0, 27.0)) < 23.8 + 2.0 * aa) {
+            float d = sg(q10, vec2(-22.0, 27.0), vec2(44.0, 0.0), 0.000516529) - 0.8;
+            fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+        }
+    }
+    lamp(c, p - vec2(12.0, 4.0), 14.0, vec3(1.0, 0.894118, 0.368627), 0.8);
+    {
+        vec4 g11 = vec4(0.0);
+        {
+            float d = length(p - vec2(12.0, 4.0)) - 5.0;
+            paint(g11, d, 1.4, aa, vec3(0.94902, 0.756863, 0.305882));
+        }
+        float k = mix(0.5, 1.0, abs(2.0 * fract(T / 1.2) - 1.0));
+        c = g11 * k + c * (1.0 - g11.a * k);
+    }
+    {
+        vec2 q12 = p;
+        if (length(q12 - vec2(12.0, 4.0)) < 9.0 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q12 - vec2(12.0, -4.0), q12 - vec2(12.0, -4.0));
+            pe(d0, s0, q12, vec2(12.0, -4.0), vec2(11.0, 2.0), 0.027027);
+            pe(d0, s0, q12, vec2(13.0, 2.0), vec2(12.0, -4.0), 0.027027);
+            pe(d0, s0, q12, vec2(19.0, 4.0), vec2(13.0, 2.0), 0.025);
+            pe(d0, s0, q12, vec2(13.0, 6.0), vec2(19.0, 4.0), 0.025);
+            pe(d0, s0, q12, vec2(12.0, 12.0), vec2(13.0, 6.0), 0.027027);
+            pe(d0, s0, q12, vec2(11.0, 6.0), vec2(12.0, 12.0), 0.027027);
+            pe(d0, s0, q12, vec2(5.0, 4.0), vec2(11.0, 6.0), 0.025);
+            pe(d0, s0, q12, vec2(11.0, 2.0), vec2(5.0, 4.0), 0.025);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, vec3(0.956863, 0.968627, 1.0));
+        }
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Warlord",
+        turns: true,
+        mark: false,
+        size: 80.0,
+        glsl: r#"//Champion Warlord
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec2 q1 = vec2(abs(p.x), p.y);
+        if (length(q1 - vec2(20.0, 18.0)) < 37.6093 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q1 - vec2(0.0, -10.0), q1 - vec2(0.0, -10.0));
+            ps(s0, q1, vec2(0.0, -10.0), vec2(0.0, 40.0));
+            pe(d0, s0, q1, vec2(30.0, -6.0), vec2(0.0, -10.0), 0.0010917);
+            pe(d0, s0, q1, vec2(40.0, 30.0), vec2(30.0, -6.0), 0.000716332);
+            pe(d0, s0, q1, vec2(26.0, 46.0), vec2(40.0, 30.0), 0.00221239);
+            pe(d0, s0, q1, vec2(0.0, 40.0), vec2(26.0, 46.0), 0.00140449);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        vec2 q2 = vec2(abs(p.x), p.y);
+        if (length(q2 - vec2(13.0, 30.0)) < 17.4012 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q2 - vec2(0.0, 20.0), q2 - vec2(0.0, 20.0));
+            ps(s0, q2, vec2(0.0, 20.0), vec2(0.0, 36.0));
+            pe(d0, s0, q2, vec2(22.0, 22.0), vec2(0.0, 20.0), 0.00204918);
+            pe(d0, s0, q2, vec2(26.0, 40.0), vec2(22.0, 22.0), 0.00294118);
+            pe(d0, s0, q2, vec2(0.0, 36.0), vec2(26.0, 40.0), 0.00144509);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cx);
+        }
+    }
+    {
+        vec2 q3 = vec2(abs(p.x), p.y);
+        if (length(q3 - vec2(14.0, -6.0)) < 30.9849 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q3 - vec2(0.0, -30.0), q3 - vec2(0.0, -30.0));
+            ps(s0, q3, vec2(0.0, -30.0), vec2(0.0, 18.0));
+            pe(d0, s0, q3, vec2(20.0, -26.0), vec2(0.0, -30.0), 0.00240385);
+            pe(d0, s0, q3, vec2(28.0, -6.0), vec2(20.0, -26.0), 0.00215517);
+            pe(d0, s0, q3, vec2(22.0, 14.0), vec2(28.0, -6.0), 0.00229358);
+            pe(d0, s0, q3, vec2(0.0, 18.0), vec2(22.0, 14.0), 0.002);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cb);
+        }
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(24.0, -20.0)) - 10.0;
+        paint(c, d, 2.2, aa, vec3(0.94902, 0.756863, 0.305882));
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(24.0, -20.0)) - 4.0;
+        fill(c, d, aa, vec3(0.721569, 0.529412, 0.164706));
+    }
+    {
+        vec2 q4 = p;
+        if (length(q4 - vec2(33.0, -23.0)) < 43.7152 + 2.0 * aa) {
+            float d = sg(q4, vec2(30.0, 16.0), vec2(6.0, -78.0), 0.000163399) - 2.0;
+            paint(c, d, 1.6, aa, vec3(0.721569, 0.529412, 0.164706));
+        }
+    }
+    {
+        vec2 q5 = p;
+        if (length(q5 - vec2(49.0, -51.0)) < 20.2294 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q5 - vec2(36.0, -62.0), q5 - vec2(36.0, -62.0));
+            pe(d0, s0, q5, vec2(36.0, -62.0), vec2(36.0, -44.0), 0.00308642);
+            pe(d0, s0, q5, vec2(62.0, -56.0), vec2(36.0, -62.0), 0.00140449);
+            pe(d0, s0, q5, vec2(54.0, -48.0), vec2(62.0, -56.0), 0.0078125);
+            pe(d0, s0, q5, vec2(62.0, -40.0), vec2(54.0, -48.0), 0.0078125);
+            pe(d0, s0, q5, vec2(36.0, -44.0), vec2(62.0, -40.0), 0.00144509);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cb);
+        }
+    }
+    {
+        float d = length(p - vec2(46.0, -51.0)) - 4.0;
+        paint(c, d, 1.4, aa, vec3(0.94902, 0.756863, 0.305882));
+    }
+    {
+        float d = length(p - vec2(0.0, -18.0)) - 11.0;
+        paint(c, d, 2.2, aa, cl);
+    }
+    {
+        vec2 q6 = vec2(abs(p.x), p.y);
+        if (length(q6 - vec2(7.5, -33.0)) < 12.6591 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q6 - vec2(0.0, -34.0), q6 - vec2(0.0, -34.0));
+            ps(s0, q6, vec2(0.0, -34.0), vec2(0.0, -26.0));
+            pe(d0, s0, q6, vec2(5.0, -40.0), vec2(0.0, -34.0), 0.0163934);
+            pe(d0, s0, q6, vec2(8.0, -32.0), vec2(5.0, -40.0), 0.0136986);
+            pe(d0, s0, q6, vec2(13.0, -40.0), vec2(8.0, -32.0), 0.011236);
+            pe(d0, s0, q6, vec2(15.0, -28.0), vec2(13.0, -40.0), 0.00675676);
+            pe(d0, s0, q6, vec2(0.0, -26.0), vec2(15.0, -28.0), 0.00436681);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, vec3(0.94902, 0.756863, 0.305882));
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, -31.0)) - 2.4;
+        fill(c, d, aa, vec3(1.0, 0.290196, 0.227451));
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Frostweaver",
+        turns: true,
+        mark: false,
+        size: 67.0,
+        glsl: r#"//Champion Frostweaver
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    lamp(c, p - vec2(0.0, 0.0), 56.0, vec3(0.411765, 0.941176, 1.0), 0.4);
+    {
+        vec2 p1 = vec2(dot(p - vec2(0.0, -14.0), vec2(1.0, 0.0)), dot(p - vec2(0.0, -14.0), vec2(0.0, 1.0)));
+        {
+            float a2 = 0.523599 * T * 1.0;
+            vec2 p3 = vec2(dot(p1 - vec2(0.0, 0.0), vec2(cos(a2), sin(a2))), dot(p1 - vec2(0.0, 0.0), vec2(-sin(a2), cos(a2)))) + vec2(0.0, 0.0);
+            {
+                vec2 p4 = vec2(dot(p3 - vec2(0.0, 0.0), vec2(1.0, 0.0)), dot(p3 - vec2(0.0, 0.0), vec2(0.0, 1.0))) + vec2(0.0, 0.0);
+                {
+                    vec2 q5 = p4;
+                    if (length(q5 - vec2(0.0, -28.5)) < 15.4 + 2.0 * aa) {
+                        float d = sg(q5, vec2(0.0, -17.0), vec2(0.0, -23.0), 0.00189036) - 1.5;
+                        paint(c, d, 1.4, aa, vec3(0.956863, 0.968627, 1.0));
+                    }
+                }
+            }
+            {
+                vec2 p6 = vec2(dot(p3 - vec2(0.0, 0.0), vec2(0.5, 0.866025)), dot(p3 - vec2(0.0, 0.0), vec2(-0.866025, 0.5))) + vec2(0.0, 0.0);
+                {
+                    vec2 q7 = p6;
+                    if (length(q7 - vec2(0.0, -28.5)) < 15.4 + 2.0 * aa) {
+                        float d = sg(q7, vec2(0.0, -17.0), vec2(0.0, -23.0), 0.00189036) - 1.5;
+                        paint(c, d, 1.4, aa, vec3(0.956863, 0.968627, 1.0));
+                    }
+                }
+            }
+            {
+                vec2 p8 = vec2(dot(p3 - vec2(0.0, 0.0), vec2(-0.5, 0.866025)), dot(p3 - vec2(0.0, 0.0), vec2(-0.866025, -0.5))) + vec2(0.0, 0.0);
+                {
+                    vec2 q9 = p8;
+                    if (length(q9 - vec2(0.0, -28.5)) < 15.4 + 2.0 * aa) {
+                        float d = sg(q9, vec2(0.0, -17.0), vec2(0.0, -23.0), 0.00189036) - 1.5;
+                        paint(c, d, 1.4, aa, vec3(0.956863, 0.968627, 1.0));
+                    }
+                }
+            }
+            {
+                vec2 p10 = vec2(dot(p3 - vec2(0.0, 0.0), vec2(-1.0, 1.22465e-16)), dot(p3 - vec2(0.0, 0.0), vec2(-1.22465e-16, -1.0))) + vec2(0.0, 0.0);
+                {
+                    vec2 q11 = p10;
+                    if (length(q11 - vec2(0.0, -28.5)) < 15.4 + 2.0 * aa) {
+                        float d = sg(q11, vec2(0.0, -17.0), vec2(0.0, -23.0), 0.00189036) - 1.5;
+                        paint(c, d, 1.4, aa, vec3(0.956863, 0.968627, 1.0));
+                    }
+                }
+            }
+            {
+                vec2 p12 = vec2(dot(p3 - vec2(0.0, 0.0), vec2(-0.5, -0.866025)), dot(p3 - vec2(0.0, 0.0), vec2(0.866025, -0.5))) + vec2(0.0, 0.0);
+                {
+                    vec2 q13 = p12;
+                    if (length(q13 - vec2(0.0, -28.5)) < 15.4 + 2.0 * aa) {
+                        float d = sg(q13, vec2(0.0, -17.0), vec2(0.0, -23.0), 0.00189036) - 1.5;
+                        paint(c, d, 1.4, aa, vec3(0.956863, 0.968627, 1.0));
+                    }
+                }
+            }
+            {
+                vec2 p14 = vec2(dot(p3 - vec2(0.0, 0.0), vec2(0.5, -0.866025)), dot(p3 - vec2(0.0, 0.0), vec2(0.866025, 0.5))) + vec2(0.0, 0.0);
+                {
+                    vec2 q15 = p14;
+                    if (length(q15 - vec2(0.0, -28.5)) < 15.4 + 2.0 * aa) {
+                        float d = sg(q15, vec2(0.0, -17.0), vec2(0.0, -23.0), 0.00189036) - 1.5;
+                        paint(c, d, 1.4, aa, vec3(0.956863, 0.968627, 1.0));
+                    }
+                }
+            }
+        }
+    }
+    {
+        vec2 p16 = vec2(dot(p - vec2(0.0, -14.0), vec2(1.0, 0.0)), dot(p - vec2(0.0, -14.0), vec2(0.0, 1.0)));
+        {
+            float a17 = 0.523599 * T * 1.0;
+            vec2 p18 = vec2(dot(p16 - vec2(0.0, 0.0), vec2(cos(a17), sin(a17))), dot(p16 - vec2(0.0, 0.0), vec2(-sin(a17), cos(a17)))) + vec2(0.0, 0.0);
+            {
+                vec2 p19 = vec2(dot(p18 - vec2(0.0, 0.0), vec2(1.0, 0.0)), dot(p18 - vec2(0.0, 0.0), vec2(0.0, 1.0))) + vec2(0.0, 0.0);
+                {
+                    vec2 q20 = p19;
+                    if (length(q20 - vec2(0.0, -32.5)) < 11.2262 + 2.0 * aa) {
+                        float d = min(sg(q20, vec2(-7.0, -36.0), vec2(7.0, 7.0), 0.0102041), sg(q20, vec2(0.0, -29.0), vec2(7.0, -7.0), 0.0102041)) - 1.2;
+                        paint(c, d, 1.2, aa, cl);
+                    }
+                }
+            }
+            {
+                vec2 p21 = vec2(dot(p18 - vec2(0.0, 0.0), vec2(0.5, 0.866025)), dot(p18 - vec2(0.0, 0.0), vec2(-0.866025, 0.5))) + vec2(0.0, 0.0);
+                {
+                    vec2 q22 = p21;
+                    if (length(q22 - vec2(0.0, -32.5)) < 11.2262 + 2.0 * aa) {
+                        float d = min(sg(q22, vec2(-7.0, -36.0), vec2(7.0, 7.0), 0.0102041), sg(q22, vec2(0.0, -29.0), vec2(7.0, -7.0), 0.0102041)) - 1.2;
+                        paint(c, d, 1.2, aa, cl);
+                    }
+                }
+            }
+            {
+                vec2 p23 = vec2(dot(p18 - vec2(0.0, 0.0), vec2(-0.5, 0.866025)), dot(p18 - vec2(0.0, 0.0), vec2(-0.866025, -0.5))) + vec2(0.0, 0.0);
+                {
+                    vec2 q24 = p23;
+                    if (length(q24 - vec2(0.0, -32.5)) < 11.2262 + 2.0 * aa) {
+                        float d = min(sg(q24, vec2(-7.0, -36.0), vec2(7.0, 7.0), 0.0102041), sg(q24, vec2(0.0, -29.0), vec2(7.0, -7.0), 0.0102041)) - 1.2;
+                        paint(c, d, 1.2, aa, cl);
+                    }
+                }
+            }
+            {
+                vec2 p25 = vec2(dot(p18 - vec2(0.0, 0.0), vec2(-1.0, 1.22465e-16)), dot(p18 - vec2(0.0, 0.0), vec2(-1.22465e-16, -1.0))) + vec2(0.0, 0.0);
+                {
+                    vec2 q26 = p25;
+                    if (length(q26 - vec2(0.0, -32.5)) < 11.2262 + 2.0 * aa) {
+                        float d = min(sg(q26, vec2(-7.0, -36.0), vec2(7.0, 7.0), 0.0102041), sg(q26, vec2(0.0, -29.0), vec2(7.0, -7.0), 0.0102041)) - 1.2;
+                        paint(c, d, 1.2, aa, cl);
+                    }
+                }
+            }
+            {
+                vec2 p27 = vec2(dot(p18 - vec2(0.0, 0.0), vec2(-0.5, -0.866025)), dot(p18 - vec2(0.0, 0.0), vec2(0.866025, -0.5))) + vec2(0.0, 0.0);
+                {
+                    vec2 q28 = p27;
+                    if (length(q28 - vec2(0.0, -32.5)) < 11.2262 + 2.0 * aa) {
+                        float d = min(sg(q28, vec2(-7.0, -36.0), vec2(7.0, 7.0), 0.0102041), sg(q28, vec2(0.0, -29.0), vec2(7.0, -7.0), 0.0102041)) - 1.2;
+                        paint(c, d, 1.2, aa, cl);
+                    }
+                }
+            }
+            {
+                vec2 p29 = vec2(dot(p18 - vec2(0.0, 0.0), vec2(0.5, -0.866025)), dot(p18 - vec2(0.0, 0.0), vec2(0.866025, 0.5))) + vec2(0.0, 0.0);
+                {
+                    vec2 q30 = p29;
+                    if (length(q30 - vec2(0.0, -32.5)) < 11.2262 + 2.0 * aa) {
+                        float d = min(sg(q30, vec2(-7.0, -36.0), vec2(7.0, 7.0), 0.0102041), sg(q30, vec2(0.0, -29.0), vec2(7.0, -7.0), 0.0102041)) - 1.2;
+                        paint(c, d, 1.2, aa, cl);
+                    }
+                }
+            }
+        }
+    }
+    {
+        vec2 q31 = vec2(abs(p.x), p.y);
+        if (length(q31 - vec2(15.0, 13.0)) < 39.4491 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q31 - vec2(0.0, -20.0), q31 - vec2(0.0, -20.0));
+            ps(s0, q31, vec2(0.0, -20.0), vec2(0.0, 46.0));
+            pe(d0, s0, q31, vec2(18.0, -16.0), vec2(0.0, -20.0), 0.00294118);
+            pe(d0, s0, q31, vec2(30.0, 10.0), vec2(18.0, -16.0), 0.00121951);
+            pe(d0, s0, q31, vec2(26.0, 40.0), vec2(30.0, 10.0), 0.0010917);
+            pe(d0, s0, q31, vec2(0.0, 46.0), vec2(26.0, 40.0), 0.00140449);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cb);
+        }
+    }
+    {
+        vec2 q32 = vec2(abs(p.x), p.y);
+        if (length(q32 - vec2(6.0, 16.0)) < 25.7386 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q32 - vec2(0.0, -8.0), q32 - vec2(0.0, -8.0));
+            ps(s0, q32, vec2(0.0, -8.0), vec2(0.0, 40.0));
+            pe(d0, s0, q32, vec2(10.0, -6.0), vec2(0.0, -8.0), 0.00961538);
+            pe(d0, s0, q32, vec2(12.0, 34.0), vec2(10.0, -6.0), 0.000623441);
+            pe(d0, s0, q32, vec2(0.0, 40.0), vec2(12.0, 34.0), 0.00555556);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cl);
+        }
+    }
+    {
+        vec2 q33 = p;
+        if (length(q33 - vec2(-26.0, -15.0)) < 29.3799 + 2.0 * aa) {
+            float d = sg(q33, vec2(-24.0, 10.0), vec2(-4.0, -50.0), 0.000397456) - 1.7;
+            paint(c, d, 1.6, aa, vec3(0.811765, 0.847059, 0.901961));
+        }
+    }
+    lamp(c, p - vec2(-28.0, -48.0), 16.0, vec3(0.411765, 0.941176, 1.0), 0.9);
+    {
+        vec2 q34 = p;
+        if (length(q34 - vec2(-28.0, -49.0)) < 13.4 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q34 - vec2(-28.0, -60.0), q34 - vec2(-28.0, -60.0));
+            pe(d0, s0, q34, vec2(-28.0, -60.0), vec2(-34.0, -48.0), 0.00555556);
+            pe(d0, s0, q34, vec2(-22.0, -48.0), vec2(-28.0, -60.0), 0.00555556);
+            pe(d0, s0, q34, vec2(-28.0, -38.0), vec2(-22.0, -48.0), 0.00735294);
+            pe(d0, s0, q34, vec2(-34.0, -48.0), vec2(-28.0, -38.0), 0.00735294);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, vec3(0.411765, 0.941176, 1.0));
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, -14.0)) - 11.0;
+        paint(c, d, 2.2, aa, vec3(0.956863, 0.968627, 1.0));
+    }
+    {
+        vec2 q35 = vec2(abs(p.x), p.y);
+        if (length(q35 - vec2(4.5, -27.5)) < 12.0177 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q35 - vec2(0.0, -36.0), q35 - vec2(0.0, -36.0));
+            ps(s0, q35, vec2(0.0, -36.0), vec2(0.0, -19.0));
+            pe(d0, s0, q35, vec2(4.0, -27.0), vec2(0.0, -36.0), 0.0103093);
+            pe(d0, s0, q35, vec2(9.0, -32.0), vec2(4.0, -27.0), 0.02);
+            pe(d0, s0, q35, vec2(8.0, -21.0), vec2(9.0, -32.0), 0.00819672);
+            pe(d0, s0, q35, vec2(0.0, -19.0), vec2(8.0, -21.0), 0.0147059);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, vec3(0.411765, 0.941176, 1.0));
+        }
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(4.0, -14.0)) - 2.0;
+        fill(c, d, aa, vec3(0.411765, 0.941176, 1.0));
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Stormcaller",
+        turns: true,
+        mark: false,
+        size: 70.0,
+        glsl: r#"//Champion Stormcaller
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec2 q1 = vec2(abs(p.x), p.y);
+        if (length(q1 - vec2(19.0, 12.0)) < 43.9063 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q1 - vec2(0.0, -24.0), q1 - vec2(0.0, -24.0));
+            ps(s0, q1, vec2(0.0, -24.0), vec2(0.0, 48.0));
+            pe(d0, s0, q1, vec2(24.0, -18.0), vec2(0.0, -24.0), 0.00163399);
+            pe(d0, s0, q1, vec2(38.0, 12.0), vec2(24.0, -18.0), 0.000912409);
+            pe(d0, s0, q1, vec2(30.0, 42.0), vec2(38.0, 12.0), 0.00103734);
+            pe(d0, s0, q1, vec2(0.0, 48.0), vec2(30.0, 42.0), 0.00106838);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        vec2 q2 = vec2(abs(p.x), p.y);
+        if (length(q2 - vec2(28.0, 32.0)) < 11.198 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q2 - vec2(30.0, 42.0), q2 - vec2(30.0, 42.0));
+            pe(d0, s0, q2, vec2(30.0, 42.0), vec2(20.0, 30.0), 0.00409836);
+            pe(d0, s0, q2, vec2(36.0, 30.0), vec2(30.0, 42.0), 0.00555556);
+            pe(d0, s0, q2, vec2(26.0, 34.0), vec2(36.0, 30.0), 0.00862069);
+            pe(d0, s0, q2, vec2(30.0, 22.0), vec2(26.0, 34.0), 0.00625);
+            pe(d0, s0, q2, vec2(20.0, 30.0), vec2(30.0, 22.0), 0.00609756);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cb);
+        }
+    }
+    {
+        vec2 q3 = vec2(abs(p.x), p.y);
+        if (length(q3 - vec2(15.0, -22.0)) < 18.5693 + 2.0 * aa) {
+            float d = sg(q3, vec2(18.0, -10.0), vec2(-6.0, -24.0), 0.00163399) - 3.0;
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, -14.0)) - 12.0;
+        paint(c, d, 2.2, aa, cb);
+    }
+    {
+        float d = el(p - vec2(0.0, -16.0), vec2(8.0, 7.0));
+        fill(c, d, aa, vec3(0.0235294, 0.0352941, 0.0509804));
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(3.0, -17.0)) - 1.8;
+        fill(c, d, aa, vec3(0.411765, 0.941176, 1.0));
+    }
+    lamp(c, p - vec2(0.0, -48.0), 30.0, vec3(0.85098, 0.65098, 1.0), 0.9);
+    {
+        float d = length(p - vec2(0.0, -48.0)) - 13.0;
+        paint(c, d, 2.2, aa, cx);
+    }
+    {
+        float d = length(p - vec2(0.0, -48.0)) - 8.0;
+        fill(c, d, aa, vec3(0.85098, 0.65098, 1.0));
+    }
+    {
+        vec2 p4 = vec2(dot(p - vec2(0.0, -48.0), vec2(1.0, 0.0)), dot(p - vec2(0.0, -48.0), vec2(0.0, 1.0)));
+        {
+            float a5 = 5.71199 * T * 1.0;
+            vec2 p6 = vec2(dot(p4 - vec2(0.0, 0.0), vec2(cos(a5), sin(a5))), dot(p4 - vec2(0.0, 0.0), vec2(-sin(a5), cos(a5)))) + vec2(0.0, 0.0);
+            {
+                vec2 p7 = vec2(dot(p6 - vec2(0.0, 0.0), vec2(1.0, 0.0)), dot(p6 - vec2(0.0, 0.0), vec2(0.0, 1.0))) + vec2(0.0, 0.0);
+                {
+                    vec2 q8 = p7;
+                    if (length(q8 - vec2(1.0, -13.0)) < 9.28011 + 2.0 * aa) {
+                        float d = min(min(sg(q8, vec2(0.0, -6.0), vec2(4.0, -5.0), 0.0243902), sg(q8, vec2(4.0, -11.0), vec2(-6.0, -3.0), 0.0222222)), sg(q8, vec2(-2.0, -14.0), vec2(5.0, -6.0), 0.0163934)) - 1.0;
+                        fill(c, d, aa, vec3(0.956863, 0.968627, 1.0));
+                    }
+                }
+            }
+            {
+                vec2 p9 = vec2(dot(p6 - vec2(0.0, 0.0), vec2(-0.5, 0.866025)), dot(p6 - vec2(0.0, 0.0), vec2(-0.866025, -0.5))) + vec2(0.0, 0.0);
+                {
+                    vec2 q10 = p9;
+                    if (length(q10 - vec2(1.0, -13.0)) < 9.28011 + 2.0 * aa) {
+                        float d = min(min(sg(q10, vec2(0.0, -6.0), vec2(4.0, -5.0), 0.0243902), sg(q10, vec2(4.0, -11.0), vec2(-6.0, -3.0), 0.0222222)), sg(q10, vec2(-2.0, -14.0), vec2(5.0, -6.0), 0.0163934)) - 1.0;
+                        fill(c, d, aa, vec3(0.956863, 0.968627, 1.0));
+                    }
+                }
+            }
+            {
+                vec2 p11 = vec2(dot(p6 - vec2(0.0, 0.0), vec2(-0.5, -0.866025)), dot(p6 - vec2(0.0, 0.0), vec2(0.866025, -0.5))) + vec2(0.0, 0.0);
+                {
+                    vec2 q12 = p11;
+                    if (length(q12 - vec2(1.0, -13.0)) < 9.28011 + 2.0 * aa) {
+                        float d = min(min(sg(q12, vec2(0.0, -6.0), vec2(4.0, -5.0), 0.0243902), sg(q12, vec2(4.0, -11.0), vec2(-6.0, -3.0), 0.0222222)), sg(q12, vec2(-2.0, -14.0), vec2(5.0, -6.0), 0.0163934)) - 1.0;
+                        fill(c, d, aa, vec3(0.956863, 0.968627, 1.0));
+                    }
+                }
+            }
+        }
+    }
+    {
+        float d = length(p - vec2(0.0, -48.0)) - 3.0;
+        fill(c, d, aa, vec3(0.956863, 0.968627, 1.0));
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Earthshaker",
+        turns: true,
+        mark: false,
+        size: 90.0,
+        glsl: r#"//Champion Earthshaker
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    {
+        vec2 q1 = p;
+        if (length(q1 - vec2(39.0, -31.0)) < 31.9951 + 2.0 * aa) {
+            float d = sg(q1, vec2(34.0, -6.0), vec2(10.0, -50.0), 0.000384615) - 3.5;
+            paint(c, d, 2.0, aa, vec3(0.721569, 0.529412, 0.164706));
+        }
+    }
+    {
+        vec2 q2 = p;
+        if (length(q2 - vec2(45.0, -54.0)) < 20.8918 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q2 - vec2(28.0, -58.0), q2 - vec2(28.0, -58.0));
+            pe(d0, s0, q2, vec2(28.0, -58.0), vec2(34.0, -42.0), 0.00342466);
+            pe(d0, s0, q2, vec2(58.0, -66.0), vec2(28.0, -58.0), 0.00103734);
+            pe(d0, s0, q2, vec2(62.0, -50.0), vec2(58.0, -66.0), 0.00367647);
+            pe(d0, s0, q2, vec2(34.0, -42.0), vec2(62.0, -50.0), 0.00117925);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, vec3(0.541176, 0.592157, 0.666667));
+        }
+    }
+    {
+        vec2 q3 = p;
+        if (length(q3 - vec2(46.0, -54.5)) < 13.0104 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q3 - vec2(34.0, -55.0), q3 - vec2(34.0, -55.0));
+            pe(d0, s0, q3, vec2(34.0, -55.0), vec2(36.0, -48.0), 0.0188679);
+            pe(d0, s0, q3, vec2(56.0, -61.0), vec2(34.0, -55.0), 0.00192308);
+            pe(d0, s0, q3, vec2(58.0, -54.0), vec2(56.0, -61.0), 0.0188679);
+            pe(d0, s0, q3, vec2(36.0, -48.0), vec2(58.0, -54.0), 0.00192308);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, vec3(0.811765, 0.847059, 0.901961));
+        }
+    }
+    {
+        vec2 q4 = vec2(abs(p.x), p.y);
+        if (length(q4 - vec2(22.0, 7.0)) < 46.2465 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q4 - vec2(0.0, -30.0), q4 - vec2(0.0, -30.0));
+            ps(s0, q4, vec2(0.0, -30.0), vec2(0.0, 44.0));
+            pe(d0, s0, q4, vec2(30.0, -28.0), vec2(0.0, -30.0), 0.00110619);
+            pe(d0, s0, q4, vec2(44.0, -6.0), vec2(30.0, -28.0), 0.00147059);
+            pe(d0, s0, q4, vec2(42.0, 24.0), vec2(44.0, -6.0), 0.00110619);
+            pe(d0, s0, q4, vec2(26.0, 42.0), vec2(42.0, 24.0), 0.00172414);
+            pe(d0, s0, q4, vec2(0.0, 44.0), vec2(26.0, 42.0), 0.00147059);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cb);
+        }
+    }
+    {
+        vec2 q5 = vec2(abs(p.x), p.y);
+        if (length(q5 - vec2(12.0, 21.0)) < 20.2094 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q5 - vec2(0.0, 6.0), q5 - vec2(0.0, 6.0));
+            ps(s0, q5, vec2(0.0, 6.0), vec2(0.0, 36.0));
+            pe(d0, s0, q5, vec2(20.0, 8.0), vec2(0.0, 6.0), 0.00247525);
+            pe(d0, s0, q5, vec2(24.0, 30.0), vec2(20.0, 8.0), 0.002);
+            pe(d0, s0, q5, vec2(0.0, 36.0), vec2(24.0, 30.0), 0.00163399);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, cd);
+        }
+    }
+    {
+        vec2 q6 = p;
+        if (length(q6 - vec2(-18.0, 2.0)) < 15.6164 + 2.0 * aa) {
+            float d = min(sg(q6, vec2(-24.0, -10.0), vec2(12.0, 10.0), 0.00409836), sg(q6, vec2(-12.0, 0.0), vec2(-6.0, 14.0), 0.00431034)) - 1.2;
+            fill(c, d, aa, vec3(1.0, 0.658824, 0.227451));
+        }
+    }
+    {
+        vec2 q7 = p;
+        if (length(q7 - vec2(11.0, 27.0)) < 12.4956 + 2.0 * aa) {
+            float d = min(sg(q7, vec2(16.0, 18.0), vec2(-10.0, 8.0), 0.00609756), sg(q7, vec2(6.0, 26.0), vec2(4.0, 10.0), 0.00862069)) - 1.2;
+            fill(c, d, aa, vec3(1.0, 0.658824, 0.227451));
+        }
+    }
+    lamp(c, p - vec2(0.0, 4.0), 22.0, vec3(1.0, 0.658824, 0.227451), 0.5);
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(36.0, -18.0)) - 12.0;
+        paint(c, d, 2.2, aa, cd);
+    }
+    {
+        float d = length(p - vec2(-30.0, -16.0)) - 3.0;
+        fill(c, d, aa, cx);
+    }
+    {
+        vec2 q8 = vec2(abs(p.x), p.y);
+        if (length(q8 - vec2(5.5, -26.5)) < 14.1772 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q8 - vec2(0.0, -36.0), q8 - vec2(0.0, -36.0));
+            ps(s0, q8, vec2(0.0, -36.0), vec2(0.0, -17.0));
+            pe(d0, s0, q8, vec2(11.0, -32.0), vec2(0.0, -36.0), 0.00729927);
+            pe(d0, s0, q8, vec2(11.0, -20.0), vec2(11.0, -32.0), 0.00694444);
+            pe(d0, s0, q8, vec2(0.0, -17.0), vec2(11.0, -20.0), 0.00769231);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cd);
+        }
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(5.0, -27.0)) - 2.6;
+        fill(c, d, aa, vec3(1.0, 0.658824, 0.227451));
+    }
+    return c;
+}"#,
+    },
+    Art {
+        name: "Champion Phoenix",
+        turns: true,
+        mark: false,
+        size: 77.0,
+        glsl: r#"//Champion Phoenix
+vec4 art(vec2 p, float aa, vec3 B, float hurt, float T) {
+    vec4 c = vec4(0.0);
+    vec3 cb = B;
+    vec3 cd = B * 0.6;
+    vec3 cl = mix(B, vec3(1.0), 0.4);
+    vec3 cx = B * 0.28;
+    lamp(c, p - vec2(0.0, 0.0), 60.0, vec3(1.0, 0.690196, 0.290196), 0.45);
+    {
+        vec2 q1 = vec2(abs(p.x), p.y);
+        if (length(q1 - vec2(6.0, 38.0)) < 26.0035 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q1 - vec2(0.0, 16.0), q1 - vec2(0.0, 16.0));
+            ps(s0, q1, vec2(0.0, 16.0), vec2(0.0, 50.0));
+            pe(d0, s0, q1, vec2(12.0, 40.0), vec2(0.0, 16.0), 0.00138889);
+            pe(d0, s0, q1, vec2(6.0, 60.0), vec2(12.0, 40.0), 0.00229358);
+            pe(d0, s0, q1, vec2(0.0, 50.0), vec2(6.0, 60.0), 0.00735294);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, vec3(1.0, 0.658824, 0.227451));
+        }
+    }
+    {
+        vec2 q2 = vec2(abs(p.x), p.y);
+        if (length(q2 - vec2(14.0, 36.0)) < 22.8977 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q2 - vec2(6.0, 18.0), q2 - vec2(6.0, 18.0));
+            pe(d0, s0, q2, vec2(6.0, 18.0), vec2(6.0, 36.0), 0.00308642);
+            pe(d0, s0, q2, vec2(22.0, 44.0), vec2(6.0, 18.0), 0.00107296);
+            pe(d0, s0, q2, vec2(16.0, 54.0), vec2(22.0, 44.0), 0.00735294);
+            pe(d0, s0, q2, vec2(6.0, 36.0), vec2(16.0, 54.0), 0.00235849);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, vec3(1.0, 0.290196, 0.227451));
+        }
+    }
+    {
+        vec2 q3 = vec2(abs(p.x), p.y);
+        if (length(q3 - vec2(34.0, -9.0)) < 36.6215 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q3 - vec2(6.0, -8.0), q3 - vec2(6.0, -8.0));
+            pe(d0, s0, q3, vec2(6.0, -8.0), vec2(8.0, 8.0), 0.00384615);
+            pe(d0, s0, q3, vec2(30.0, -24.0), vec2(6.0, -8.0), 0.00120192);
+            pe(d0, s0, q3, vec2(60.0, -30.0), vec2(30.0, -24.0), 0.00106838);
+            pe(d0, s0, q3, vec2(50.0, -16.0), vec2(60.0, -30.0), 0.00337838);
+            pe(d0, s0, q3, vec2(62.0, -8.0), vec2(50.0, -16.0), 0.00480769);
+            pe(d0, s0, q3, vec2(44.0, 2.0), vec2(62.0, -8.0), 0.00235849);
+            pe(d0, s0, q3, vec2(52.0, 12.0), vec2(44.0, 2.0), 0.00609756);
+            pe(d0, s0, q3, vec2(28.0, 10.0), vec2(52.0, 12.0), 0.00172414);
+            pe(d0, s0, q3, vec2(8.0, 8.0), vec2(28.0, 10.0), 0.00247525);
+            d = s0 * sqrt(d0);
+            paint(c, d, 2.2, aa, cb);
+        }
+    }
+    {
+        vec2 q4 = vec2(abs(p.x), p.y);
+        if (length(q4 - vec2(49.0, -14.0)) < 20.4165 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q4 - vec2(40.0, -22.0), q4 - vec2(40.0, -22.0));
+            pe(d0, s0, q4, vec2(40.0, -22.0), vec2(36.0, -8.0), 0.00471698);
+            pe(d0, s0, q4, vec2(60.0, -30.0), vec2(40.0, -22.0), 0.00215517);
+            pe(d0, s0, q4, vec2(50.0, -16.0), vec2(60.0, -30.0), 0.00337838);
+            pe(d0, s0, q4, vec2(62.0, -8.0), vec2(50.0, -16.0), 0.00480769);
+            pe(d0, s0, q4, vec2(44.0, 2.0), vec2(62.0, -8.0), 0.00235849);
+            pe(d0, s0, q4, vec2(36.0, -8.0), vec2(44.0, 2.0), 0.00609756);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, vec3(1.0, 0.658824, 0.227451));
+        }
+    }
+    {
+        vec4 g5 = vec4(0.0);
+        {
+            vec2 q6 = vec2(abs(p.x), p.y);
+            if (length(q6 - vec2(56.0, -25.0)) < 7.40312 + 2.0 * aa) {
+                float d = 1.0e9;
+                float s0 = 1.0; float d0 = dot(q6 - vec2(52.0, -24.0), q6 - vec2(52.0, -24.0));
+                pe(d0, s0, q6, vec2(52.0, -24.0), vec2(56.0, -20.0), 0.03125);
+                pe(d0, s0, q6, vec2(60.0, -30.0), vec2(52.0, -24.0), 0.01);
+                pe(d0, s0, q6, vec2(56.0, -20.0), vec2(60.0, -30.0), 0.00862069);
+                d = s0 * sqrt(d0);
+                fill(g5, d, aa, vec3(1.0, 0.894118, 0.368627));
+            }
+        }
+        float k = mix(0.3, 1.0, abs(2.0 * fract(T / 0.6) - 1.0));
+        c = g5 * k + c * (1.0 - g5.a * k);
+    }
+    {
+        float d = el(p - vec2(0.0, 0.0), vec2(11.0, 24.0));
+        paint(c, d, 2.2, aa, cb);
+    }
+    {
+        float d = el(p - vec2(0.0, 4.0), vec2(5.0, 14.0));
+        fill(c, d, aa, cl);
+    }
+    {
+        float d = length(p - vec2(0.0, -26.0)) - 9.0;
+        paint(c, d, 2.2, aa, cb);
+    }
+    {
+        vec2 q7 = p;
+        if (length(q7 - vec2(0.0, -38.5)) < 9.20074 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q7 - vec2(0.0, -44.0), q7 - vec2(0.0, -44.0));
+            pe(d0, s0, q7, vec2(0.0, -44.0), vec2(-4.0, -33.0), 0.00729927);
+            pe(d0, s0, q7, vec2(4.0, -33.0), vec2(0.0, -44.0), 0.00729927);
+            pe(d0, s0, q7, vec2(-4.0, -33.0), vec2(4.0, -33.0), 0.015625);
+            d = s0 * sqrt(d0);
+            paint(c, d, 1.4, aa, vec3(1.0, 0.658824, 0.227451));
+        }
+    }
+    {
+        vec2 q8 = vec2(abs(p.x), p.y);
+        if (length(q8 - vec2(3.0, -34.0)) < 9.544 + 2.0 * aa) {
+            float d = 1.0e9;
+            float s0 = 1.0; float d0 = dot(q8 - vec2(0.0, -30.0), q8 - vec2(0.0, -30.0));
+            pe(d0, s0, q8, vec2(0.0, -30.0), vec2(2.0, -26.0), 0.05);
+            pe(d0, s0, q8, vec2(6.0, -42.0), vec2(0.0, -30.0), 0.00555556);
+            pe(d0, s0, q8, vec2(2.0, -26.0), vec2(6.0, -42.0), 0.00367647);
+            d = s0 * sqrt(d0);
+            fill(c, d, aa, vec3(1.0, 0.290196, 0.227451));
+        }
+    }
+    {
+        float d = length(vec2(abs(p.x), p.y) - vec2(4.0, -28.0)) - 1.8;
+        fill(c, d, aa, vec3(0.0235294, 0.0352941, 0.0509804));
     }
     return c;
 }"#,

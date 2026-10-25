@@ -183,6 +183,7 @@ pub(crate) async fn show_splash(saves: &Saves, settings: &mut Settings, notice: 
     let mut menu: Option<Pause> = None;
     loop {
         quit_if_asked();
+        warm_up_some(Duration::from_millis(WARM_UP_A_FRAME));
         let mouse = Vec2::from(mouse_position());
         draw_splash(time, saved.as_ref().map(|(_, info)| info), problem.as_deref(), best, mouse, &mut scene, settings.unit_shape, settings.simple_shapes);
         let key = get_last_key_pressed();

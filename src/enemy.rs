@@ -232,6 +232,7 @@ pub(crate) struct Enemy {
     pub(crate) rout: f32,          //seconds it is still running from the army, after its captain fell: it does nothing else. not kept in a save
     pub(crate) rallied: bool,      //a living captain is rallying it: it is faster and hits harder. worked out every frame, not kept in a save
     pub(crate) credit: u8,         //the player whose army has hurt it most lately, who is given the babies and the rewards when it is destroyed. not kept in a save
+    pub(crate) struck: f32,        //seconds left of the white it shows after a bolt or a champion's power hit it, for drawing. not kept in a save
 }
 
 impl Enemy {
@@ -299,6 +300,7 @@ impl Enemy {
             rout: 0.0,
             rallied: false,
             credit: 0,
+            struck: 0.0,
         }
     }
 
@@ -643,6 +645,7 @@ pub(crate) fn victims_of(army: usize, share: f32) -> usize {
 //every so often each enemy shows the damage it has taken and the units it has killed as numbers
 pub(crate) fn tick_enemy_numbers(enemies: &mut [Enemy], dt: f32, fx: &mut Effects) {
     for enemy in enemies {
+        enemy.struck = (enemy.struck - dt).max(0.0);
         enemy.popup_in -= dt;
         if enemy.popup_in <= 0.0 {
             enemy.show_numbers(fx);
@@ -679,7 +682,7 @@ pub(crate) fn draw_enemies_plain(enemies: &[Enemy], squads: &Squads, time: f32, 
             draw_line(enemy.position.x, enemy.position.y, end.x, end.y, enemy.size, Color::new(1.0, 0.2, 0.15, 0.10 + 0.22 * urgency));
             draw_line(enemy.position.x, enemy.position.y, end.x, end.y, 4.0, Color::new(1.0, 0.45, 0.3, 0.7));
         }
-        let mut color = lighten(enemy.color, (1.0 - enemy.flash / 0.15) * 0.6);
+        let mut color = lighten(enemy.color, ((1.0 - enemy.flash / 0.15) * 0.6).max(enemy.struck / HIT_FLASH * 0.7));
         if matches!(enemy.mode, Mode::Fuse { .. }) && (time * 24.0).sin() > 0.0 {
             color = WHITE;
         }
@@ -942,7 +945,7 @@ pub(crate) fn draw_enemy_art(enemies: &[Enemy], squads: &Squads, time: f32, spee
         if !near(enemy) {
             continue;
         }
-        let mut color = lighten(enemy.color, (1.0 - enemy.flash / 0.15) * 0.6);
+        let mut color = lighten(enemy.color, ((1.0 - enemy.flash / 0.15) * 0.6).max(enemy.struck / HIT_FLASH * 0.7));
         if matches!(enemy.mode, Mode::Fuse { .. }) && (time * 24.0).sin() > 0.0 {
             color = WHITE;
         }

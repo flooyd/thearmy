@@ -238,6 +238,22 @@ pub(crate) fn synthesize(cue: Cue) -> Vec<f32> {
             add_tone(&mut buffer, 0.05, 0.5, 2349.0, 2349.0, Sine, 0.4, 7.0);
             add_tone(&mut buffer, 0.0, 0.35, 5000.0, 2500.0, Noise, 0.2, 8.0);
         }
+        //a small hard tick
+        Cue::Hit => {
+            add_tone(&mut buffer, 0.0, 0.07, 3200.0, 900.0, Noise, 0.6, 40.0);
+            add_tone(&mut buffer, 0.0, 0.04, 700.0, 320.0, Sine, 0.5, 50.0);
+        }
+        //a bright ping with a crack under it
+        Cue::Crit => {
+            add_tone(&mut buffer, 0.0, 0.14, 2400.0, 1800.0, Triangle, 0.8, 16.0);
+            add_tone(&mut buffer, 0.0, 0.08, 6000.0, 1800.0, Noise, 0.4, 30.0);
+            add_tone(&mut buffer, 0.0, 0.1, 300.0, 120.0, Sine, 0.5, 24.0);
+        }
+        //a soft rattle of fire
+        Cue::Volley => {
+            add_tone(&mut buffer, 0.0, 0.05, 1900.0, 900.0, Square, 0.25, 42.0);
+            add_tone(&mut buffer, 0.0, 0.06, 4500.0, 1500.0, Noise, 0.35, 38.0);
+        }
         //the same blip as a pop, a step higher each time up a scale
         Cue::Pop2 | Cue::Pop3 | Cue::Pop4 | Cue::Pop5 | Cue::Pop6 => {
             let ratio = 2f32.powf(POP_SEMITONES[POPS.iter().position(|&pop| pop == cue).unwrap_or(0)] / 12.0);
@@ -275,7 +291,7 @@ pub(crate) fn wav_bytes(samples: &[f32]) -> Vec<u8> {
     wav
 }
 
-pub(crate) const ALL_CUES: [Cue; 34] = [
+pub(crate) const ALL_CUES: [Cue; 37] = [
     Cue::Pop,
     Cue::Thud,
     Cue::Dispatch,
@@ -310,6 +326,9 @@ pub(crate) const ALL_CUES: [Cue; 34] = [
     Cue::Fall,
     Cue::Zap,
     Cue::Frost,
+    Cue::Hit,
+    Cue::Crit,
+    Cue::Volley,
 ];
 
 impl Cue {
@@ -346,6 +365,9 @@ impl Cue {
             Cue::Fall => 0.7,
             Cue::Zap => 0.45,
             Cue::Frost => 0.4,
+            Cue::Hit => 0.22,
+            Cue::Crit => 0.5,
+            Cue::Volley => 0.16,
         }
     }
 
@@ -382,6 +404,9 @@ impl Cue {
             Cue::Fall => 0.6,
             Cue::Zap => 0.12,
             Cue::Frost => 0.5,
+            Cue::Hit => 0.05,
+            Cue::Crit => 0.12,
+            Cue::Volley => 0.07,
         }
     }
 }

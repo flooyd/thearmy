@@ -76,7 +76,7 @@ pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [U
         //the grid finds them in no order, and the first ones in the army are the first to be hit. an attack only gets through so many,
         //so they are put in order a batch at a time (the first few of thousands, then more if it is not used up) rather than all of them
         let mut done = 0;
-        let mut batch = (budget / UNIT_HEALTH).ceil() as usize + 16;
+        let mut batch = (budget / UNIT_HEALTH).ceil().min(touching.len() as f32) as usize + 16; //(no more than there are, so an attack out of all reason, as a damaged save can give, is not an overflow)
         while budget > 0.0 && done < touching.len() {
             let end = (done + batch).min(touching.len());
             let rest = &mut touching[done..];
@@ -101,7 +101,7 @@ pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [U
                 }
             }
             done = end;
-            batch *= 4;
+            batch = batch.saturating_mul(4);
         }
         //thorns: it takes back some of what it did, as much as the relics of the units that took it say
         if budget < spent_from {

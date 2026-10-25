@@ -108,6 +108,55 @@ impl Difficulty {
     }
 }
 
+//how many of the bolts the front of the army fires are flown and drawn: on Low fewer, each doing more, which is lighter on the computer. what they do
+//between them is the same on every setting
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Density {
+    Low,
+    Medium,
+    High,
+}
+
+pub(crate) const DENSITIES: [Density; 3] = [Density::Low, Density::Medium, Density::High];
+
+impl Density {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Density::Low => "Low",
+            Density::Medium => "Medium",
+            Density::High => "High",
+        }
+    }
+
+    pub(crate) fn blurb(self) -> &'static str {
+        match self {
+            Density::Low => "about a third of the army's bolts, each the stronger for it: lighter on the computer",
+            Density::Medium => "about two thirds of the army's bolts, each the stronger for it",
+            Density::High => "every bolt the front of the army fires",
+        }
+    }
+
+    //the share of the bolts that are fired
+    pub(crate) fn share(self) -> f32 {
+        match self {
+            Density::Low => 0.35,
+            Density::Medium => 0.65,
+            Density::High => 1.0,
+        }
+    }
+
+    pub(crate) fn from_name(name: &str) -> Option<Density> {
+        DENSITIES.into_iter().find(|density| density.name() == name)
+    }
+}
+
+//the share of the bolts fired, as the setting has it (see `Settings::apply`), as the bits of a number
+static BOLT_DENSITY: AtomicU32 = AtomicU32::new(0x3F80_0000);
+
+pub(crate) fn bolt_density() -> f32 {
+    f32::from_bits(BOLT_DENSITY.load(Ordering::Relaxed))
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) struct Settings {
     pub(crate) master: f32,  //0 to 1, how loud everything is
@@ -121,6 +170,7 @@ pub(crate) struct Settings {
     pub(crate) formation: Formation,
     pub(crate) unit_shape: UnitShape,
     pub(crate) simple_shapes: bool, //whether the enemies and bosses are drawn as plain squares, in place of the pictures they have
+    pub(crate) bolts: Density, //how many of the army's bolts are fired, each the stronger for the ones that aren't
     pub(crate) army_limit: usize, //the most units the army can have, from MIN_ARMY_LIMIT to MAX_ARMY_LIMIT
     pub(crate) player_name: String, //what the player is called in a game with others, as `clean_name` leaves it
     pub(crate) host_port: u16, //the port they host on, or join a game on this computer by
@@ -129,7 +179,7 @@ pub(crate) struct Settings {
 
 impl Default for Settings {
     fn default() -> Settings {
-        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Ring, unit_shape: UnitShape::Ships, simple_shapes: false, army_limit: DEFAULT_ARMY_LIMIT, player_name: String::new(), host_port: DEFAULT_PORT, multiplayer_role: Role::Host }
+        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Ring, unit_shape: UnitShape::Ships, simple_shapes: false, bolts: Density::High, army_limit: DEFAULT_ARMY_LIMIT, player_name: String::new(), host_port: DEFAULT_PORT, multiplayer_role: Role::Host }
     }
 }
 
@@ -137,7 +187,7 @@ impl Settings {
     //the settings as lines of text, a name and a value each
     pub(crate) fn to_text(&self) -> String {
         format!(
-            "master {:.2}\neffects {:.2}\nmusic {:.2}\nshake {:.2}\nfullscreen {}\ncolourblind {}\ndifficulty {}\nhints {}\nformation {}\nunit_shape {}\nsimple_shapes {}\narmy_limit {}\nplayer_name {}\nhost_port {}\nmultiplayer_role {}\n",
+            "master {:.2}\neffects {:.2}\nmusic {:.2}\nshake {:.2}\nfullscreen {}\ncolourblind {}\ndifficulty {}\nhints {}\nformation {}\nunit_shape {}\nsimple_shapes {}\nbolts {}\narmy_limit {}\nplayer_name {}\nhost_port {}\nmultiplayer_role {}\n",
             self.master,
             self.effects,
             self.music,
@@ -149,6 +199,7 @@ impl Settings {
             self.formation.name(),
             self.unit_shape.name(),
             if self.simple_shapes { "yes" } else { "no" },
+            self.bolts.name(),
             self.army_limit,
             self.player_name,
             self.host_port,
@@ -183,6 +234,7 @@ impl Settings {
                 "formation" => settings.formation = Formation::from_name(value).unwrap_or(settings.formation),
                 "unit_shape" => settings.unit_shape = UnitShape::from_name(value).unwrap_or(settings.unit_shape),
                 "simple_shapes" => settings.simple_shapes = yes().unwrap_or(settings.simple_shapes),
+                "bolts" => settings.bolts = Density::from_name(value).unwrap_or(settings.bolts),
                 "army_limit" => settings.army_limit = value.parse::<usize>().map_or(settings.army_limit, |limit| limit.clamp(MIN_ARMY_LIMIT, MAX_ARMY_LIMIT)),
                 "player_name" => settings.player_name = clean_name(line.split_once(char::is_whitespace).map_or("", |(_, rest)| rest)),
                 "host_port" => settings.host_port = parse_port(value).unwrap_or(settings.host_port),
@@ -193,9 +245,10 @@ impl Settings {
         settings
     }
 
-    //put into effect what is not read from the settings each time it is used: the colours
+    //put into effect what is not read from the settings each time it is used: the colours, and how many bolts the army fires
     pub(crate) fn apply(&self) {
         COLOURBLIND.store(self.colourblind, Ordering::Relaxed);
+        BOLT_DENSITY.store(self.bolts.share().to_bits(), Ordering::Relaxed);
     }
 
     //the sound, with the volumes asked for

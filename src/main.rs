@@ -22,6 +22,7 @@
 mod prelude;
 mod armies;
 mod boss;
+mod bolts;
 mod building;
 mod champions;
 mod chests;
@@ -62,6 +63,7 @@ mod save;
 mod score;
 mod settings;
 mod screens;
+mod showcase;
 mod sim;
 mod sites;
 mod sound;
@@ -73,6 +75,7 @@ mod textfield;
 mod titlescene;
 mod ui;
 mod units;
+mod vanguard;
 mod viewer;
 mod walls;
 mod wire;
@@ -121,12 +124,14 @@ async fn main() {
     prevent_quit();
     load_fonts();
     settings.apply();
-    //the programs the graphics card draws the enemies with are made now, behind an empty window, and not in the middle of a game
+    //the programs the graphics card draws the creatures with are made now, behind an empty window, for a moment, and the rest a little in each frame of the title
+    //screen (and any still left when a run starts), not in the middle of a game
     clear_background(BLACK);
     next_frame().await;
-    warm_up();
+    warm_up_some(Duration::from_millis(WARM_UP_AT_START));
     //a game being hosted (so that others can join it) is kept for as long as runs follow one another, and closed when the title screen is back
-    let (mut link, mut start) = show_splash(&saves, &mut settings, None).await.into_parts();
+    //(a showcase, for screenshots, goes straight to a run: see showcase.rs)
+    let (mut link, mut start) = if showcase_asked() { (Link::Solo, Some(showcase_run())) } else { show_splash(&saves, &mut settings, None).await.into_parts() };
     let mut sounds = Sounds::load(1.0).await;
     settings.tune(&mut sounds);
     loop {

@@ -300,7 +300,10 @@ impl Guest {
         self.client.send_input(frame.to_bytes());
         self.replica.sent(self.seq);
         self.replica.advance(sim, dt);
-        self.replica.take_events()
+        let events = self.replica.take_events();
+        //(the host's champions' volleys fly here too, hurting nothing: what they hit is the host's to say)
+        launch_told(&mut sim.bolts, &events);
+        events
     }
 
     //what the host's step would have reported, as far as it has said

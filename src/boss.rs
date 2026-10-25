@@ -325,6 +325,7 @@ impl Enemy {
             rout: 0.0,
             rallied: false,
             credit: 0,
+            struck: 0.0,
         }
     }
 }

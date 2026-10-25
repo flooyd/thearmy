@@ -121,7 +121,9 @@ pub(crate) fn step_armies(players: &mut Players, armies: &Armies, units: &mut [U
             fx.cue(Cue::SquadLost);
             fx.popup(lost_at, RADIUS * 3.0, 0.0, "SQUAD LOST".to_owned(), ALERT);
         }
-        update_units_in(army, player.position.x, player.position.y, dt, walls, &player.route.field, armies.boosts[i], &player.squads, &player.drill());
+        //(the champions stand on a ring round the player that is big enough for all of them)
+        let drill = player.drill().guarding(guard_radius(army.iter()));
+        update_units_in(army, player.position.x, player.position.y, dt, walls, &player.route.field, armies.boosts[i], &player.squads, &drill);
         apply_champions(army, dt);
     }
 }

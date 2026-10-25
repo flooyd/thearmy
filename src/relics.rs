@@ -58,9 +58,12 @@ pub(crate) enum Relic {
     Overclock,    //the player and the army are much faster, and heal slower
     Freezing,     //enemies being fought freeze now and then, and a frozen one that is destroyed shatters into new, smaller enemies
     Tailwind,     //the speed an army's size gives can go higher than it could
+    VolleyDrill,  //the front of the army fires more often
+    ChainShot,    //the army's bolts go through one more enemy
+    TracerRounds, //the front of the army sees and fires further
 }
 
-pub(crate) const RELICS: [Relic; 19] = [
+pub(crate) const RELICS: [Relic; 22] = [
     Relic::Whetstone,
     Relic::IronResolve,
     Relic::Regeneration,
@@ -80,6 +83,9 @@ pub(crate) const RELICS: [Relic; 19] = [
     Relic::Overclock,
     Relic::Freezing,
     Relic::Tailwind,
+    Relic::VolleyDrill,
+    Relic::ChainShot,
+    Relic::TracerRounds,
 ];
 
 impl Relic {
@@ -104,6 +110,9 @@ impl Relic {
             Relic::Overclock => "Overclock",
             Relic::Freezing => "Freezing",
             Relic::Tailwind => "Tailwind",
+            Relic::VolleyDrill => "Volley Drill",
+            Relic::ChainShot => "Chain Shot",
+            Relic::TracerRounds => "Tracer Rounds",
         }
     }
 
@@ -128,6 +137,9 @@ impl Relic {
             Relic::Overclock => "you and the army are 35% faster, but heal at half the rate",
             Relic::Freezing => "20% a second to freeze enemies. A frozen one destroyed shatters into new enemies",
             Relic::Tailwind => "the speed a big army gets can go 0.5x higher than the limit",
+            Relic::VolleyDrill => "the front of the army fires 30% more often",
+            Relic::ChainShot => "the army's bolts go through one more enemy",
+            Relic::TracerRounds => "the front of the army sees and fires 25% further",
         }
     }
 
@@ -153,6 +165,9 @@ impl Relic {
             Relic::Overclock => "Ov",
             Relic::Freezing => "Fz",
             Relic::Tailwind => "Tw",
+            Relic::VolleyDrill => "VD",
+            Relic::ChainShot => "CS",
+            Relic::TracerRounds => "TR",
         }
     }
 
@@ -177,13 +192,16 @@ impl Relic {
             Relic::Overclock => Color::new(0.5, 1.0, 0.9, 1.0),
             Relic::Freezing => Color::new(0.78, 0.93, 1.0, 1.0),
             Relic::Tailwind => Color::new(0.6, 0.95, 1.0, 1.0),
+            Relic::VolleyDrill => Color::new(1.0, 0.88, 0.5, 1.0),
+            Relic::ChainShot => Color::new(0.85, 0.75, 1.0, 1.0),
+            Relic::TracerRounds => Color::new(1.0, 0.62, 0.35, 1.0),
         }
     }
 
     pub(crate) fn rarity(self) -> Rarity {
         match self {
-            Relic::Whetstone | Relic::IronResolve | Relic::Regeneration | Relic::Magnet | Relic::Masonry | Relic::Quarry => Rarity::Common,
-            Relic::FleetFeet | Relic::Bounty | Relic::Archers | Relic::Thorns | Relic::Bloodlust | Relic::Aegis | Relic::Muster | Relic::Freezing | Relic::Tailwind => Rarity::Uncommon,
+            Relic::Whetstone | Relic::IronResolve | Relic::Regeneration | Relic::Magnet | Relic::Masonry | Relic::Quarry | Relic::VolleyDrill | Relic::TracerRounds => Rarity::Common,
+            Relic::FleetFeet | Relic::Bounty | Relic::Archers | Relic::Thorns | Relic::Bloodlust | Relic::Aegis | Relic::Muster | Relic::Freezing | Relic::Tailwind | Relic::ChainShot => Rarity::Uncommon,
             Relic::OpeningSalvo | Relic::Martyr | Relic::GlassCannon | Relic::Overclock => Rarity::Rare,
         }
     }
@@ -210,12 +228,15 @@ pub(crate) struct Upgrades {
     pub(crate) army_limit: usize, //the most units the army can have. not a relic: it is the player's setting, which the game copies in
     pub(crate) foe_answer: f32,    //the power of `damage` that the enemies make up for, from the difficulty chosen (the game copies it in too): 0 for none
     pub(crate) extra_boost: f32,   //the most the army's size can speed everyone up is this many times normal higher than MAX_SPEED_MULTIPLIER
+    pub(crate) gunnery: f32,       //of how often the front of the army fires
+    pub(crate) pierce: u8,         //enemies the army's bolts go through
+    pub(crate) sight: f32,         //of how far the front of the army sees and fires
     pub(crate) taken: Vec<Relic>,
 }
 
 impl Default for Upgrades {
     fn default() -> Upgrades {
-        Upgrades { damage: 1.0, toughness: 1.0, healing: 1.0, speed: 1.0, pickup: 1.0, bounty: 1.0, masonry: 1.0, archery: 1.0, quarry: 1.0, thorns: 0.0, bloodlust: 0.0, guard: 0.0, salvo: 0.0, martyr: 0.0, freeze: 0.0, army_limit: DEFAULT_ARMY_LIMIT, foe_answer: 0.0, extra_boost: 0.0, taken: Vec::new() }
+        Upgrades { damage: 1.0, toughness: 1.0, healing: 1.0, speed: 1.0, pickup: 1.0, bounty: 1.0, masonry: 1.0, archery: 1.0, quarry: 1.0, thorns: 0.0, bloodlust: 0.0, guard: 0.0, salvo: 0.0, martyr: 0.0, freeze: 0.0, army_limit: DEFAULT_ARMY_LIMIT, foe_answer: 0.0, extra_boost: 0.0, gunnery: 1.0, pierce: 0, sight: 1.0, taken: Vec::new() }
     }
 }
 
@@ -247,6 +268,9 @@ impl Upgrades {
             }
             Relic::Freezing => self.freeze = (self.freeze + FREEZE_CHANCE).min(MOST_FREEZE_CHANCE),
             Relic::Tailwind => self.extra_boost += TAILWIND_BOOST,
+            Relic::VolleyDrill => self.gunnery *= VOLLEY_DRILL_RATE,
+            Relic::ChainShot => self.pierce = (self.pierce + 1).min(MAX_PIERCE),
+            Relic::TracerRounds => self.sight *= TRACER_ROUNDS_REACH,
         }
         self.taken.push(relic);
     }
@@ -389,14 +413,21 @@ pub(crate) fn rerolls_earned(bosses: usize) -> u32 {
     1 + bosses as u32 / 3
 }
 
-//where the three cards are on a screen
-pub(crate) fn relic_cards(screen: Vec2) -> [Rect; 3] {
+//where the cards of a choice of `count` (the three relics, the two ways a champion can grow) are on a screen, side by side across the
+//middle, each as wide as one of three
+pub(crate) fn choice_cards(screen: Vec2, count: usize) -> Vec<Rect> {
     let gap = 24.0;
     let width = (screen.x * 0.26).clamp(200.0, 360.0).min((screen.x - gap * 2.0 - 32.0) / 3.0);
     let height = (screen.y * 0.44).clamp(240.0, 340.0);
-    let left = (screen.x - width * 3.0 - gap * 2.0) / 2.0;
+    let left = (screen.x - width * count as f32 - gap * (count as f32 - 1.0)) / 2.0;
     let top = (screen.y * 0.3).min(screen.y - height - 16.0).max(0.0);
-    [0, 1, 2].map(|i| Rect::new(left + (width + gap) * i as f32, top, width, height))
+    (0..count).map(|i| Rect::new(left + (width + gap) * i as f32, top, width, height)).collect()
+}
+
+//where the three cards of relics are
+pub(crate) fn relic_cards(screen: Vec2) -> [Rect; 3] {
+    let cards = choice_cards(screen, 3);
+    [cards[0], cards[1], cards[2]]
 }
 
 //the words broken into lines that are no wider than `max_width` pixels when drawn at `size`

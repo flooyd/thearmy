@@ -12,7 +12,7 @@ fn with(relics: &[Relic]) -> Upgrades {
 
 #[test]
 fn every_relic_has_a_rarity_and_the_rares_are_few() {
-    assert_eq!(RELICS.len(), 19);
+    assert_eq!(RELICS.len(), 22);
     let count = |rarity: Rarity| RELICS.iter().filter(|relic| relic.rarity() == rarity).count();
     assert!(count(Rarity::Common) >= 5 && count(Rarity::Uncommon) >= 5);
     assert_eq!(count(Rarity::Rare), 4);
@@ -285,8 +285,8 @@ fn every_relic_has_its_own_tag_that_fits_its_tile() {
 }
 
 //everything a relic can change, as numbers
-fn signature(up: &Upgrades) -> [f32; 16] {
-    [up.damage, up.toughness, up.healing, up.speed, up.pickup, up.bounty, up.masonry, up.archery, up.quarry, up.thorns, up.bloodlust, up.guard, up.salvo, up.martyr, up.freeze, up.extra_boost]
+fn signature(up: &Upgrades) -> [f32; 19] {
+    [up.damage, up.toughness, up.healing, up.speed, up.pickup, up.bounty, up.masonry, up.archery, up.quarry, up.thorns, up.bloodlust, up.guard, up.salvo, up.martyr, up.freeze, up.extra_boost, up.gunnery, up.pierce as f32, up.sight]
 }
 
 #[test]

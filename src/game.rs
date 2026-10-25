@@ -98,6 +98,8 @@ pub(crate) fn new_run() -> Snapshot {
 //the player at this keyboard asked for (`Controls`), and what comes out of the step (`Feedback`) is what is shown and heard. everything else here is
 //the player's own: the menu, the saves, the camera, the screens and what is drawn
 pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Settings, start: Option<Snapshot>, link: &mut Link) -> Ending {
+    //(the shaders the title screen did not get to are made now, before the run, not when the first of a kind turns up in it)
+    warm_up();
     //without a seed every run gets the same random numbers
     rand::srand(miniquad::date::now() as u64);
     //a game that is another's is played in a copy of its world, which the host keeps up to date
@@ -156,6 +158,10 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
     let mut beat = 0.0; //1 as the heart beats, fading
     let mut peril_now = 0.0; //how badly the army was doing at the end of the last frame
     let mut pause: Option<Pause> = None; //the menu, while it is up
+    let mut played_for = 0.0; //seconds of the run so far, for a showcase's shot (see showcase.rs)
+    let mut hit_stop_from = 0.0; //the time a champion's crit can next hold the world still
+    let mut ping: Option<(u32, f32)> = None; //a champion picked out from the roster (by its id), and how long ago
+    let mut evolve_shown: (Option<(u32, usize)>, f32) = (None, 0.0); //the champion (by its id) waiting for the player to choose how it grows, at which level of evolution, and for how long it has waited
     let best = saves.load_high_scores().best(); //the score to beat
     //the run as it is now, to be kept
     macro_rules! capture {
@@ -255,9 +261,12 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                 }
             }
         }
-        //the world stands still while a relic is being chosen or the victory is shown, crawls while a boss makes its entrance,
+        //a champion of theirs that has reached a level of evolution waits for them to choose how it grows, once no relics are on offer
+        let evolving = if sim.players.list[me].choice.is_none() && victory.is_none() && pause.is_none() { evolution_due_for(&sim.units, me) } else { None };
+        evolve_shown = if evolving == evolve_shown.0 { (evolving, evolve_shown.1 + real_dt) } else { (evolving, 0.0) };
+        //the world stands still while a relic or an evolution is being chosen or the victory is shown, crawls while a boss makes its entrance,
         //and freezes for a moment when one falls, with one player to wait for. with others in it nothing slows or stops the world for one of them
-        let paused = sim.players.list[me].choice.is_some() || victory.is_some() || pause.is_some();
+        let paused = sim.players.list[me].choice.is_some() || evolving.is_some() || victory.is_some() || pause.is_some();
         let solo = sim.players.len() == 1;
         let stands_still = guest.is_none() && world_stands_still(sim.players.len(), paused);
         if is_key_pressed(KeyCode::F11) {
@@ -352,6 +361,10 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         if let Some(shown) = intro.as_mut() {
             shown.age += real_dt;
         }
+        if let Some((_, age)) = ping.as_mut() {
+            *age += real_dt;
+        }
+        ping = ping.filter(|&(_, age)| age < PING_SECONDS);
         if intro.as_ref().is_some_and(|shown| shown.over()) || (entrance && is_key_pressed(KeyCode::Space)) {
             intro = None;
         }
@@ -394,16 +407,29 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             feedback.fx.popup(at, RADIUS * 3.0, 0.0, format!("{} FORMATION", settings.formation.name().to_uppercase()), CYAN);
         }
         let formation = settings.formation.in_game(online);
+        //(a click on a row of the roster picks out that champion in the world, and nothing under the roster is clicked in the world)
+        let mouse = Vec2::from(mouse_position());
+        let over_roster = roster_panel(screen).is_some_and(|panel| panel.contains(mouse));
+        if acting && over_roster && is_mouse_button_pressed(MouseButton::Left) {
+            if let Some(id) = roster_row_at(&sim.units, me, screen, team_panel(screen), mouse) {
+                ping = Some((id, 0.0));
+                feedback.fx.cue(Cue::Pop);
+            }
+        }
         let input = if acting {
-            controls.read(&ControlView { position: look_at, zoom: look_zoom, screen, formation, map: &map, enemies: &sim.enemies })
+            controls.read(&ControlView { position: look_at, zoom: look_zoom, screen, formation, map: &map, enemies: &sim.enemies, over_roster })
         } else {
             PlayerInput::idle(formation, screen)
         };
         //(choosing a relic is all they can do until they have)
         let relic = if sim.players.list[me].choice.is_some() { read_relic_act(screen) } else { None };
+        let evolve = match evolve_shown {
+            (Some((champion, tier)), shown) if shown >= RELIC_LOCKOUT => read_evolution_pick(screen).map(|choice| EvolvePick { champion, tier: tier as u8, choice }),
+            _ => None,
+        };
 
         //the world: stepped here, or by the host of a game that is another's
-        let input = PlayerInput { relic, ..input };
+        let input = PlayerInput { relic, evolve, ..input };
         let Step { events, report } = match guest.as_mut() {
             Some(seat) => Step { events: seat.frame(&mut sim, &input, look_zoom, real_dt), report: seat.report(&sim) },
             None => {
@@ -424,6 +450,11 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         }
         if solo && (report.citadel || report.boss_slain) {
             stillness = Stillness::after_a_boss();
+        }
+        //(a champion's crit holds a world of one still for a moment, no more often than HIT_STOP_GAP)
+        if solo && report.hit_stop > 0.0 && get_time() >= hit_stop_from {
+            stillness.freeze = stillness.freeze.max(report.hit_stop);
+            hit_stop_from = get_time() + HIT_STOP_GAP as f64;
         }
         //a boss that has just turned up is shown off, once
         if !stands_still {
@@ -541,7 +572,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         //(the enemies near the player at this keyboard are as fast as their army makes them)
         let enemy_boost = speed_multiplier(my_army);
         let ranges = sim.arrange();
-        let Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots, hazards, pulls, .. } = &sim;
+        let Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots, hazards, pulls, bolts, .. } = &sim;
         let fx = &feedback.fx;
 
         clear_background(BLACK);
@@ -563,9 +594,14 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         draw_hazards(hazards, get_time() as f32);
         draw_pulls(pulls, get_time() as f32);
         draw_chests(&hordes.chests, drawn, get_time() as f32);
+        draw_champion_auras(units, drawn, drawn_zoom, get_time() as f32);
         draw_discs(Layer::Army, &unit_discs_in(units, drawn, team_tint, settings.unit_shape), &camera);
         draw_discs(Layer::Babies, &baby_discs(babies, drawn), &camera);
-        draw_champions(units, drawn, drawn_zoom, get_time() as f32);
+        draw_champions(units, enemies, drawn, drawn_zoom, &camera, settings.simple_shapes);
+        if let Some((id, age)) = ping {
+            draw_champion_ping(units, id, age, drawn_zoom);
+        }
+        draw_bolts(bolts, drawn, drawn_zoom, &camera);
         if let Some(colors) = team_tint {
             draw_champion_rings(units, colors, drawn, drawn_zoom);
         }
@@ -602,7 +638,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         draw_tags(&mates, shaken, drawn_zoom);
         draw_vignette(in_peril, beat);
         let my_units = &units[ranges[me].clone()];
-        draw_roster(my_units, if pause.is_some() { Vec2::splat(-1000.0) } else { Vec2::from(mouse_position()) });
+        draw_roster(my_units, if pause.is_some() { Vec2::splat(-1000.0) } else { Vec2::from(mouse_position()) }, ping.map(|(id, _)| id), settings.simple_shapes);
         draw_hud(player.x, player.y, frame_time, my_army, run, boost, pickup_range, sounds.muted, sounds.music.on, formation, director, sites, players.list[me].upgrades.unit_cap(), hordes.status(enemies), &players.list[me].upgrades.damage_text(), score, best);
         if settings.hints && !paused && run.seconds < HINT_SECONDS {
             draw_hints(run.seconds);
@@ -611,7 +647,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             draw_blast_warning(&warning, get_time() as f32);
         }
         draw_build_bar(&players.list[me].mason, get_time() as f32);
-        if players.list[me].choice.is_none() {
+        if players.list[me].choice.is_none() && evolve_shown.0.is_none() {
             draw_combo(&feedback.combo);
         }
         //the player has moved since the map was made, so make it again to draw
@@ -649,6 +685,12 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             draw_fallen((REVIVE_SECONDS - down_for).max(0.0), down_for - 0.3);
         }
         draw_chest_arrow(&hordes.chests, player, camera_at, camera_zoom);
+        //(a champion picked out from the roster that is off the screen gets an arrow at the edge, the way to it)
+        if let Some(unit) = ping.and_then(|(id, _)| units.iter().find(|unit| unit.id == id)) {
+            if let Some(kind) = unit.champion_kind() {
+                draw_edge_arrow(Vec2::new(unit.x, unit.y), camera_at, camera_zoom, kind.color, &kind.name.to_uppercase());
+            }
+        }
         if let Some(boss) = current_boss(enemies) {
             let alive = enemies.iter().filter(|other| other.boss.as_ref().zip(boss.boss.as_ref()).is_some_and(|(a, b)| a.family == b.family)).count();
             draw_boss_bar(boss, family_health(enemies, boss), alive);
@@ -671,11 +713,16 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             menu.draw(settings, miniquad::date::now(), hosting.as_deref());
         }
         //the relic choice has the screen to itself
-        if let (Some(banner), None, None, None) = (&banners.shown, &players.list[me].choice, &victory, &pause) {
+        if let (Some(banner), None, None, None, None) = (&banners.shown, &players.list[me].choice, &evolve_shown.0, &victory, &pause) {
             draw_banner(banner);
         }
         if let Some(open) = &players.list[me].choice {
             draw_relic_choice(open, &players.list[me].upgrades, players.list[me].rerolls);
+        }
+        if let (Some((id, tier)), shown) = evolve_shown {
+            if let Some(unit) = units.iter().find(|unit| unit.id == id) {
+                draw_evolution_choice(unit, tier, shown >= RELIC_LOCKOUT, settings.simple_shapes);
+            }
         }
         if let Some(age) = victory {
             draw_victory(age, run, score);
@@ -686,6 +733,10 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             if fallen_for >= FALL_SECONDS {
                 return Ending::Fallen(run.clone());
             }
+        }
+        played_for += real_dt;
+        if shot_taken(played_for) {
+            std::process::exit(0);
         }
         next_frame().await;
     }

@@ -68,7 +68,7 @@ fn an_army_in_a_formation_is_moved_and_settled_in_one_go_with_the_same_result_as
     let mut army: Vec<Unit> = (0..2500).map(|_| unit_at(player.x + rand::gen_range(-900.0, 900.0), player.y + rand::gen_range(-900.0, 900.0))).collect();
     army[5].garrison = Some((250, 250));
     for formation in [Formation::Ring, Formation::Wedge, Formation::Line] {
-        let drill = Drill { formation, facing: Vec2::new(0.6, 0.8) };
+        let drill = Drill::new(formation, Vec2::new(0.6, 0.8));
         let mut together = army.clone();
         let mut apart = army.clone();
         for _ in 0..20 {

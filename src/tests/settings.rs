@@ -3,7 +3,7 @@
 use super::*;
 
 fn changed() -> Settings {
-    Settings { master: 0.35, effects: 0.8, music: 0.0, shake: 0.5, fullscreen: false, colourblind: true, difficulty: Difficulty::Hard, hints: false, formation: Formation::Wedge, unit_shape: UnitShape::Circles, simple_shapes: true, army_limit: 32000, player_name: "Ann Marie".to_owned(), host_port: 50000, multiplayer_role: Role::Local }
+    Settings { master: 0.35, effects: 0.8, music: 0.0, shake: 0.5, fullscreen: false, colourblind: true, difficulty: Difficulty::Hard, hints: false, formation: Formation::Wedge, unit_shape: UnitShape::Circles, simple_shapes: true, bolts: Density::Low, army_limit: 32000, player_name: "Ann Marie".to_owned(), host_port: 50000, multiplayer_role: Role::Local }
 }
 
 #[test]
@@ -24,6 +24,19 @@ fn a_settings_file_that_is_damaged_or_from_another_version_gives_what_it_can() {
     assert_eq!(settings.difficulty, Difficulty::Normal);
     assert_eq!(settings.formation, Formation::Ring, "one that is not a formation leaves the usual one");
     assert!(!settings.colourblind && !settings.hints);
+}
+
+#[test]
+fn the_army_home_variable_gives_the_game_a_folder_of_its_own() {
+    //(no other test reads the variable, so setting it here races with nothing)
+    unsafe { std::env::set_var("THE_ARMY_HOME", "somewhere-else") };
+    let own = Saves::in_home();
+    unsafe { std::env::set_var("THE_ARMY_HOME", "") };
+    let usual = Saves::in_home();
+    unsafe { std::env::remove_var("THE_ARMY_HOME") };
+    assert_eq!(own.folder(), &std::path::PathBuf::from("somewhere-else"));
+    assert!(own.settings_path().ends_with("settings.txt"));
+    assert!(usual.folder().ends_with("TheArmy"), "an empty one counts as not set: {}", usual.folder().display());
 }
 
 #[test]

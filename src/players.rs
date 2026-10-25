@@ -104,7 +104,7 @@ impl Player {
     }
 
     pub(crate) fn drill(&self) -> Drill {
-        Drill { formation: self.formation, facing: self.facing }
+        Drill::new(self.formation, self.facing)
     }
 }
 

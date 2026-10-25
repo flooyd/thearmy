@@ -137,6 +137,7 @@ fn assert_mirrors_with(host: &Host, who: usize, watcher: &Watcher, walls_caught_
                     assert!((copy.health - unit.health).abs() <= unit.max_health() / 255.0 + 0.01, "unit {id} health {} not {}", copy.health, unit.health);
                     assert_eq!(copy.champion, unit.champion);
                     assert_eq!(copy.level, unit.level);
+                    assert_eq!(copy.evolutions, unit.evolutions);
                     assert_eq!(copy.guard > 0.0, unit.guard > 0.0);
                     assert_eq!(copy.target.is_some(), unit.target.is_some());
                     assert_eq!(copy.garrison.is_some(), unit.garrison.is_some());
@@ -702,4 +703,53 @@ fn where_the_bandwidth_and_time_go() {
         let per = bytes / rounds;
         println!("  everything moving: {per} bytes a message = {:.2} MB/s at {} a second, made in {:?}, taken in in {:?}", per as f64 * (1.0 / SNAPSHOT_SECONDS as f64) / 1e6, (1.0 / SNAPSHOT_SECONDS) as u32, make / rounds as u32, take / rounds as u32);
     }
+}
+
+#[test]
+fn how_a_champion_has_grown_is_seen_by_the_other_players() {
+    let mut unit = champion_unit(champion_named("Stormcaller").unwrap(), MIDDLE);
+    unit.level = CHAMPION_MAX_LEVEL;
+    unit.evolutions = 0b10;
+    let look = UnitLook::of(&unit, false);
+    let mut out = Writer::new();
+    look.write(&mut out);
+    let read = UnitLook::read(&mut Reader::new(&out.bytes)).expect("a look reads back");
+    assert_eq!(read, look);
+    let mut copy = Unit::replica(unit.id, 0, MIDDLE);
+    read.apply(&mut copy);
+    assert_eq!((copy.level, copy.evolutions), (CHAMPION_MAX_LEVEL, 0b10));
+    assert_eq!(copy.champion_power().map(|power| format!("{power:?}")), unit.champion_power().map(|power| format!("{power:?}")));
+    //a look that says a champion chose at a level it hasn't reached is put right
+    let mut out = Writer::new();
+    UnitLook { level: CHAMPION_MAX_LEVEL - 1, ..look }.write(&mut out);
+    assert_eq!(UnitLook::read(&mut Reader::new(&out.bytes)).expect("it reads").evolutions, 0);
+}
+
+#[test]
+fn a_champions_volley_reaches_a_player_as_one_event_and_flies_there_hurting_nothing() {
+    let mut host = Host::bare(1);
+    let at = host.sim.players.list[0].position;
+    let mut champion = champion_unit(champion_named("Sharpshooter").unwrap(), at);
+    champion.power = 0.0;
+    host.sim.units.push(champion);
+    let mut target = kind_at("Grunt", at + Vec2::new(300.0, 0.0));
+    target.max_health = 1.0e9;
+    target.health = 1.0e9;
+    target.attack = 0.0;
+    host.sim.enemies.push(target);
+    host.step(vec![idle()]);
+    assert!(!host.sim.bolts.is_empty(), "the host flies its round");
+    let mut watcher = Watcher::new();
+    watcher.hear(&host.tick(0));
+    let events = watcher.replica.take_events();
+    assert_eq!(events.iter().filter(|event| matches!(event, Event::Volley(_))).count(), 1, "{events:?}");
+    launch_told(&mut watcher.sim.bolts, &events);
+    assert_eq!(watcher.sim.bolts.len(), 1);
+    let health: Vec<f32> = watcher.sim.enemies.iter().map(|enemy| enemy.health).collect();
+    assert!(!health.is_empty(), "the player sees the enemy");
+    for _ in 0..30 {
+        fly_bolts(&mut watcher.sim.bolts, &mut watcher.sim.enemies, DT, None);
+    }
+    assert!(watcher.sim.bolts.is_empty(), "it stopped where it hit");
+    assert_eq!(health, watcher.sim.enemies.iter().map(|enemy| enemy.health).collect::<Vec<f32>>(), "and hurt nothing there");
 }

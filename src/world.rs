@@ -92,13 +92,16 @@ pub(crate) fn visible_tiles(center_x: f32, center_y: f32, zoom: f32) -> (i32, i3
     (first_col, last_col, first_row, last_row)
 }
 
-//draw the world floor, hovered square, grid lines, coordinate labels and border, which everything else is drawn over.
-//the walls are drawn by draw_walls, over everything. only the visible squares are drawn
+//how plainly the grid lines show at a zoom: as they always have when close in, fading from GRID_FADE_ZOOM out and gone at half of it
+pub(crate) fn grid_alpha(zoom: f32) -> f32 {
+    0.1 * ((zoom - GRID_FADE_ZOOM / 2.0) / (GRID_FADE_ZOOM / 2.0)).clamp(0.0, 1.0)
+}
+
+//draw the world floor, hovered square, grid lines and border, which everything else is drawn over. the walls are drawn by
+//draw_walls, over everything. only the visible squares are drawn, and the grid is left out once it has faded to nothing
 pub(crate) fn draw_world(center_x: f32, center_y: f32, zoom: f32, hovered: Option<(i32, i32)>) {
-    let line_color = Color::new(1.0, 1.0, 1.0, 0.1);
+    let line_color = Color::new(1.0, 1.0, 1.0, grid_alpha(zoom));
     let line_width = 1.0 / zoom; //so the grid lines stay one pixel wide on screen
-    let label_color = Color::new(1.0, 1.0, 1.0, 0.5);
-    let label_size = 14.0;
     let (first_col, last_col, first_row, last_row) = visible_tiles(center_x, center_y, zoom);
 
     draw_rectangle(0.0, 0.0, WORLD_SIZE, WORLD_SIZE, Color::new(0.08, 0.08, 0.1, 1.0));
@@ -106,31 +109,18 @@ pub(crate) fn draw_world(center_x: f32, center_y: f32, zoom: f32, hovered: Optio
         draw_rectangle(col as f32 * TILE_SIZE, row as f32 * TILE_SIZE, TILE_SIZE, TILE_SIZE, WHITE);
     }
 
-    let grid_top = first_row as f32 * TILE_SIZE;
-    let grid_bottom = (last_row + 1) as f32 * TILE_SIZE;
-    for col in first_col..=(last_col + 1) {
-        let line_x = col as f32 * TILE_SIZE;
-        draw_line(line_x, grid_top, line_x, grid_bottom, line_width, line_color);
-    }
-    let grid_left = first_col as f32 * TILE_SIZE;
-    let grid_right = (last_col + 1) as f32 * TILE_SIZE;
-    for row in first_row..=(last_row + 1) {
-        let line_y = row as f32 * TILE_SIZE;
-        draw_line(grid_left, line_y, grid_right, line_y, line_width, line_color);
-    }
-
-    if zoom >= LABEL_MIN_ZOOM {
-        //rasterize the text at the size it has on screen and scale it back to its world size so it stays sharp when zoomed
-        let font_size = (label_size * zoom).round().max(1.0) as u16;
-        let font_scale = label_size / font_size as f32;
-        for col in first_col..=last_col {
-            for row in first_row..=last_row {
-                let color = if hovered == Some((col, row)) { BLACK } else { label_color };
-                //text is positioned by its baseline, so this puts the label in the top left of the square
-                let label_x = col as f32 * TILE_SIZE + 4.0;
-                let label_y = row as f32 * TILE_SIZE + label_size;
-                draw_label_scaled(&format!("{},{}", col, row), label_x, label_y, font_size as f32, font_scale, color, Face::Body);
-            }
+    if line_color.a > 0.0 {
+        let grid_top = first_row as f32 * TILE_SIZE;
+        let grid_bottom = (last_row + 1) as f32 * TILE_SIZE;
+        for col in first_col..=(last_col + 1) {
+            let line_x = col as f32 * TILE_SIZE;
+            draw_line(line_x, grid_top, line_x, grid_bottom, line_width, line_color);
+        }
+        let grid_left = first_col as f32 * TILE_SIZE;
+        let grid_right = (last_col + 1) as f32 * TILE_SIZE;
+        for row in first_row..=(last_row + 1) {
+            let line_y = row as f32 * TILE_SIZE;
+            draw_line(grid_left, line_y, grid_right, line_y, line_width, line_color);
         }
     }
 

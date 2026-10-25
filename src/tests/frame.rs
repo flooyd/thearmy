@@ -41,8 +41,10 @@ fn where_a_whole_frame_goes() {
         let boost = speed_multiplier(units.len());
         let mut facing = Vec2::X;
         let mut particles = Vec::new();
-        //[routes, army, enemies, combat, sites, the rest, what is made ready to draw]
-        let mut totals = [0.0f64; 7];
+        let mut bolts: Vec<Bolt> = Vec::new();
+        let mut most_bolts = 0;
+        //[routes, army, enemies, combat, sites, the rest, what is made ready to draw, the bolts: the vanguard firing, and flying and drawing them]
+        let mut totals = [0.0f64; 8];
         let frames = 600;
         for frame in 0..frames {
             //the player walks a circle, so the routes have to be made again every few frames
@@ -50,7 +52,7 @@ fn where_a_whole_frame_goes() {
             player += Vec2::new(angle.cos(), angle.sin()) * 800.0 * boost * dt;
             player = player.clamp(Vec2::splat(RADIUS), Vec2::splat(WORLD_SIZE - RADIUS));
             facing = turn_to_face(facing, Vec2::new(angle.cos(), angle.sin()) * 800.0, dt);
-            let drill = Drill { formation, facing };
+            let drill = Drill::new(formation, facing);
             timed!(totals[0], routes.update(player, &walls, false));
             timed!(totals[1], {
                 update_squads(&mut squads, &enemies, &mut units, &walls, false);
@@ -74,6 +76,13 @@ fn where_a_whole_frame_goes() {
                 fight(&mut enemies, &mut units, &mut babies, dt, &upgrades, &mut fx);
                 tick_enemy_numbers(&mut enemies, dt, &mut fx);
                 bury_units(&mut units, &mut fx);
+            });
+            timed!(totals[7], {
+                let fronts = [Front { position: player, facing, formation, upgrades: &upgrades }];
+                fire_vanguard(&fronts, &units, &enemies, frame as f32 * dt, dt, 1.0, true, &mut bolts, Some(&mut fx));
+                fly_bolts(&mut bolts, &mut enemies, dt, Some(&mut fx));
+                std::hint::black_box(bolt_discs(&bolts, Rect::new(player.x - 8000.0, player.y - 8000.0, 16000.0, 16000.0), 1.0));
+                most_bolts = most_bolts.max(bolts.len());
             });
             timed!(totals[4], {
                 update_sites(&mut sites, &mut enemies, &mut walls, &mut babies, &mut units, player, dt, false, DEFAULT_ARMY_LIMIT, 0, &mut fx);
@@ -107,8 +116,8 @@ fn where_a_whole_frame_goes() {
         let ms = |total: f64| total * 1000.0 / frames as f64;
         let all: f64 = totals.iter().sum();
         println!(
-            "{army} units {}, {} enemies: {:.2} ms a frame (routes {:.2}, army {:.2}, enemies {:.2}, combat {:.2}, sites {:.2}, rest {:.2}, ready to draw {:.2})",
-            formation.name(), enemies.len(), ms(all), ms(totals[0]), ms(totals[1]), ms(totals[2]), ms(totals[3]), ms(totals[4]), ms(totals[5]), ms(totals[6])
+            "{army} units {}, {} enemies: {:.2} ms a frame (routes {:.2}, army {:.2}, enemies {:.2}, combat {:.2}, sites {:.2}, rest {:.2}, ready to draw {:.2}, bolts {:.2} with up to {most_bolts} in flight)",
+            formation.name(), enemies.len(), ms(all), ms(totals[0]), ms(totals[1]), ms(totals[2]), ms(totals[3]), ms(totals[4]), ms(totals[5]), ms(totals[6]), ms(totals[7])
         );
     }
 }

@@ -24,11 +24,15 @@ are the fonts.
 - **Break hordes.** Hordes (Swarm Tide, Iron Column, Wildfire, Stampede, Titan March and more) are announced on screen and
   an arrow shows where they come from. Break one and it drops a bronze, silver or gold chest: wall points, recruits, a
   champion and, from gold, a choice of relic.
-- **Collect champions.** Special units won as loot: Juggernaut, Medic, Pyromancer, Stormcaller, Phoenix, Frostweaver and
-  eight more, each with a power of its own. A second of a kind merges into the first and raises its level.
+- **Collect champions.** Fourteen special units won as loot, each drawn as itself: Juggernaut, Medic, Pyromancer, Stormcaller,
+  Phoenix, Frostweaver and eight more, each with a power of its own that is a share of what the whole army does. Kills and a second
+  of a kind raise its level, up to 10; the shooters fire longer bursts, rings and spirals as they rise, and at level 10 you choose its
+  final form, once. The roster on the right shows each one's power coming round; click a row to find it in the world.
+- **The front fires.** The front of the army shoots ahead of it, the way it is going, at what is there (never behind), and sees
+  further the bigger the army grows, about the width of the screen at 10,000 units.
 - **Build.** Earn wall points by destroying enemies, then spend them on walls, gates, towers you can man, spikes and tar.
   Enemies path around what you build, and walls decide where a fight happens.
-- **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter into shards) and many more stack across the run.
+- **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter into shards), Volley Drill, Chain Shot, Tracer Rounds and many more stack across the run.
 - **Combos.** Chain kills for a MASSACRE, then a RAMPAGE, and watch the numbers climb.
 
 The game is built for a lot of units: 15,000 by default (the settings take it anywhere from 5,000 to 50,000), drawn as instanced ships (small darts that point the way they are going, drawn in the shader, with plain
@@ -42,6 +46,8 @@ You are a stick figure that runs: facing you going down, showing its back going 
 | The Eclipse, one of seven bosses | A MASSACRE combo with three hordes closing in |
 
 ![A gold chest and its relics](docs/screenshots/gold-chest.jpg)
+
+![Every champion at level 10, the front of the army firing north](docs/screenshots/champions.jpg)
 
 ## Controls
 
@@ -62,6 +68,8 @@ You are a stick figure that runs: facing you going down, showing its back going 
 | `F11` | fullscreen on or off (the game always starts fullscreen) |
 | `Space` | skip a boss's entrance |
 | `1 2 3` | choose a relic |
+| `1 2` | choose a champion's final form, at level 10 |
+| click a champion in the roster | find it in the world |
 | `Esc` | menu (settings, controls, save, load) |
 
 The game also saves on its own, and the title screen offers to carry on from where you left off.

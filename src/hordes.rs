@@ -423,7 +423,7 @@ fn is_off_screen(at: Vec2, player: Vec2, zoom: f32, screen: Vec2) -> bool {
 }
 
 //where the arrow for something that is off the screen goes, and the way it points: at the edge, towards it. one that would land on the panel with the army
-//in it, the minimap or the list of players slides along the edge, to the nearer side of it. None for something that is on the screen
+//in it, the minimap, the list of players or the roster of champions slides along the edge, to the nearer side of it. None for something that is on the screen
 pub(crate) fn edge_spot(at: Vec2, player: Vec2, zoom: f32, screen: Vec2) -> Option<(Vec2, Vec2)> {
     if !is_off_screen(at, player, zoom, screen) {
         return None;
@@ -433,7 +433,7 @@ pub(crate) fn edge_spot(at: Vec2, player: Vec2, zoom: f32, screen: Vec2) -> Opti
     let direction = ((at - player) * zoom).normalize_or_zero();
     let along = ((half.x - margin) / direction.x.abs().max(0.0001)).min((half.y - margin) / direction.y.abs().max(0.0001));
     let mut spot = half + direction * along;
-    for covered in [Rect::new(0.0, 0.0, HUD_PANEL_RIGHT, HUD_PANEL_BOTTOM), Minimap::new(screen, MapView::Near, Vec2::ZERO).rect].into_iter().chain(team_panel(screen)) {
+    for covered in [Rect::new(0.0, 0.0, HUD_PANEL_RIGHT, HUD_PANEL_BOTTOM), Minimap::new(screen, MapView::Near, Vec2::ZERO).rect].into_iter().chain(team_panel(screen)).chain(roster_panel(screen)) {
         spot = slid_clear_of(spot, covered, screen);
     }
     Some((spot, direction))

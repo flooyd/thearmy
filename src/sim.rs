@@ -48,6 +48,7 @@ pub(crate) struct Report {
     pub(crate) boss_slain: bool,
     pub(crate) citadel: bool,           //the citadel fell
     pub(crate) save_soon: bool,         //a relic was taken or a chest opened: a good moment to save
+    pub(crate) hit_stop: f32,           //seconds a world of one could stand still for a champion's crit
 }
 
 pub(crate) struct Step {
@@ -68,6 +69,7 @@ pub(crate) struct Sim {
     pub(crate) shots: Vec<Shot>,
     pub(crate) hazards: Vec<Hazard>,
     pub(crate) pulls: Vec<Pull>,
+    pub(crate) bolts: Vec<Bolt>, //the champions' bolts in flight
     fx: Effects,
     walls_dirty: bool, //walls went up or came down in the middle of the last step
 }
@@ -97,7 +99,7 @@ impl Sim {
         }
         players.apply_settings(rules.army_limit, rules.difficulty.relic_answer());
         let count = players.len();
-        let mut sim = Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots: Vec::new(), hazards: Vec::new(), pulls: Vec::new(), fx: Effects::default(), walls_dirty: false };
+        let mut sim = Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots: Vec::new(), hazards: Vec::new(), pulls: Vec::new(), bolts: Vec::new(), fx: Effects::default(), walls_dirty: false };
         for player in 1..count {
             sim.hold(player);
         }
@@ -107,7 +109,7 @@ impl Sim {
     //a world with nothing in it, to be filled in from what a host says of its own (see `Replica`): it is only ever looked at, never stepped
     pub(crate) fn mirror() -> Sim {
         let run = Run { destroyed: 0, lost: 0, peak_army: 0, bosses: 0, nests: 0, villages: 0, seconds: 0.0, citadels: 0 };
-        Sim { players: Players { list: Vec::new() }, run, director: Director::new(), hordes: Hordes::new(), units: Vec::new(), babies: Vec::new(), walls: Walls::default(), sites: Vec::new(), enemies: Vec::new(), shots: Vec::new(), hazards: Vec::new(), pulls: Vec::new(), fx: Effects::default(), walls_dirty: false }
+        Sim { players: Players { list: Vec::new() }, run, director: Director::new(), hordes: Hordes::new(), units: Vec::new(), babies: Vec::new(), walls: Walls::default(), sites: Vec::new(), enemies: Vec::new(), shots: Vec::new(), hazards: Vec::new(), pulls: Vec::new(), bolts: Vec::new(), fx: Effects::default(), walls_dirty: false }
     }
 
     //a player joins the world as it is being played: at the starting house, with the few units a run starts with. returns where they are in the list of
@@ -221,7 +223,7 @@ impl Sim {
     //believed as far as it could have been asked for (see `PlayerInput::tidy`), and not at all for a player who is choosing a relic, who can do
     //nothing else until they have
     pub(crate) fn step(&mut self, inputs: Vec<PlayerInput>, pace: Pace, rules: Rules) -> Step {
-        let Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots, hazards, pulls, fx, walls_dirty } = self;
+        let Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots, hazards, pulls, bolts, fx, walls_dirty } = self;
         let Pace { real_dt, dt, player_dt, stands_still } = pace;
         players.apply_settings(rules.army_limit, rules.difficulty.relic_answer());
         let count = players.len();
@@ -269,6 +271,18 @@ impl Sim {
                     player.chosen();
                 }
                 _ => {}
+            }
+        }
+        //the champions their owners chose a way to grow for grow that way (a choice that can't be made, for a champion that isn't theirs or at a
+        //level it hasn't reached or has chosen at already, is nothing)
+        for (i, input) in inputs.iter().enumerate() {
+            let Some(pick) = input.evolve else {
+                continue;
+            };
+            if let Some(unit) = units.iter_mut().find(|unit| owner_index(unit.owner) == i && unit.id == pick.champion) {
+                if evolve(unit, pick.tier as usize, pick.choice as usize, fx) {
+                    report.save_soon = true;
+                }
             }
         }
         for (player, input) in players.list.iter_mut().zip(&inputs) {
@@ -382,6 +396,14 @@ impl Sim {
         //go off, everything touching an enemy hurts and is hurt, and whatever has run out of health is gone
         terrain_effects(enemies, walls, dt, fx);
         champion_acts(units, enemies, babies, &armies.perked, dt, fx);
+        //(the champions' volleys go into flight, and the bolts fly, before the fighting counts what has been destroyed)
+        for (volley, hurt) in &fx.volleys {
+            launch_volley(bolts, volley, *hurt);
+        }
+        //(and the front of each army fires ahead of it)
+        let fronts = fronts_of(&*players, &armies.perked);
+        fire_vanguard(&fronts, units, enemies, run.seconds, dt, bolt_density(), true, bolts, Some(&mut *fx));
+        fly_bolts(bolts, enemies, dt, Some(&mut *fx));
         {
             //(each enemy goes after the player nearest to it, and what it does is for that player's army)
             let prey = armies.prey(players, units, pressure_of);
@@ -461,6 +483,7 @@ impl Sim {
         Sim::tuck_strays(players, units);
         run.peak_army = run.peak_army.max(army_sizes(units)[..count].iter().copied().max().unwrap_or(0));
 
+        report.hit_stop = std::mem::take(&mut fx.hit_stop);
         let mut events = fx.drain_events();
         if destroyed > 0 {
             events.push(Event::Destroyed(destroyed as u32));

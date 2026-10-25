@@ -28,7 +28,7 @@ fn every_row_is_on_a_page_and_says_what_it_is() {
     let settings = Settings::default();
     let all = [
         Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit, Act::Back, Act::Master, Act::Effects, Act::Music, Act::Shake,
-        Act::Fullscreen, Act::Colours, Act::UnitShape, Act::SimpleShapes, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit,
+        Act::Fullscreen, Act::Colours, Act::UnitShape, Act::SimpleShapes, Act::Bolts, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit,
     ];
     for act in all {
         assert!([Page::Main, Page::Settings, Page::Controls].iter().any(|&page| page_rows(page).contains(&act)), "{act:?} is on no page");

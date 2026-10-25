@@ -1,0 +1,320 @@
+# The Army — Upgrade Plan
+
+Written 2026-10-24 at v0.2.7 (commit `c1cf84e`) by Claude Sonnet 5.5, for the owner and for whichever model carries it out (Claude Fable is expected to take over; Sonnet may start earlier). It is a plan, not a spec: refine it as you learn, but keep the owner's priorities in section 1. Tick items off as they are built and add a line to the Log at the end.
+
+**Revised 2026-10-24 by Claude Fable 5.1** after reading the code. The owner's two rulings are folded in: only the **front of the army** fires, in the heading it is going (never behind, never at the whole screen); and the **bosses are to be tuned up**, stronger as well as more varied, not left as they are. The step list after the phase map is the order the work is done in, one step per "begin step N". Section 3 now says what the code really does.
+
+**Legend** ☐ open · ◐ partly · ✅ built · size **S** (about an hour) / **M** (a session) / **L** (several) · 🔗 touches multiplayer sync · 💾 touches saves.
+
+---
+
+## 1. What the owner asked for, and where it lives
+
+| The ask | Where |
+|---|---|
+| Remove the grid coordinate labels (they show when zoomed in) | 0.1 |
+| Champion roster goes below the player list in multiplayer | 0.2 |
+| Baby stick-figure artwork (**hold off**, but plan it) | 6.2 |
+| Champions much stronger, with artwork, 2–3× a unit's size, always drawn on top | 1 |
+| Projectile champions that grow stronger as they level; the **front of the army** fires in its heading (not the whole army, never behind); real damage | 2 |
+| Freeze champion that freezes and **shatters**; fire champion that ignites; slow champion with a slow aura; effects that stand out, with shatter physics | 3 |
+| Harder enemies; **bosses tuned up**: more powerful, and with new telegraphed, high-damage attacks | 4 |
+| Difficulties beyond Brutal: Insane 1, 2, 3… | 5 |
+| Any remaining artwork | 6 |
+| Imagination: features that make the game better | 7 |
+
+Do not do it all at once. Each phase ends in a release (section 4).
+
+---
+
+## 2. Principles
+
+1. **Telegraph, then punish.** A big hit is only fair if the player could see it coming and had an answer (move, recall with `R`, wall, tank champion, interrupt). Every lethal thing gets its own shape, colour, sound and countdown.
+2. **Spectacle must stay legible.** Bullet hell and shattering glass must never hide a telegraph. Telegraphs draw above effects; effects thin out when the screen is busy.
+3. **Numbers come from the harnesses, not from feel.** Re-run the boss balance table (`the_boss_balance_table`, `how_much_a_boss_fight_varies_over_many_seeds`, `how_long_enemies_last_against_a_big_army`) after any damage change. The owner plays **Brutal with a 50k army, ~40 relics and ~40 bosses slain**; Normal is trivial for that. Tune for that player, not for a fresh run. The owner wants the bosses **stronger** as well as more varied: tune them up, and let the harness say by how much.
+4. **Everything visible works in multiplayer.** The host simulates; guests draw from snapshots (`sync.rs`, `replica.rs`, `viewer.rs`) and cosmetic `Event`s (`events.rs`). New state goes in the snapshot codec; new pure spectacle goes in an `Event` with a seed so guests regenerate it instead of receiving it.
+5. **Performance budget: 120 Hz (8.3 ms), up to a 50k army.** Measure with `where_a_whole_frame_goes` (ignored test, `--ignored --nocapture`) before and after. Anything per-unit must be bounded or batched.
+6. **Old saves keep loading.** Add new state as trailing sections (see `save.rs`, `SaveReader::is_done`) and test an old save.
+7. **Art stays in the pipeline** (`art/*.py` → `art/shader.py` → `src/creature_art.rs`, see `art/README.md`), checked in real GL, never hand-edited in the generated file.
+
+---
+
+## 3. Where things stand (v0.2.7)
+
+- **Champions** (`champions.rs`): 14 kinds, roster of 12, level cap 6, merge-to-level, drawn as flat polygons with a two-letter tag (`draw_champions`), radius 1.3–2.1× a unit's. Already drawn after the army, babies and enemies. Powers fire as instant hits or beams (`Power::Snipe`, `Fireball`, `Lightning`), damage is `flat × UNIT_DAMAGE + share × enemy max health` (a boss takes 20% of the share), so it does not keep up with a 50k army. `MAX_CHAMPION_SIZE` (2.2) is how far `fight()` looks round an enemy for touching units: it has to grow with the champions. Champions stand within `FORMATION_GUARD` (110 px) of the player in every formation (`guard_offset`).
+- **Army**: fights by touch only (100 damage/s per unit to everything it overlaps). Nothing in the army fires bullets; only enemies have projectiles (`Shot`, `ShotKind`). The army's heading is `Player.facing` (`players.rs`, turned by `turn_to_face` toward the player's velocity and kept when they stand still), and `Drill` places every unit from it: that is what "the front of the army" means.
+- **Enemies**: 23 kinds, 7 bosses + the Sovereign, elites (`Modifier`: Swift, Armored, Volatile, Frenzied, Captain), hordes, nests. Telegraphs are all **circles** (`Hazard`, `BossCircle`) plus the Charger's dash line.
+- **Status effects**: only `frozen` (Freezing relic: 2.5 s, shatters into `Shard` enemies, `Enemy::shatters`) and `slow`, which the terrain sets each frame and auras lower. The Frostweaver's "freeze" is only `slow` taken down to `FROZEN_SLOW` for 1.5 s: it never sets `frozen`, so nothing it touches shatters.
+- **Difficulty** (`settings.rs`): Easy / Normal / Hard / Brutal = pressure 0.7 / 1 / 1.8 / 2.8, boss rounds 0/0/1/2, relic answer 0/0/0.5/0.55, score ×0.6/1/1.6/2.4.
+- **Art**: all 23 enemies, 8 bosses and 7 marks are instanced SDF shaders (38 species, `creatures.rs`); units are discs or Dart ships; the player is a stick figure (`runner.rs`); title screen has 5 looks (`homescreens.rs`). Everything else is flat primitives.
+- **Old idea backlog** with history: `C:\Users\LordR\.claude\projects\C--Users-LordR\memory\mygame-ideas.md` (open items are folded into this plan).
+
+---
+
+## 4. Phase map
+
+| # | Phase | Release | Needs |
+|---|---|---|---|
+| 0 | Quick wins | v0.2.8 | — |
+| 1 | Champions: size, art, strength, UI | v0.3.0 | 0 |
+| 2 | Bullet hell and meaningful damage | v0.3.1 | 1 |
+| 3 | Status effects, freeze & shatter, elemental champions | v0.3.2 | 1, 2 |
+| 4 | Harder enemies, telegraph variety | v0.3.3 | 2 (for balance) |
+| 5 | Insane ladder | v0.3.4 | 4 |
+| 6 | Remaining artwork | v0.4.0 (rolling: ship pieces with the phase they belong to) | pipeline |
+| 7 | New features | pick per release | — |
+
+A release means: all tests pass, balance harnesses re-run, frame budget measured, host + guest checked, an old save loaded, a screenshot of the new art taken from the real game, README/`docs/screenshots` refreshed if the look changed, version bumped (see section 8).
+
+---
+
+## 5. Step list — the order the work is done in
+
+One step per "begin step N" from the owner. A step ends with the suite green, the harnesses re-run if numbers changed, a screenshot if the look changed, and a line in the Log; it is sized so work can stop after it. Cost: 💲 under an hour · 💲💲 a session · 💲💲💲 several. The dear ones are the bolt system, the art and the telegraph shapes. Steps 6–9 and 10–11 can swap if the owner wants the art first.
+
+**Handoff.** Whoever picks this up (Sonnet or Fable): the step table is the record. A ✅ step is built, tested and logged (section 10 says what was done and what was decided); the first step without one is the next to do, and only when the owner says "begin step N". Build and test with `CARGO_TARGET_DIR` pointing at a scratch folder (section 8); the owner's game locks `target/`.
+
+| Step | What gets built | Items | Cost |
+|---|---|---|---|
+| ✅ 1 | Quick wins: coordinate labels off, roster below the player list, settle the failing test, settings override for screenshots | 0.1–0.4 | 💲 |
+| ✅ 2 | Champions 2–3× a unit, drawn above everything, auras under the army, a guard ring that fits twelve big champions | 1.1 | 💲💲 |
+| ✅ 3 | Champion strength: output as a share of army DPS, tank taunt, bigger health pools, a boss damage cap | 1.3 | 💲💲 |
+| ✅ 4 | Level cap 10, one evolution at level 10 with a pick card (was 3/6/9, changed by the owner), saved and replicated | 1.4 | 💲💲 |
+| ✅ 5 | Roster UI: icon, cooldown ring, fire pulse, click to ping, richer tooltip. **Release v0.3.0** (point reached; version not bumped, waiting for the owner) | 1.5 | 💲💲 |
+| ✅ 6 | Friendly bolt system `bolts.rs`: pooled, gridded collisions, instanced renderer; Snipe and Fireball become bolts | 2.1 | 💲💲💲 |
+| ✅ 7 | Champion volleys that scale with level: aimed burst → fan → ring → spiral | 2.2 | 💲💲 |
+| ✅ 8 | The vanguard fires: front-of-army gunnery in the heading with cone aim, hold-fire rule, relics, Effects setting | 2.3 | 💲💲💲 |
+| ✅ 9 | Hit feedback and the frame budget for bolts. **Release v0.3.1** (point reached; version not bumped, waiting for the owner) | 2.4, 2.5 | 💲💲 |
+| ✅ 10 | Pipeline readiness, then champion art for the first seven | 6.0, 1.2 | 💲💲💲 |
+| ✅ 11 | Champion art for the other seven, roster icons. **Release v0.3.2** (point reached; version not bumped, waiting for the owner) | 1.2 | 💲💲💲 |
+| 12 | One status model; freeze and shatter (gameplay first, then the fragments) | 3.1, 3.2 | 💲💲💲 |
+| 13 | Elemental champions (Frostweaver rework, Emberlord, Chronomancer, Venomancer, Gravitron), reactions, ultimates if wanted. **Release v0.3.3** | 3.3, 3.4, 1.6 | 💲💲💲 |
+| 14 | Telegraph shapes beyond circles: ring, line, cone, rect, multi; hatching; off-screen indicators | 4.1 | 💲💲💲 |
+| 15 | Boss overhaul: stronger numbers, a signature attack per boss, new enemy kinds, harness tables | 4.2 | 💲💲💲 |
+| 16 | Affixes, smarter groups, the rebalance, learn-from-deaths screen. **Release v0.3.4** | 4.3–4.6 | 💲💲 |
+| 17 | The Insane ladder: model, mutators, unlocks, tuning. **Release v0.3.5** | 5.1–5.4 | 💲💲💲 |
+| 18 | Remaining art (babies when the owner says) and features, picked per release | 6, 7 | per item |
+
+---
+
+## Phase 0 — Quick wins (v0.2.8)
+
+- ✅ **0.1 Remove the coordinate labels (S).** `world.rs::draw_world`: delete the `if zoom >= LABEL_MIN_ZOOM { … }` block (the `"{col},{row}"` labels) and the `label_*` locals; delete `LABEL_MIN_ZOOM` from `config.rs`; check `draw_label_scaled` is still used elsewhere. Keep the faint grid lines and the white hovered-tile highlight (the hovered label was black on white: drop that too). Consider fading the grid lines out below ~0.35 zoom so far zoom is calm. Update any test that mentions labels.
+- ✅ **0.2 Champion roster below the player list (S–M).** `champions.rs::roster_rows` pins rows to the top-right (`ROSTER_TOP`). In multiplayer `team::team_panel(screen)` returns the player list's `Rect` (top right, `panel_rect`): start the roster at `panel.bottom() + 8`. Heading `CHAMPIONS n/12` moves with it. A full roster of 12 rows is ~430 px tall and the minimap sits bottom-right (30% of screen height): on short windows switch to compact rows (`ROSTER_ROW` ~24, drop the xp line) or two columns, whichever fits; never overlap the minimap. `hordes.rs` keeps edge arrows clear of the HUD rects: add the roster rect there too. Tests: rows never overlap the team panel or the minimap at 1280×720, 1920×1080, 2880×1800, with 1–4 players and 0–12 champions.
+- ✅ **0.3 Fix or retire the failing test (S).** `tests::players::armies_of_different_players_do_not_push_each_other_about` fails on `main` before any of this work (closest pair: same army 24.5, two armies 60.9, the opposite of what it asserts). Find out whether the test or the separation code is stale and settle it.
+- ✅ **0.4 Settings bleed in screenshots (S).** The test exe and the owner's game share one settings file, so toggles the owner makes change what screenshots show. Give look builds an env override (e.g. `THE_ARMY_SETTINGS_DIR`) so captures are repeatable.
+
+---
+
+## Phase 1 — Champions as the stars (v0.3.0)
+
+**Goal:** a champion is a big, beautiful, obviously powerful unit. Size 2–3× a unit, art, real strength, clear UI.
+
+- ✅ **1.1 Size and layering (M).** Set `Champion.size` to 2.0–3.0 (tanks and brutes biggest: Juggernaut 3.0, Earthshaker 2.8, Bulwark 2.6; casters ~2.0–2.3); the 5%/level growth stays but cap the result near 3.4×. Unit radius is 16, so a champion is 64–96 px across. Check what reads `Unit::radius()`: `spread_units`/`UnitGrid` cell size, wall settling, pickup, selection, the minimap marker. Raise `MAX_CHAMPION_SIZE` to the new biggest (it bounds the touch search in `fight()`; `GRID_CELL` is 128 px, so a 96 px radius still fits a cell either side). Draw order: champions already come after the army, babies and enemies; also put them above hazards fills and chests, and move the faint **aura discs below the army** (today the aura is drawn with the champion, tinting the units under it). Enemy shots and popups may stay above. Guard against a 12-champion roster crowding the player: `guard_offset` puts them all within `FORMATION_GUARD` (110 px) of the player, which twelve 64–96 px bodies cannot fit. Make the guard ring's radius grow with the sum of the champions' radii (`formation.rs`) and keep the player visible in the middle.
+- ✅ **1.2 Champion art (L).** (the first seven in step 10, the other seven and the roster icons in step 11) One instanced SDF species per champion in the existing pipeline: new `art/champions.py` (DSL in `art/dsl.py`), appended to `ARTS`, drawn through `creatures.rs` as units rather than enemies. Needs a few new instance inputs: grade tint/ring, level (rank chevrons or stars replace the little gold pips), an **"act" pulse** that fires when its power goes off (recoil, cast flash), and a heading toward its current target. LOD to the old polygon when tiny; "Simple shapes" turns champions into polygons too. Concepts (face up, 80 px picture per the pipeline, bold black outline like the rest):
+  Juggernaut: riveted bruiser with riot plates · Berserker: horned, twin cleavers, red eyes · Bulwark: tower-shield knight, shield wall edge · Medic: white-green hover-drone with a cross and soft rings · Drummer: war-drum carrier, sound rings · Pyromancer: hooded mage, flame staff · Sharpshooter: long rifle, scope glint, scarf · Pathfinder: winged scout with a compass rose · Quartermaster: pack-mule cart, coin sparkle · Warlord: caped commander, crown and banner · Frostweaver: crystal sorceress, snowflake halo · Stormcaller: cloak and storm orb · Earthshaker: stone golem with a hammer · Phoenix: a firebird (rebirth = burst animation).
+  Each also gets a small **icon** for the roster (the polygon icon becomes the art at 28 px).
+- ✅ **1.3 Strength model (M).** Today champion damage is flat-plus-percent and does not follow the army. New rule: **a champion's output is a share of the whole army's touch DPS**, so it scales with army size and with Whetstone-style relics (`Upgrades::hit()`): damage dealers ≈ 6–10% of army DPS each at level 1 rising to ≈ 20–25% at level 6; utility champions less. Implement as `army_dps × weight × level_curve` in `power_damage`, keep the boss phase gate (`Enemy::boss_gate`) so nothing skips a phase, and keep `CHAMPION_BOSS_SHARE` as a boss damage cap tuned later. Watch the coupling: a boss's health is `army × UNIT_DAMAGE × kill_seconds`, so six damage champions at 15% of army DPS each nearly halve a fight. Cap what all champions together do to a boss (start: 35% of army DPS) until 4.2 re-tunes the bosses. Also: bigger health pools and a real **taunt** for tanks (Juggernaut, Bulwark: nearby enemies prefer them as targets, `enemy_ai.rs`), and tanks may soak a share of boss circles (old idea).
+- ✅ **1.4 Level curve and evolutions (M, 💾 🔗).** Raise the cap from 6 to 10. **Owner's change (2026-10-25): once, at level 10, not at 3, 6 and 9** ("I don't like how often you are asked to upgrade champions"); the owner picks one of two **evolutions** per champion (relic-card style UI, key 1/2): e.g. Sharpshooter "Piercing rounds" vs "Rapid fire"; Pyromancer "Napalm" vs "Meteor"; Frostweaver "Absolute Zero" vs "Glacier Aura". Choices are saved per champion (trailing save section) and replicated in the unit snapshot. Merging a duplicate still levels the champion.
+- ✅ **1.5 Roster UI (M).** Rows get the art icon, a **cooldown ring** around it, level, xp bar and a pulse when the power fires. Click a row to flash and highlight that champion in the world (camera pings briefly); hover tooltip keeps the blurb and gains the evolution picks and current numbers ("fires 5 bolts/s, 2 pierce"). Respect 0.2's placement.
+- ☐ **1.6 Active ultimates (M, optional but recommended).** Each champion gets one manual power on a long cooldown (keys `1–4`/click on the roster, or one "ultimate" key that fires the ready ones): Frostweaver "Absolute Zero" (freeze everything on screen, then everything shatters on the next hit), Pyromancer "Meteor Storm", Stormcaller "Tempest", Earthshaker "Fault Line", Medic "Rapture". This adds skill expression, pairs with telegraph dodging, and delivers the freeze-and-shatter spectacle on demand. 🔗 (a key press is an input, see `Controls`).
+- Tests: size ranges; radius users; roster layout (0.2); level curve numbers; evolution save/load round trip; old save with 6-level champions loads; champion rows replicate.
+
+---
+
+## Phase 2 — Bullet hell and damage that means something (v0.3.1)
+
+**Goal:** the army *shoots*. Screens full of tracer fire, each hit visible, numbers that matter.
+
+- ✅ **2.1 A friendly projectile system (L, 🔗).** New `bolts.rs`: a pooled `Vec<Bolt>` (position, velocity, damage, kind, pierce left, element, owner, life), a spatial grid of enemies for collisions (like `UnitGrid` for units; enemies number in the hundreds so lookups are cheap), a cap (start 4000 live), and an **instanced renderer** like `discs.rs`/`creatures.rs`: streaked capsule per bolt with a short trail, colour by element/owner. The host simulates and applies damage; guests draw bolts **cosmetically**: a champion's volley goes out as one `Event::Volley { from, aim, seed, count, kind }` (guests regenerate the spread from the seed and fly them with no collisions; hits come as the usual popups/bursts events), and the army's gunnery (2.3) is not sent at all, as a guest can work it out from its own snapshot. `MAX_EVENTS_A_MESSAGE` is 1024: never one event per bolt. That keeps bandwidth flat however many bolts fly. Old instant powers (`Snipe`, `Fireball`) become bolts; `Lightning` stays instantaneous (arcs are the point).
+- ✅ **2.2 Firepower that scales with level (M).** A `Volley` description on gun-type powers: `{ rate, count, spread, speed, damage, pierce, bounce, homing, pattern }`. Level adds count, rate, pierce, then unlocks patterns: aimed burst → fan → ring → rotating spiral at the top levels (the "bullet hell" look). Examples: Sharpshooter 1 bolt/0.5 s, level 10: 6 piercing rounds/0.25 s with a ricochet; Pyromancer lobbed fireball that leaves burning ground; Stormcaller keeps chains but adds orbiting spark bolts. Owner's wish "really get stronger as they level" is the acceptance test: level 1 vs level 10 should look and feel like a different champion.
+- ✅ **2.3 The vanguard fires (L).** The owner's rule: **not the whole army, never behind, never at the whole screen.** **Owner's change (2026-10-25): "I would like for the range of the units bolts to be scaled higher as the army grows. Once the army is 10000 or so it should be screen wide range"**: the range grows with the army (`gunnery_range`), still only from the front and only into the cones. Only the units at the **front of the army, in the heading it is going**, shoot, and they shoot **ahead**, with a little leeway to the sides for enemies that are off the heading.
+  - *Who fires:* the heading is `Player.facing` (kept when the player stands still, so a halted army still covers its front). A unit's *forwardness* is `(unit − player) · facing` as a share of the formation's reach along the facing; units in the front `GUNNERY_FRONT_SHARE` of that span (start 0.3) are the **gunners**, the rest fight by touch only. Wedge: the point and the leading edges; Line: the whole front rank; Ring: the leading arc only; Free (solo play): the same rule over the pile. Champions are never gunners (they have powers of their own). Garrisoned units already shoot from towers.
+  - *What they fire at:* first the nearest enemy inside a **narrow cone** round the heading (`GUNNERY_AIM_ARC`, ±30°) within `GUNNERY_RANGE` (start 900 px); if there is none, the nearest inside a **wide cone** (`GUNNERY_SEARCH_ARC`, ±75°). Nothing behind the shoulder line (dot ≤ 0) is ever a target, and with no enemy in either cone the gunners **hold fire**: no bolts into empty ground. Each bolt leaves the unit's nose (`Unit::nose`) with a few degrees of scatter, so the stream reads as fire, not a laser.
+  - *Budget:* each frame a budgeted slice of the gunners fires (ripple by `unit.slot` over the gunner set only, no per-unit timers), so cost is `bolts per frame`, not `units`. Rate: a base trickle, raised by relics (new: "Volley Drill", "Chain Shot", "Tracer Rounds"), by Wedge (fires forward harder) and by a Warlord's banner. Keep touch relevant: bolts ≈ 30–50% of the army's damage mid-game.
+  - *Multiplayer:* gunners and aim are a pure function of (units, enemies, facing, frame), so a **guest works them out itself** from its snapshot and draws the bolts without being sent any; only hits travel, as the usual events.
+  - *Setting* **Effects: Low / Medium / High** scales bolt density and trails (visual only: Low fires fewer, heavier bolts, damage unchanged).
+  - *Acceptance:* a Wedge driving into a horde shows a bow wave of tracers off its point; turn the army round and the fire turns with it; enemies behind the army are never shot; an army with nothing ahead of it fires nothing.
+- ✅ **2.4 Hit feedback (M).** (built without the per-element parts, which wait for the elements of 3.3) Hit flash on the enemy (the creature shader already has a `hurt` input), small knockback on light enemies, crits (bigger number, sparks, 2–3 frame hit-stop only for champion hits), per-element impact particles and sounds (all synthesised in code, `sound.rs`), element-coloured damage numbers, kill pops per element (ash, shatter, arc flash).
+- ✅ **2.5 Budget and guardrails (S).** 120 Hz at a 5k army + 6 champions + 3000 live bolts; a 50k army degrades density gracefully. Add a `where_a_whole_frame_goes` stage for bolts. Zoomed far out, draw bolts as 1 px streaks or skip trails.
+- Tests: bolt/enemy collision incl. pierce and walls; budgeted firing is bounded; damage scales with army DPS; guests rebuild a volley from its seed; no bolt survives its owner's run end.
+
+---
+
+## Phase 3 — Status effects, freeze & shatter, elemental champions (v0.3.2)
+
+**Goal:** effects that *change the fight* and look great doing it.
+
+- ☐ **3.1 One status model (M, 💾 🔗).** Replace scattered fields (`frozen`, `slow`, …) with a small `Statuses` on `Enemy`: `chill` (stacks), `frozen` (timer), `burning` (timer + DPS, **spreads** to touching enemies), `slowed` (aura or time-bubble, multiplier), `shocked` (next arc/hit does more), `poisoned` (stacks). One place applies, ticks and clears them; bosses resist (shorter, never full control: `FROZEN_BOSS_SLOW` style) but are not immune to burn/poison. Snapshot + save + replica carry them. Each status has a **shader overlay** in the creature pipeline: ice crust with cracks and a blue rim, flame licks and embers, arcing sparks, a sluggish ripple/trail for slow.
+- ☐ **3.2 Freeze and shatter (L).** The headline effect.
+  - *Gameplay:* chill builds with ice hits/auras; at full stacks the enemy **freezes** (cannot move, attack or shoot) and becomes **brittle**: the next big hit or a death while frozen **shatters** it. Shatter deals area frost damage and chills what is near, so a frozen crowd cascades. Frostweaver and the Freezing relic go through the same path (today only the relic shatters). The existing `Shard` enemy kind is kept as an option, but default to the AoE; decide with the owner (their earlier words: "shatter into pieces which become new enemies").
+  - *Spectacle:* split the creature into 8–40 **fragments** (count by size) cut along a Voronoi pattern over its silhouette; each fragment is, to begin with, a flat polygon in the creature's colour with an ice tint and the black outline (one instanced polygon shader, cheap); only if that reads poorly, the creature's own art clipped to its cell (the SDF shader gets a cell mask and a per-instance offset), thrown outward from the impact with spin and drag, bouncing off walls, fading over ~1.5 s, with ice-glint sparkles. A one-beat slow-down and a glass sound scaled by size; bosses crack at phase changes and burst at death. Cap live fragments (~600) and draw them instanced. Guests rebuild it from `Event::Shatter { at, shape, size, seed, dir, color }`.
+  - *Tests:* shatter only when frozen; AoE hits neighbours once; fragment cap; replay from seed is identical.
+- ☐ **3.3 New and reworked elemental champions (M each, with their art).**
+
+| Champion | Grade | Power sketch |
+|---|---|---|
+| **Frostweaver** (rework) | Rare | Ice bolts build chill, aura slows 45%, freeze-and-shatter. Evolutions: Absolute Zero (ult), Glacier Aura. |
+| **Emberlord** (new, fire) | Uncommon | Ignites what it hits; burning **spreads** between touching enemies and leaves burning ground that hurts enemies (a friendly twin of boss `Burn` hazards). Evolution: Napalm / Meteor. |
+| **Chronomancer** (new, slow) | Rare | A visible clock-ring aura: enemies inside move at 35% speed in slow-motion, with trailing afterimages; the army inside moves 10% faster. Evolution: Time Bubble (bigger, shorter). |
+| **Venomancer** (new) | Uncommon | Poison stacks and a drifting cloud; poison is strong against big, slow enemies. |
+| **Gravitron** (new) | Rare | Pulls enemies together (a short vortex) so the AoE champions land on a pile. |
+
+  Replace weaker duplicates rather than just growing the roster (cap stays 12). Update `Odds` weights and the roster grades.
+- ☐ **3.4 Elemental reactions (M, fun).** Three simple, readable ones: **Steam** (burning + frozen → burst of steam damage and a blinding puff), **Overload** (shocked + burning → arc explosion), **Plague Fire** (poisoned + burning → toxic blast that spreads). Show a unique word on reaction ("STEAM!") so the player learns them.
+- Tests: each status applies/ticks/clears; spread rules; bosses resist; save/replica round trip; reactions fire once.
+
+---
+
+## Phase 4 — Harder, smarter enemies; telegraphs with variety (v0.3.3)
+
+**Goal:** fights that ask something of the player, and bosses that are **stronger** than today as well as more varied. High damage is fine, surprise is not.
+
+- ☐ **4.1 A telegraph vocabulary beyond circles (L, 🔗).** `Hazard` gets a **shape**: `Circle` (exists), `Ring { inner }` (safe in the middle: stand close), `Line { dir, length, width }` (lanes and beams), `Cone { dir, arc }`, `Rect` (a sweeping wall), `Multi` (several at once). Collision per shape in `update_hazards`, drawing per shape in `draw_hazards` (the circle's fill-as-countdown grammar generalises: fill sweeps along a line or across a cone), minimap markers, `blast_warning` text per shape ("GET OUT OF THE VIOLET RING: STAND CLOSE!"). Add hatching/patterns so colour is not the only cue (colourblind), a ticking sound that speeds up, and **edge indicators for big off-screen telegraphs**.
+- ☐ **4.2 Boss overhaul: stronger, and a signature attack each (L).** The owner wants the bosses **tuned up**, not left alone: more powerful *and* with new telegraphed attacks. Two halves, done together and checked with the harness:
+  - *Strength* (constants in `config.rs` and the `BOSSES` table; starting points for the harness, not answers): `kill_seconds` 6–8 → 9–12 (the Sovereign 10 → 15) so a fight lasts 18–30 s against Phase 2's firepower; `attack_share` ×1.5 so standing in a boss costs something; a fourth **enrage** phase for the Iron Warden, Warlord Grakk and the Eclipse; last stand from 12% → 18% of health at 1.8× cast rate; blasts reach `BOSS_TIER_REACH` ×1.3 more of the army; the between-circle hold `BOSS_BLAST_HOLD` 7.5 s → 6 s; Brutal `boss_rounds` 2 → 3. Phase changes get a visible **crack** on the creature (the `hurt` shader input, staged).
+  - *Attacks:* each boss gets a signature that uses a new telegraph shape (table below), and new enemy kinds teach one rule each. Windup 1.8–3.4 s, damage "kills what it hits" as today (`BOSS_BLAST_FACTOR`).
+
+| Owner | Attack | Shape | Counterplay |
+|---|---|---|---|
+| Hive Mother | Acid Rain (20 small circles in waves), Brood Burst (eggs hatch after a timer) | multi circle | keep moving; kill eggs |
+| Iron Warden | Piston Line (rectangular lane slam), Shield Rush | rect | step aside; flank |
+| Warlord Grakk | Whirlwind (a circle that travels), Leap (lands on a marked spot) | moving circle | read the path |
+| The Eclipse | Eclipse Beam (rotating laser with a gap), Black Hole (pull then nova) | line sweep | find the gap |
+| Swarm Queen | Spawn Surge, twin simultaneous slams | circle pair | split the army |
+| The Singularity | Gravity rings (ring with a safe core) | ring | stand close |
+| The Bastion | Artillery barrage (many lines) | lines | wall or dodge |
+| The Sovereign | Judgement: a scripted sequence of 3–4 shapes | mixed | memorise |
+| *Executioner* (new kind) | Overhead cleave, 1.5 s windup, kills ~30 units | cone | step out / tank champion absorbs |
+| *Sniper* (new) | Aim line that tracks, then locks for 1 s | line | break line of sight with a wall |
+| *Hexer* (new) | Curse circle: units inside take +X% damage | circle | leave it |
+| *Blinker* (new) | Teleports behind the army (a flicker tell) | — | turn and fight |
+| *Sapper* (new) | Lays faint mines the army can see up close | circle | walk round |
+| *Overseer* (new) | Marks a champion with a target; heavy hit lands there | circle on champion | move the champion |
+
+- ☐ **4.3 Affixes instead of four modifiers (M).** Elites get 1–3 random **affixes** from a bigger set: Swift, Armored, Volatile, Frenzied (exist) + Vampiric, Thorned (reflects), Teleporting, Magnetic, Burning aura, Chilling aura, Summoner, Shielded, Regenerating. Cheap variety, scales with difficulty (5).
+- ☐ **4.4 Smarter groups (M).** Frontline + ranged behind (shield wall formations), shooters kite and retreat, healers stay out of reach, packs flank, enemies prefer squishy targets and **champions** (taunt from 1.3 overrides), a small **threat director** adds lulls and spikes (hordes, bosses, ambushes) so the rhythm is not flat.
+- ☐ **4.5 Rebalance (M).** After Phase 2's added firepower, re-tune `enemy_pressure`, `army_might` exponents and boss `kill_seconds` so the owner's late game is tense again. Re-run all balance harnesses (`the_boss_balance_table`, `the_boss_balance_table_for_later_rounds`, `how_much_a_boss_fight_varies_over_many_seeds`, `how_long_enemies_last_against_a_big_army`); boss fights should last 18–30 s at the army a boss asks for, up from today's 14–24, and a careless fight should cost 10–20% of the army.
+- ☐ **4.6 Learn from deaths (S–M).** Defeat screen lists what killed the army ("Eclipse Beam ×2: 410 units, Executioner ×1: 31 units"); a **bestiary** page fills as enemies and attacks are met, with the telegraph shape and the counter.
+- Tests: shape collision (point-in-ring/line/cone edge cases); each new attack's telegraph time ≥ minimum; hazards replicate; every boss pattern still resolves; no pattern can be cast with zero warning.
+
+---
+
+## Phase 5 — The Insane ladder (v0.3.4)
+
+**Goal:** difficulty beyond Brutal that is *different*, not only bigger numbers.
+
+- ☐ **5.1 Model (M, 💾 🔗).** `Difficulty` becomes `Easy | Normal | Hard | Brutal | Insane(u8)` (1..=10 to start; parse "Insane 3" in `from_name`; settings file, high scores (`HighScores` lines), `Rules`/handshake (a `u8`), pause menu stepper and the title badge all need the new form; `tests/score.rs` and `tests/sim.rs` check names). Starting values to tune with the harnesses:
+  `pressure = 2.8 + 1.1·n`, `boss_rounds = 2 + n`, `relic_answer = min(0.55 + 0.04·n, 0.85)`, `score_factor = 2.4 + 0.8·n`.
+- ☐ **5.2 Mutators, cumulative (L).** Each tier adds a rule the player must adapt to (data-driven `Mutators` flags, listed on a tier card in the menu):
+
+| Tier | Mutator | What changes |
+|---|---|---|
+| Insane 1 | **Veterans** | Elites twice as common, every elite has 2 affixes |
+| Insane 2 | **Faster Fate** | Boss telegraph windows −12%, time between circles 7.5 s → 5.5 s |
+| Insane 3 | **Crossfire** | Shooters fire 50% faster, Sniper and Lancer lanes join waves |
+| Insane 4 | **Hunters** | Enemies focus champions first; Hexer and Executioner appear in the wild |
+| Insane 5 | **Wrath** | Bosses cast two patterns at once in the last phase; enemies enrage under 30% |
+| Insane 6 | **Famine** | Babies drop 25% less |
+| Insane 7 | **Ruin** | Burning ground lasts twice as long, mines are denser |
+| Insane 8 | **Echo** | Every telegraph repeats once at half size |
+| Insane 9 | **Nightfall** | Darkness: the view is dimmed, telegraphs and champions glow |
+| Insane 10 | **The Last Army** | All of the above, and the Sovereign returns every cycle at the next tier |
+
+- ☐ **5.3 Unlocks and score (S, 💾).** Insane 1 unlocks when the Sovereign is slain on Brutal; each next tier when it is slain on the one before. Stored in a small progress file beside `highscores.txt`. A host in multiplayer chooses the tier; guests need no unlock. High scores record the tier.
+- ☐ **5.4 Tuning method.** Add the tier to the headless fight harness and print a table per tier (army needed to win a boss fight, % lost, fight length). The target: Insane 1 feels like a hard Brutal; by Insane 5 a perfect-play fight is still winnable but costly.
+
+---
+
+## Phase 6 — Remaining artwork
+
+Same pipeline as the creatures. Ship pieces with the phase that needs them; this section is the master inventory.
+
+| Pri | Item | Notes |
+|---|---|---|
+| P1 | Champions (14, plus new ones) | Phase 1.2 |
+| P1 | **Babies as little stick figures** (6.2; owner's request, *do not start yet*) | See below |
+| P2 | Friendly and enemy projectiles | One look per element (fire teardrop, ice shard, lightning, plain tracer); instanced with trails |
+| P2 | Hazards and telegraphs | Runes in the circles, hatching, animated rims; Phase 4 shapes |
+| P2 | Sites: nests (4 kinds), villages, barracks, Citadel | Today flat rectangles and circles; make them props with a lit/dim state |
+| P2 | Walls, gates, towers, spikes, tar, barriers | Tile art with damage states |
+| P3 | Relic icons (19+ relics) | The relic bar and cards use two-letter tags; draw 64 px icons in the DSL |
+| P3 | Chests (bronze/silver/gold) and pickups | Opening animation on the held-chest mechanic |
+| P3 | Ground | Subtle noise/texture shader, scorch and crater decals, later **biome tints** (7.4) |
+| P3 | UI and screens | Defeat/victory art, boss intro cards, title screen cameo for champions and babies |
+
+**6.2 Baby stick figures (M).** Babies are green discs with a ring today (`baby_discs`, `BABY_RADIUS` = 0.6 × a unit). Make them tiny stick-figure toddlers in the same bold-outline style as the runner (`runner.rs`): a round head, stick body, stubby arms; a waddle or crawl cycle driven by `Baby::age` with 2–3 pose variants by index; a tumble-in "pop" when dropped; they wave and **run toward the player** when inside pickup range; the last-seconds blink (`baby_blink`) becomes a wobble and fade. New `art/babies.py`; LOD falls back to the current disc below ~6 px on screen so a thousand babies stay cheap (they are batched with `Layer::Babies` now: keep that path as the fallback). Colour stays `pickup_color()` (colourblind setting applies). "Simple shapes" restores the disc.
+
+✅ **6.0 Pipeline readiness** (done in step 10, see the Log) (do this first, before adding 40 more species): each species compiles its own pipeline (`warm_up()` at startup; the Singularity took ~450 ms cold). Measure startup with 80 species; if it grows past ~2 s, compile on a thread or group families into shared pipelines; `creature_art.rs` is 330 KB: consider splitting by family.
+
+---
+
+## Phase 7 — Features worth adding
+
+Chosen from the old backlog and new ideas; take them as releases need variety, not all at once. Each is its own plan item.
+
+1. **Boss practice / arena mode (M).** Fight any boss at any army size and tier, restart instantly. The tool for tuning Insane and for players to learn telegraphs. *(Old ☐ idea.)*
+2. **Daily seed and challenge runs (M, 💾).** Fixed seed and a mutator of the day; local board using `score.rs`. *(Old ☐.)*
+3. **Biomes with modifiers (L).** Ice (slide), lava (burn), swamp (slow), with edges and decals; pairs with ground art and status effects (burning on lava, chill on ice).
+4. **Champion and enemy codex (M).** Fills as you meet things; shows evolutions found, telegraph shapes and counters. Pairs with 4.6.
+5. **Unit classes (L).** From barracks or relics: Gunner (fires bolts), Shield (absorbs), Medic units, Sapper (breaks walls), Scout (sees far). Gives meaning to bullet hell and to formations.
+6. **Command extras (M).** Drag-select, control groups 1–9, rally flag, hold position, attack-move. *(Old ☐.)*
+7. **Co-op depth (M, 🔗).** Revive a fallen mate by standing on them; pings; allied champion auras stack across armies; a co-op boss whose pieces must be killed together (tether).
+8. **Weather and day/night (M).** Night shrinks vision and makes telegraphs glow; storms speed lightning. Ties to Insane 9.
+9. **Meta cosmetics (S–M).** Unit trails, runner hats, baby hats earned by clearing tiers; no power, just joy.
+10. **Quality of play (S each).** Auto zoom-out as the army grows; alerts when enemies start chasing; reduced-effects mode; telegraph pattern fills for colourblind players; key rebinding page; show effective cap/ceiling in relic tooltips.
+
+*Skipped on purpose:* replays (the owner said skip), named save slots, a full tech tree.
+
+---
+
+## 8. Working rules for whoever builds this
+
+**The owner and their habits.** Plays Brutal at ~50k units. Edits constants in `config.rs` between turns: always re-read before editing, never revert their changes. Runs `mygame.exe` constantly (it locks `target/debug`), uses the machine while you work (full-screen OS screenshots catch their windows). Likes mock-ups for visual decisions (a private artifact page works well) and reacts to screenshots, so show them. Has said the sounds "feel fine". The bosses are **to be tuned up**: stronger, and with new telegraphed attacks (4.2), checked with the harness, not left as they are.
+
+**Build and test.**
+- Never build into the project's `target`. Use a scratch dir: `CARGO_TARGET_DIR=<scratchpad>/target cargo build | test | check`. Never kill `mygame.exe` by name.
+- Whole suite ~25 s, ~1000 tests (`src/tests/*.rs`, registered in `src/tests/mod.rs`). Tests have no GL context: never call text or drawing code in them. Tests share macroquad's global RNG, so seeded tests can flake under parallel runs; check before blaming balance.
+- Real-GL checks: build the scratch exe and capture the game's **own frame** (`get_screen_data().export_png`) from a temporary env-var hook, then delete the hook. `THE_ARMY_HOMESCREEN=n` picks a title look; fullscreen is the default. (`THE_ARMY_WINDOWED=1` keeps test windows windowed.)
+- Art: `python art/shader.py` regenerates `src/creature_art.rs`; `python art/shader.py --check` must say "up to date". Drawings face up (−y), hitbox ±50, picture ±80.
+- First use of a shader compiles it (a hitch): `creatures::warm_up()` compiles all at startup.
+
+**Windows editing gotchas.** Bash heredocs mangle backslashes: write files with the Write tool or a Python script. Source files are CRLF; the Edit tool copes, a whole-file Write produces LF (convert back, any small script will do). Python is available (`python`).
+
+**Code style.** Match the surrounding code: lowercase `//comment` style with no space after the slashes, long flowing doc comments, constants in `config.rs` with a trailing comment, text drawn only through `ui.rs` helpers, new modules start with `use crate::prelude::*;` and are added to `main.rs` and `prelude.rs`.
+
+**Multiplayer and saves.** See principle 4 and 6. Look at how `frozen` and champions travel through `sync.rs`, `replica.rs` and `save.rs` before adding state.
+
+**Git.** Do not commit or push unless the owner says so. When asked ("commit tag and push"): bump the version in `Cargo.toml`, `Cargo.lock` (the `mygame` entry) and `lobby-server/README.md`, commit with a plain imperative subject and a short body, tag `vX.Y.Z`, push `main` and the tag. Follow the attribution lines the session gives.
+
+**Screenshots from the real game.** `src/showcase.rs`: with `ARMY_SHOWCASE=1` the title screen is skipped and a run starts with every champion at level 10 and a crowd ahead;
+with `ARMY_SHOT=<file.png>` the screen is saved after `ARMY_SHOT_SECONDS` (default 4) and the game closes. Always set `THE_ARMY_HOME` to a scratch folder (a
+`settings.txt` there with `hints no` hides the tips). The window is full screen for a few seconds. For art alone, `art/glpreview.py` and headless Edge (see `art/README.md`).
+
+**Memory.** Older notes live outside this folder: `C:\Users\LordR\.claude\projects\C--Users-LordR\memory\` (`mygame-build-and-testing.md` is long but has the history of every system; `mygame-ideas.md` is the idea backlog; `mygame-multiplayer-plan.md` explains the network design). Read the ones relevant to what you touch.
+
+---
+
+## 9. Known issues
+
+- `tests::boss_fights::*` seed macroquad's global random generator (`rand::srand`), which every test shares, so in a parallel run the draws of other tests change the fights. `an_army_the_size_a_boss_asks_for_beats_it_by_keeping_out_of_the_circles_but_not_for_free` failed 2 of 3 full parallel runs on 2026-10-25 (The Iron Warden won 1 of 3); it passes alone, and the whole suite passes with `cargo test -- --test-threads=1`. Use one thread for a clean run until the sim's randomness is per world rather than global; worth fixing before step 15 leans on the harness.
+- `tests::parallel::a_big_army_is_moved_in_a_small_share_of_a_frame` is a timing test: it fails now and then in a full run (14.8 ms, and once 13 ms even on one thread while the machine was busy) and passes alone.
+- `tests::directory::a_service_that_is_not_there_is_said_to_be_out_of_reach` is flaky under a parallel run (it binds a port, drops it, and another test's fake server can take it); it passes alone.
+- First-use shader compile hitch for rarely seen species (mitigated by `warm_up`).
+- The owner's running game shares the settings file with any build run without `THE_ARMY_HOME` (0.4 added the override: set it to a scratch folder for screenshot runs).
+
+## 10. Log
+
+- 2026-10-24: plan written (Sonnet 5.5). Nothing in it built yet.
+- 2026-10-25: **step 11 built** (Opus 5.5): `art/champions.py` draws the other seven: Pathfinder (teal winged scout, compass rose on its back), Quartermaster (a grey pack mule pulling a cart of crates, a coin glinting), Warlord (caped commander, gold crown and pauldrons, a banner), Frostweaver (crystal sorceress, a staff with an ice crystal, a turning snowflake halo round the head), Stormcaller (hooded, a storm orb with turning lightning in its hands), Earthshaker (stone golem, hammer, fire in its cracks) and Phoenix (a firebird, wings spread, pulsing flame tips); all 14 checked with `art/glpreview.py`; 52 drawings, `creature_art.rs` 416 KB. **Roster icons:** `draw_champion_icon(kind, at, radius, simple)` draws a picture on the screen through `draw_creatures` with a screen-sized camera; a full roster row has the picture at `ROSTER_ICON` (14 px from the middle, 28 across), a squeezed row its polygon (a picture that small would be the plain square the shader falls back to), Simple shapes all polygons; the evolution card shows the picture too. **Real-game check:** new `src/showcase.rs` (`ARMY_SHOWCASE`, `ARMY_SHOT`, `ARMY_SHOT_SECONDS`; section 8): every champion at level 10 among `SHOWCASE_ARMY` (600) units with `SHOWCASE_ENEMIES` (60) grunts and brutes ahead at `SHOWCASE_ZOOM` (0.85). The shots showed all 14 pictures in the world and the roster, the rank diamonds, the vanguard's tracer stream and a Stormcaller bolt; `docs/screenshots/champions.jpg` is one, now in the README, which also has the new features (champions to level 10 and a final form, the front firing, the new relics, the new keys). Fourteen level-10 champions clear 60 enemies in under two seconds, which says the Insane ladder and boss work (steps 15 and 17) will need the champions in their harnesses. `Power::at_level` is test-only now (the release build warned). **Release v0.3.2 checklist:** tests pass on one thread (1046; the army-moving timing test fails in full runs and passes alone at ~5 ms); balance harnesses not re-run (no numbers changed in steps 10-11); frame budget measured in step 9; host and guest checked only by the replication tests, not with two machines; old saves load (save tests); screenshot taken from the real game; README and screenshots refreshed; version not bumped, committed or tagged, which waits for the owner.
+- 2026-10-25: **step 10 built** (Opus 5.5). **6.0:** measured in the real game (release, `ARMY_TIMING=1`): 45 kinds take 2.72 s of shader making in all (the Singularity 407 ms, the Sovereign 219 ms, most enemies 15-45 ms, the champions 34-49 ms each), more than the ~2 s the item set as the line. A thread is not open to us (macroquad has one GL context), and shared pipelines would only make bigger shaders, so it is spread instead: `warm_up_some(budget)` in `creatures.rs` makes the kinds not made yet until a budget is spent (never cutting one off); `main.rs` gives it `WARM_UP_AT_START` (1,000 ms) behind the black window, the title screen `WARM_UP_A_FRAME` (6 ms, so one kind) each frame, and `play()` calls `warm_up()` for whatever is left. Startup waits 1.0 s instead of 2.7 s; the title screen has short hitches (one kind a frame, the longest 219 ms) for its first second or so. At 80 kinds that is about 4.8 s spread the same way. `creature_art.rs` is 375 KB and was not split. **1.2, first seven:** `art/champions.py` draws Juggernaut (riveted bruiser, steel front plate, glowing visor), Berserker (horns, twin cleavers, red eyes), Bulwark (crusader helm behind a tower shield), Medic (white drone, green cross, spinning rotors, pulsing ring; it does not turn), Drummer (war drum, sticks mid-beat, pulsing sound arcs), Pyromancer (hooded mage, burning staff, orbiting ember) and Sharpshooter (long rifle with a glinting scope, scarf), each sized to its body (RADIUS × 2 × `size`) and named "Champion <name>", as an enemy is already called Bulwark and drawings are found by name (a new test keeps names unique). `champion_shape(kind)`, `champion_art(unit, zoom, simple)`: a champion is its picture unless it has none, Simple shapes is on, or it is under `CHAMPION_ART_PIXELS` (20) across on screen, when it is the old polygon. `draw_champions(units, enemies, view, zoom, camera, simple)` turns each picture (`CHAMPION_HEADINGS`, the enemies' `Heading`) to the nearest enemy within `CHAMPION_LOOK` (700) or the way it walks, at `CHAMPION_TURN`; it swells by `CHAMPION_ACT_SWELL` and brightens when its power goes off (`power_cycle`); the grade ring is drawn under it, and the gold pips became a rank (`draw_rank`: a diamond for every three levels above the first, a chevron for each one over). No shader change was needed: the plan's grade tint, level, act pulse and heading are the instance colour and size, the facing, and plain drawing over and under. **New tool `art/glpreview.py`:** a page that draws chosen drawings with the game's own GLSL in WebGL and says if one would not compile; headless Edge screenshots it (`msedge --headless=new --use-angle=swiftshader --enable-unsafe-swiftshader --screenshot=...`), which is how the art was looked at, at full size, at its size in the game and at half that. The pictures have not been seen in a running game yet (the step 11 release wants a screenshot from the game). 1046 tests pass on one thread (the army-moving timing test fails in full runs and passes alone).
+- 2026-10-25: **step 9 built** (Opus 5.5): a bolt or a champion's power that hits an enemy sets the new `Enemy::struck` (`HIT_FLASH`, 0.12 s, not saved, decayed in `tick_enemy_numbers` and on a guest in `Replica::advance`), and both enemy looks lighten their colour by it (a guest flashes the hits it works out itself). A hit knocks an enemy under `KNOCKBACK_SIZE` (60 px, Grunt-sized) and not a boss back `KNOCKBACK` (5 px) times the bolt's `BoltKind::weight` (shells push outward). A champion's bolt crits one time in `BOLT_CRIT_CHANCE` (0.12, from the seed) for `BOLT_CRIT` (×2), with its own number, white sparks, `Cue::Crit` and a hit-stop: `fx.hit_stop` → `Report::hit_stop` → `Stillness::freeze` for `HIT_STOP` (35 ms), solo only, no more often than `HIT_STOP_GAP` (0.6 s). New cues `Hit` (one a frame at most), `Crit` and `Volley` (the vanguard firing), synthesised in `sound.rs`. Budget: `bolt_discs(bolts, view, zoom)` draws only a bigger core past `BOLT_DETAIL_ZOOM` (0.3); `where_a_whole_frame_goes` has a bolts stage. Release, Wedge, no champions: 1,500 units 0.71 ms a frame (bolts 0.05, up to 1,300 in flight), 4,000 units 1.18 ms (bolts 0.12, 1,900), 13,000 2.23 ms (bolts 0.25, 2,600), 50,000 11.55 ms (bolts 1.11, 2,400; the cost there is the vanguard's two passes over the units). Not done, as they need the elements of 3.3: element-coloured numbers, per-element impact particles and kill pops. **Release v0.3.1 point**: not bumped, committed or tagged.
+- 2026-10-25: **step 8 built** (Opus 5.5): new `vanguard.rs`. `fire_vanguard(fronts, units, enemies, clock, dt, density, hurts, bolts, fx)` with `Front { position, facing, formation, upgrades }` (`fronts_of(players, relics)`): gunners are the ordinary units (no champions, none in towers) in the front `GUNNERY_FRONT_SHARE` (0.3) of the army's depth along `Player::facing`; each fires `gunner_rate` (1 a second, ×`WEDGE_GUNNERY` 1.3 in a wedge, ×`VOLLEY_DRILL_RATE` per Volley Drill) at a moment made from its id, at the nearest enemy in ±`GUNNERY_AIM_ARC` (30°), else in ±`GUNNERY_SEARCH_ARC` (75°), within its range; nothing behind, and with no enemy in the cones it holds fire. **Range, at the owner's word:** `gunnery_range(army)` grows as the square root of the army's size from `GUNNERY_RANGE` (900 px) to `GUNNERY_WIDE_RANGE` (2,600, about screen wide zoomed out) at `GUNNERY_WIDE_ARMY` (10,000) and stays there; tracers fly faster with it (`TRACER_SPEED` × √(range/900)). Damage: each gunner does `GUNNER_POWER` (0.6) of its touch a second (`UNIT_DAMAGE × hit() × might`, so a Warlord's banner counts), split over its shots at the base rate, so firing more often is more damage. Past `GUNNERY_BOLTS_A_SECOND` (2,400, a frame's share at a time) every so many due gunners fire, each heavier; the new setting **Army bolts: Low / Medium / High** (`Density`, shares 0.35 / 0.65 / 1, `Settings::bolts`, saved, a menu row; `Settings::apply` sets a static read by `bolt_density()`) fires fewer, heavier bolts with the same damage. Bolts are `BoltKind::Tracer`, white-gold, launched as one-bolt volleys through `launch_volley`; a boss takes `boss_share` (0.25) of them, so boss fights barely change until step 15. New relics (saved by name, so old saves are fine): **Volley Drill** (common, +30% rate), **Chain Shot** (uncommon, +1 pierce, `Upgrades::pierce`), **Tracer Rounds** (common, +25% range, `Upgrades::sight`); `RELICS` is 22. Multiplayer: no message, a guest runs `fire_vanguard` in `Replica::advance` on its mirror with `hurts` false. The settings menu got tighter on a squeezed screen (`TIGHT_HEADER` 48, `TIGHT_FOOTER` 34) to keep 640×480 fitting with the new row. Tests: `tests/vanguard.rs` (10) and one in sim; 1043 pass on one thread (the army-moving timing test fails in full runs on this machine and passes alone at ~5 ms). Not looked at on screen.
+- 2026-10-25: **evolutions changed at the owner's word** (Opus 5.5): "It should be a one time thing once the champion reaches max level". `EVOLUTION_LEVELS` is `[CHAMPION_MAX_LEVEL]`, so a champion is asked once, at level 10. `EVOLUTIONS` keeps one pair per kind, the old top pair made bigger since it is the only one (Strength ×1.5–1.6, Pace ×1.5–1.6, Might ×1.6, Health ×1.6–1.8, Reach ×1.3–1.4, Ward ×0.75–0.8, Jumps +6), e.g. Sharpshooter Headhunter or Bullet Storm. The bit layout, `chosen_at`, `tidy_evolutions`, the card (now "FINAL FORM", "CHOOSE HOW IT GROWS, ONCE"), the save section, the look and `EvolvePick` are as step 4 made them, with one tier; any later wish for more tiers is a longer `EVOLUTION_LEVELS` and a wider table.
+- 2026-10-25: **steps 6 and 7 built** (Opus 5.5): new `bolts.rs`. A `Volley { from, aim, kind, shape, count, scatter, speed, reach, pierce, bounce, homing, splash, embers, champion, seed }` is what a champion fires (`BoltKind::{Round, Shell, Ember, Spark}`, `VolleyShape::{Burst, Fan, Ring}`); `launch_volley(bolts, volley, Hurt { each, ember, owner })` makes its `Bolt`s the same way on every machine from the seed (a hash, not the game's random numbers), up to `BOLT_CAP` (4000). `fly_bolts(bolts, enemies, dt, Some(fx))` flies them in `BOLT_STEP` steps, hitting through an `EnemyGrid` built each frame: dense, over the bolts' area plus `GRID_MARGIN`, `BOLT_CELL` 96 px squares, with nearest-enemy searches a ring at a time. 4000 bolts among 600 enemies take about 1 ms a frame (the first sorted-list grid took 11 ms because of the homing searches). Pierce, ricochet (`RICOCHET_RANGE`) and homing (`HOMING_REACH`) work; a hit does `each × boss_share(enemy)` through `strike`, with at most `BOLT_PUFFS` puffs a frame. Shells fly over everything and go off where thrown (`blast`), then throw a ring of embers. Drawn as discs on a new `Layer::Bolts` (`bolt_discs`: glow, fading tail, bright core; shells drawn on an arc over their shadow). Multiplayer: champion volleys go out as one `Event::Volley` each (tag 13, under 50 bytes, refused by `is_believable` if no champion could have fired it); a guest's `Seat::frame` runs `launch_told` and `Replica::advance` flies them with `fx` None, so they stop where they hit and hurt nothing. Snipe and Fireball are bolts now; Lightning stays instant. `champion_acts` pushes `(Volley, Hurt)` into `fx.volleys`; the sim launches and flies them right after it. Step 7, in `config.rs`: `SNIPE_ROUNDS` 1→6, `SNIPE_PIERCE` up to 2 (from level 6), `SNIPE_BOUNCE` 1 (from 8); `FIREBALL_SHELLS` 1→3, `FIREBALL_EMBERS` 6→12 from level 5; Stormcaller `SPARK_RING` 6→12 from level 4 (homing from `SPARK_HOMING_LEVEL` 7) and `SPIRAL_ARMS` 3/4 at levels 9/10, emitted every `SPIRAL_EVERY` while an enemy is within `SPARK_REACH`. A volley's bolts share what one shot did (each = total / count), so extra bolts add damage only by reaching more enemies; embers add `EMBER_SHARE`, a spark ring `SPARK_SHARE` and the spiral `SPIRAL_SHARE` a second. The plan's "fan" is in the code but no champion uses it yet (the vanguard can); "burning ground" for the Pyromancer waits for burn in step 12. New helpers: `army_touch`, `boss_share`, `level_step`, `spark_volley`; `strike` and `in_reach` are `pub(crate)`. Tests: `tests/bolts.rs` (10) and new ones in champions, sim and replication; 1029 pass on one thread. The bolts have not been looked at on screen.
+- 2026-10-25: **step 5 built** (Opus 5.5): roster rows (`draw_roster(units, mouse, ping)`) get a cooldown ring round the icon (`power_cycle(unit) -> Option<Cycle { ready, since, period }>`, drawn with `draw_arc`, whole and bright when ready, none for brutes and auras), a glow on the row and a widening ring for `ROSTER_PULSE` (0.45 s) when a power with a round of 1 s or more goes off, and a cyan edge under the mouse. A click on a row (`roster_row_at(units, owner, screen, panel, point)`) picks the champion out for `PING_SECONDS` (1.6 s): `draw_champion_ping` draws rings closing in on it and a flashing ring, its row's edge flashes gold, and `draw_edge_arrow` points to it when it is off screen. The camera does not move: the mouse-to-world mapping follows the player, so a moving camera would misplace clicks, and the rings and arrow stand in for the plan's "camera pings". `ControlView.over_roster` keeps a click on the roster from building, deleting or sending a squad in the world under it. The tooltip gains a "now:" line of current numbers (`power_numbers`), the evolutions chosen (step 4) and "click to find it in the world". The art icon waits for the champion art (steps 10–11); the polygon icon stays. Also fixed: `combat.rs` sized its first batch of struck units from the attack, which overflowed (a debug-build panic, found by the save fuzz test) for the absurd attack a damaged save can give; the batch is now capped at the units touching, which changes nothing for real attacks, and grows with `saturating_mul`. 1015 tests pass with one thread; see Known issues for the boss fights under the parallel run. **Release v0.3.0 point**: the version is not bumped, committed or tagged; that waits for the owner.
+- 2026-10-25: **step 4 built** (Opus 5.5): `CHAMPION_MAX_LEVEL` 6 → 10, `CHAMPION_XP_GROWTH` 1.75 → 1.6 (level 10 takes about 10,000 kills of xp, level 6 about 1,400), `CHAMPION_LEVEL_WARD` 0.88 → 0.9 so tanks reach `MIN_WARD` later. `EVOLUTION_LEVELS = [3, 6, 9]`; the `EVOLUTIONS` table in `champions.rs` gives each kind two ways at each, each a list of `Change`s (`Strength`, `Pace`, `Reach`, `Might`, `Ward`, `Health`, `Jumps`) that fold into a `Growth`; `Power::grown(level, &growth)` applies it on top of the level (`at_level` is `grown` with `Growth::NONE`). `Unit.evolutions: u8` holds two bits per tier (0 none, 1 or 2 the way chosen), read with `chosen_at`, cleaned with `tidy_evolutions`, applied through `Unit::growth()` and `Unit::champion_power()`, and `max_health` includes it. Names that promise mechanics (Piercing Rounds, Napalm, Absolute Zero) are numbers for now: steps 6, 7, 12 and 13 can give them behaviour. Fixed on the way: a faster power used to do no more damage a second (each hit was `weight × every`), so `grown` multiplies `weight` by the pace as well. Frost is capped: its slow never below `FROST_MIN_SLOW` (0.2) and its freeze never more than half its period. Choosing: `evolution_due_for(units, owner)` gives the first waiting champion in roster order; `game.rs` shows `draw_evolution_choice` (two cards from the new `choice_cards`, which `relic_cards` now uses) once no relic choice is up, pauses a solo world as the relics do, waits `RELIC_LOCKOUT`, and reads keys 1/2 or a click (`read_evolution_pick`) into `PlayerInput.evolve: Option<EvolvePick { champion, tier, choice }>`. The sim applies it with `evolve()` (heals in full, popup, `save_soon`) only for that player's own champion at a tier reached and not chosen. Saves: an `evolutions` section after `veterans` and before `hordes` (placed last it broke the party test that cuts a save short); older saves load with none chosen. Replication: `UnitLook` carries the byte under `LOOK_CHAMPION`. **`PROTOCOL` 1 → 2**, since the input and the look changed on the wire. `Perks::of` ranks a kind's champions by level, then evolutions. The roster tooltip lists each evolution chosen. 1012 tests pass. The evolution card has not been looked at on screen (the game has no screenshot mode); its layout copies the relic cards.
+- 2026-10-24: **step 3 built** (Fable 5.1): `Power::{Fireball, Snipe, Lightning, Quake}` carry a `weight` (share of the army's touch DPS: 0.07, 0.10, 0.06, 0.08) and `Rebirth` a `burst` (4 s of it); `power_damage(army, upgrades, enemy, seconds)` = `max(army, CHAMPION_MIN_ARMY=25) × UNIT_DAMAGE × hit() × seconds`, a boss taking `CHAMPION_BOSS_SHARE` (now 0.25, a per-hit factor; a refilling per-boss budget was considered and left for step 15 since `BossState` is in saves). `Champion::taunts()` (Juggernaut, Bulwark): in `patrol_enemies_among` a chasing non-boss enemy within `TAUNT_RANGE` (560 px) of a tank walks to it instead of the player. `CHAMPION_HEALTH` 400 → 600. The boss balance harness was not re-run: champion output on bosses is capped and the harness fights have no champions; step 15 re-tunes.
+- 2026-10-24: **step 2 built** (Fable 5.1): sizes now Juggernaut 3.0, Earthshaker 2.8, Bulwark 2.6, Warlord 2.5, Berserker and Phoenix 2.4, Stormcaller 2.2, the casters 2.0–2.1; `CHAMPION_LEVEL_SIZE` (5%/level) capped by `MAX_CHAMPION_SIZE` 3.4; the tag letters grow with the body. Auras moved to `draw_champion_auras`, drawn after chests and before the army (bodies were already above hazards and chests). `Drill` has a `guard` radius: `guard_radius(army)` grows the champions' ring from `FORMATION_GUARD` so all their widths fit with `GUARD_SPACING`, and `guard_offset` keeps them off the player (`GUARD_INNER`). Decisions: champions keep a unit's radius for wall collision (a 190 px body would jam in gates; big enemies overlap walls the same way) and `spread_units` keeps its 32 px spacing (champions are drawn over the units under them). The minimap already drew champions as bigger dots.
+- 2026-10-24: **step 1 built** (Fable 5.1): 0.1 labels gone and the grid fades out past `GRID_FADE_ZOOM`; 0.2 roster under the player list, rows squeeze to `ROSTER_ROW_COMPACT` (and spill to a second column) to stay above the minimap, `roster_panel` keeps the edge arrows off it; 0.3 the stale test now runs in Free formation (a formation held the units apart, not the pushing); 0.4 `THE_ARMY_HOME` moves the saves/settings/scores folder. 1000 tests pass.
+- 2026-10-24: reviewed against the code and revised (Fable 5.1): front-of-army gunnery (2.3), boss tune-up (4.2, 4.5, principle 3, section 8), guest-side gunnery (2.1), guard ring and `MAX_CHAMPION_SIZE` (1.1), boss damage cap (1.3), cheaper shatter fragments first (3.2), corrections in section 3, and the step list. Still nothing built.

@@ -687,6 +687,12 @@ impl Replica {
             shot.position += shot.velocity * dt;
             shot.age += dt;
         }
+        let fronts = fronts_of(&sim.players, &sim.players);
+        fire_vanguard(&fronts, &sim.units, &sim.enemies, sim.run.seconds, dt, bolt_density(), false, &mut sim.bolts, None);
+        fly_bolts(&mut sim.bolts, &mut sim.enemies, dt, None);
+        for enemy in sim.enemies.iter_mut() {
+            enemy.struck = (enemy.struck - dt).max(0.0);
+        }
         for hazard in sim.hazards.iter_mut() {
             if hazard.armed {
                 hazard.warn = (hazard.warn - dt).max(0.0);
