@@ -573,8 +573,10 @@ pub(crate) fn baby_discs(babies: &[Baby], view: Rect) -> Vec<Disc> {
 }
 
 //the babies in view as little figures (see art/babies.py), each in one of the BABY_POSES by where it lies: rocking from foot to foot as it waits,
-//tumbling up as it drops, and in its last seconds rocking harder as it fades (see `baby_blink`). in the colour of what is picked up, as the discs are
-pub(crate) fn baby_figures(babies: &[Baby], view: Rect, time: f32) -> Vec<Creature> {
+//tumbling up as it drops, and in its last seconds rocking harder as it fades (see `baby_blink`). in the colour of what is picked up, as the discs are.
+//`zoom` is the camera's: zoomed out, a baby is made bigger, so it is never less than BABY_FIGURE_PX across on the screen
+pub(crate) fn baby_figures(babies: &[Baby], view: Rect, time: f32, zoom: f32) -> Vec<Creature> {
+    let size = BABY_FIGURE_SIZE.max(BABY_FIGURE_PX / zoom.max(MIN_ZOOM));
     let poses: Vec<usize> = BABY_POSES.iter().filter_map(|name| shape_named(name)).collect();
     if poses.is_empty() {
         return Vec::new();
@@ -590,10 +592,10 @@ pub(crate) fn baby_figures(babies: &[Baby], view: Rect, time: f32) -> Vec<Creatu
             let shaky = if left < BABY_BLINK_SECONDS { 1.0 + 2.0 * (1.0 - left / BABY_BLINK_SECONDS).clamp(0.0, 1.0) } else { 1.0 };
             let phase = (which % 628) as f32 / 100.0;
             let rock = (time * BABY_WADDLE + phase).sin() * BABY_ROCK * shaky + (1.0 - grown) * 1.5;
-            let bob = (time * BABY_WADDLE + phase).sin().abs() * BABY_RADIUS * 0.15;
+            let bob = (time * BABY_WADDLE + phase).sin().abs() * size * 0.05;
             let facing = Vec2::from_angle(-std::f32::consts::FRAC_PI_2 + rock);
             let color = Color { a: pickup.a * baby_blink(baby.age), ..pickup };
-            Creature::new(poses[which % poses.len()], baby.position - Vec2::new(0.0, bob), BABY_FIGURE_SIZE * grown, facing, color)
+            Creature::new(poses[which % poses.len()], baby.position - Vec2::new(0.0, bob), size * grown, facing, color)
         })
         .collect()
 }

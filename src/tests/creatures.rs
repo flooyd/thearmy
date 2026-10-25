@@ -328,8 +328,11 @@ fn a_baby_is_a_little_figure_in_one_of_its_poses_that_pops_up_and_fades_at_the_e
         Baby { position: Vec2::new(500.0, 180.0), age: BABY_LIFE - 0.3 },
         Baby { position: Vec2::new(9000.0, 100.0), age: 5.0 },
     ];
-    let figures = baby_figures(&babies, view, 1.0);
+    let figures = baby_figures(&babies, view, 1.0, 1.0);
     assert_eq!(figures.len(), 3, "only the ones in view");
+    //zoomed all the way out, a baby is still big enough on the screen to make out
+    let far = baby_figures(&babies[1..2], view, 1.0, MIN_ZOOM);
+    assert!(far[0].instance.radius * 2.0 * MIN_ZOOM >= BABY_FIGURE_PX * PICTURE * 0.99, "{}", far[0].instance.radius);
     let drawn = |figure: &Creature| figure.instance.radius;
     assert!(drawn(&figures[0]) < drawn(&figures[1]), "one just dropped is still popping up");
     assert!(figures[2].instance.color[3] < figures[1].instance.color[3] || baby_blink(BABY_LIFE - 0.3) == 1.0, "and one at its end fades");

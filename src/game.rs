@@ -76,7 +76,7 @@ pub(crate) fn new_run() -> Snapshot {
     let mason = Mason::new();
     Snapshot {
         player,
-        zoom: 1.0,
+        zoom: DEFAULT_ZOOM,
         run: Run { destroyed: 0, lost: 0, peak_army: units.len(), bosses: 0, nests: 0, villages: 0, seconds: 0.0, citadels: 0, killers: Vec::new() },
         rerolls: rerolls_earned(0),
         upgrades: Upgrades::default(),
@@ -114,7 +114,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
     //(`choice`, the relics on offer, is in the world: it stands still while they are, and comes from the save along with the rest)
     //victory: how long the victory screen has been up, the world stands still while it is
     let (mut sim, mut zoom, mut victory): (Sim, f32, Option<f32>) = if guest.is_some() {
-        (Sim::mirror(), 1.0, None)
+        (Sim::mirror(), DEFAULT_ZOOM, None)
     } else {
         let snapshot = start.unwrap_or_else(new_run);
         let (zoom, victory) = (snapshot.zoom, snapshot.victory.then_some(0.0));
@@ -622,11 +622,11 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         draw_chests(&hordes.chests, drawn, get_time() as f32);
         draw_champion_auras(units, drawn, drawn_zoom, get_time() as f32);
         draw_discs(Layer::Army, &unit_discs_in(units, drawn, team_tint, settings.unit_shape), &camera);
-        //(a baby is a little figure where it is big enough on the screen to make out, and the plain disc where it is not, or with simple shapes)
-        if settings.simple_shapes || BABY_FIGURE_SIZE * camera.zoom.x.abs() * screen_width() / 2.0 < BABY_FIGURE_PX {
+        //(a baby is a little figure at any zoom, made bigger when the camera is far out so it can be seen, and the plain disc with simple shapes)
+        if settings.simple_shapes {
             draw_discs(Layer::Babies, &baby_discs(babies, drawn), &camera);
         } else {
-            draw_creatures(&baby_figures(babies, drawn, get_time() as f32), &camera);
+            draw_creatures(&baby_figures(babies, drawn, get_time() as f32, drawn_zoom), &camera);
         }
         draw_champions(units, enemies, drawn, drawn_zoom, &camera, settings.simple_shapes);
         if let Some((id, age)) = ping {
