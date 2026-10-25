@@ -26,7 +26,12 @@ are the fonts.
   screen gets an arrow at the edge. Slaying a boss gives you a choice of relics.
 - **Learn the new enemies.** Once the army is a few hundred strong, six enemies each teach a rule: the Executioner's cleave
   (step out of it), the Sniper's line, the Hexer's curse that makes your units take more harm, the Blinker that appears behind
-  you, the Sapper's faint mines, and the Overseer that marks a champion for a heavy blow.
+  you, the Sapper's faint mines, and the Overseer that marks a champion for a heavy blow. Elites can carry up to three affixes
+  (vampiric, thorned, teleporting, magnetic, blazing, frigid and more, more of them the harder the game), shooters back away from
+  the army, healers keep out of reach, packs come round the sides and elites go for your champions. The wild enemies come in a
+  tide: a lull, then a surge that is announced.
+- **Learn from your deaths.** The defeat screen lists what killed the army, and the menu's Bestiary fills with every enemy,
+  boss, attack and affix you have met, with what to do about each.
   A boss makes an entrance: the camera goes to it and back, with its name across the screen (`Space` skips it). Playing alone the
   world crawls meanwhile; with others it can't be slowed for one of you, so you keep steering and the entrance ends early if your army is in trouble.
 - **Break hordes.** Hordes (Swarm Tide, Iron Column, Wildfire, Stampede, Titan March and more) are announced on screen and
@@ -38,6 +43,7 @@ are the fonts.
   final form, once. The roster on the right shows each one's power coming round; click a row to find it in the world.
 - **The front fires.** The front 60% of the army shoots ahead of it, the way it is going, at anything in front of it (never
   behind), and sees further the bigger the army grows: past the width of the screen at 10,000 units, and further still at 50,000.
+  Past a couple of thousand at the front, each bolt hits lighter, so big enemies still reach a huge army.
 - **Build.** Earn wall points by destroying enemies, then spend them on walls, gates, towers you can man, spikes and tar.
   Enemies path around what you build, and walls decide where a fight happens.
 - **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter in a burst of frost), Volley Drill, Chain Shot, Tracer Rounds and many more stack across the run.

@@ -13,6 +13,7 @@ pub(crate) struct Run {
     pub(crate) villages: usize,  //liberated
     pub(crate) seconds: f32,
     pub(crate) citadels: usize,  //times the lord of the citadel has fallen
+    pub(crate) killers: Vec<(u16, usize)>, //how many units each cause of death has killed (see `cause_of`), since the run began or was loaded
 }
 
 //the moments after a boss falls: the game freezes, then crawls
@@ -76,7 +77,7 @@ pub(crate) fn new_run() -> Snapshot {
     Snapshot {
         player,
         zoom: 1.0,
-        run: Run { destroyed: 0, lost: 0, peak_army: units.len(), bosses: 0, nests: 0, villages: 0, seconds: 0.0, citadels: 0 },
+        run: Run { destroyed: 0, lost: 0, peak_army: units.len(), bosses: 0, nests: 0, villages: 0, seconds: 0.0, citadels: 0, killers: Vec::new() },
         rerolls: rerolls_earned(0),
         upgrades: Upgrades::default(),
         wall_kind: mason.selected,
@@ -160,6 +161,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
     let mut autosave_in = AUTOSAVE_SECONDS; //seconds until the game saves by itself
     let mut heartbeat_in = 0.0; //seconds until the next beat while the army is failing
     let mut tick_in = 0.0; //seconds until the next tick of the warning the army is in
+    let mut met_in = 0.0; //seconds until what is in view is next put in the bestiary
     let mut beat = 0.0; //1 as the heart beats, fading
     let mut peril_now = 0.0; //how badly the army was doing at the end of the last frame
     let mut pause: Option<Pause> = None; //the menu, while it is up
@@ -560,6 +562,12 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         };
         //units off screen don't leave trails, nobody would see them
         let view = visible_area(camera_at.x, camera_at.y, camera_zoom);
+        //what is in view goes in the bestiary, now and then
+        met_in -= real_dt;
+        if met_in <= 0.0 {
+            met_in = 0.5;
+            meet_what_is_seen(&sim.enemies, &sim.hazards, view);
+        }
         for other in &sim.players.list {
             emit_trail(&mut feedback.particles, other.position, other.velocity, PLAYER_SPEED * boost, dt, other.color);
         }

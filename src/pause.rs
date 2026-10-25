@@ -19,6 +19,7 @@ pub(crate) enum Page {
     Main,
     Settings,
     Controls,
+    Bestiary,
 }
 
 //everything a row of the menu can do
@@ -29,6 +30,8 @@ pub(crate) enum Act {
     Load,
     OpenSettings,
     OpenControls,
+    OpenBestiary,
+    Turn,
     Title,
     Quit,
     Back,
@@ -79,12 +82,13 @@ pub(crate) fn page_rows(page: Page) -> &'static [Act] {
 //(a game that others are in is saved by its host, and there is no going back to an earlier save in it)
 pub(crate) fn page_rows_in(page: Page, mode: MenuMode) -> &'static [Act] {
     match page {
-        Page::Main if mode == MenuMode::Title => &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::Quit],
-        Page::Main if mode == MenuMode::Hosting => &[Act::Resume, Act::Save, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
-        Page::Main if mode == MenuMode::Guest => &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
-        Page::Main => &[Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
+        Page::Main if mode == MenuMode::Title => &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::OpenBestiary, Act::Quit],
+        Page::Main if mode == MenuMode::Hosting => &[Act::Resume, Act::Save, Act::OpenSettings, Act::OpenControls, Act::OpenBestiary, Act::Title, Act::Quit],
+        Page::Main if mode == MenuMode::Guest => &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::OpenBestiary, Act::Title, Act::Quit],
+        Page::Main => &[Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::OpenBestiary, Act::Title, Act::Quit],
         Page::Settings => &[Act::Master, Act::Effects, Act::Music, Act::Shake, Act::Fullscreen, Act::Colours, Act::UnitShape, Act::SimpleShapes, Act::Bolts, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit, Act::Back],
         Page::Controls => &[Act::Back],
+        Page::Bestiary => &[Act::Turn, Act::Back],
     }
 }
 
@@ -108,6 +112,8 @@ pub(crate) fn describe_in(act: Act, settings: &Settings, mode: MenuMode) -> (&'s
         Act::Load => ("Load game", Look::Button),
         Act::OpenSettings => ("Settings", Look::Button),
         Act::OpenControls => ("Controls", Look::Button),
+        Act::OpenBestiary => ("Bestiary", Look::Button),
+        Act::Turn => ("Page", Look::Choice(format!("{} / {}", bestiary_page() + 1, bestiary_pages()))),
         Act::Title => ("Save and go to the title screen", Look::Button),
         Act::Quit => ("Save and quit", Look::Button),
         Act::Back => ("Back", Look::Button),
@@ -182,6 +188,7 @@ pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32, online: b
             let at = DIFFICULTIES.iter().position(|&difficulty| difficulty == settings.difficulty).unwrap_or(1) as i32;
             settings.difficulty = DIFFICULTIES[(at + direction.signum()).rem_euclid(DIFFICULTIES.len() as i32) as usize];
         }
+        Act::Turn => turn_bestiary(direction.signum()),
         Act::Formation => {
             let choices = Formation::choices(online);
             let at = choices.iter().position(|&formation| formation == settings.formation.in_game(online)).unwrap_or(0) as i32;
@@ -239,7 +246,11 @@ const MIN_ROW_HEIGHT: f32 = 26.0;
 
 pub(crate) fn layout(page: Page, count: usize, screen: Vec2) -> MenuLayout {
     let width = (screen.x * 0.92).min(560.0);
-    let extra = if page == Page::Controls { CONTROLS.len().div_ceil(2) as f32 * 28.0 + 20.0 } else { 0.0 };
+    let extra = match page {
+        Page::Controls => CONTROLS.len().div_ceil(2) as f32 * 28.0 + 20.0,
+        Page::Bestiary => BESTIARY_PER_PAGE as f32 * 30.0 + 20.0,
+        _ => 0.0,
+    };
     //rows are as tall as the screen has room for, down to 26 px (and a page that is squeezed has only 2 px between them): a page with a lot of them on a small screen has them squeezed
     let tight = (screen.y - 16.0 - HEADER - extra - FOOTER) / (count as f32) < MIN_ROW_HEIGHT;
     let (header, footer) = if tight { (TIGHT_HEADER, TIGHT_FOOTER) } else { (HEADER, FOOTER) };
@@ -440,6 +451,10 @@ impl Pause {
                 self.go_to(Page::Controls);
                 PauseEvent::Nothing
             }
+            Act::OpenBestiary => {
+                self.go_to(Page::Bestiary);
+                PauseEvent::Nothing
+            }
             Act::Title => PauseEvent::Title,
             Act::Quit => PauseEvent::Quit,
             Act::Back => {
@@ -481,6 +496,7 @@ impl Pause {
             Page::Main => "PAUSED",
             Page::Settings => "SETTINGS",
             Page::Controls => "CONTROLS",
+            Page::Bestiary => "BESTIARY",
         };
         let (title_at, title_size, line_at) = if frame.tight { (32.0, 24.0, 40.0) } else { (50.0, 34.0, 60.0) };
         draw_label_centered(title, p.x + p.w / 2.0, p.y + title_at, title_size, INK, Face::Header);
@@ -492,6 +508,9 @@ impl Pause {
                 let wide = draw_key(key, cx, cy + 14.0, 15.0);
                 draw_label(what, cx + wide + 8.0, cy + 14.0, 16.0, MUTED, Face::Body);
             }
+        }
+        if self.page == Page::Bestiary {
+            draw_bestiary(p, 84.0);
         }
         for (i, (&act, row)) in acts.iter().zip(&frame.rows).enumerate() {
             let chosen = i == self.selected;

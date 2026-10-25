@@ -384,6 +384,7 @@ pub(crate) fn enemy_print(enemy: &Enemy) -> u64 {
     enemy.site.hash(&mut hasher);
     enemy.owner.hash(&mut hasher);
     (enemy.modifier as u8).hash(&mut hasher);
+    enemy.affixes.hash(&mut hasher);
     enemy.size.to_bits().hash(&mut hasher);
     enemy.max_health.to_bits().hash(&mut hasher);
     enemy.max_shield.to_bits().hash(&mut hasher);

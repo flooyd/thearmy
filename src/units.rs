@@ -129,7 +129,7 @@ pub(crate) fn step_unit_to(unit: &mut Unit, player: Vec2, stop: f32, dt: f32, wa
         return;
     }
     let hurry = if catch_up { 1.0 + ((distance - stop) / FORMATION_CATCH_UP).min(FORMATION_CATCH_UP_MAX) } else { 1.0 };
-    let step_length = unit.speed * speed_multiplier * hurry * dt;
+    let step_length = unit.speed * speed_multiplier * hurry * dt * if unit.chilled > 0.0 { FRIGID_SLOW } else { 1.0 };
     unit.steer_in -= dt;
     let arrived = matches!(unit.steer, Steer::Point(point) if position.distance(point) <= step_length);
     if unit.steer_in <= 0.0 || arrived {
@@ -376,6 +376,8 @@ pub(crate) struct Unit {
     pub(crate) might: f32,         //how many units' damage it does by touch, worked out each frame by apply_champions
     pub(crate) ward: f32,          //the share of the damage that reaches it, likewise, 1 for an ordinary unit
     pub(crate) hexed: f32,         //seconds left of a hexer's curse on it, while which it takes HEX_EXTRA more harm
+    pub(crate) chilled: f32,       //seconds left of a frigid elite's aura on it, while which it goes at FRIGID_SLOW of its speed
+    pub(crate) bane: u16,          //what killed it, once something has (see `cause_of`), 0 while it lives
     pub(crate) level: u8,          //0 for an ordinary unit, otherwise the champion's level, from 1
     pub(crate) xp: f32,            //a champion's experience towards its next level
     pub(crate) evolutions: u8,     //a champion's evolutions: two bits for each of EVOLUTION_LEVELS, 0 for none chosen yet, 1 or 2 for the way chosen
@@ -394,6 +396,15 @@ pub(crate) enum Steer {
 impl Unit {
     //take damage (already made less by a tough unit), and less again if a champion or a shield from one is looking after it: the
     //shield from the Aegis relic takes it first
+    //hurt by something, and if this is what kills it, its death is put down to `cause` (see `cause_of`)
+    pub(crate) fn hurt_by(&mut self, damage: f32, cause: u16) {
+        let alive = self.health > 0.0;
+        self.hurt(damage);
+        if alive && self.health <= 0.0 && self.bane == 0 {
+            self.bane = cause;
+        }
+    }
+
     pub(crate) fn hurt(&mut self, damage: f32) {
         self.calm = 0.0;
         let damage = damage * self.ward * if self.hexed > 0.0 { 1.0 + HEX_EXTRA } else { 1.0 };
@@ -423,6 +434,8 @@ impl Unit {
             might: 1.0,
             ward: 1.0,
             hexed: 0.0,
+            chilled: 0.0,
+            bane: 0,
             level: 0,
             xp: 0.0,
             evolutions: 0,
@@ -444,6 +457,7 @@ pub(crate) fn heal_units(units: &mut [Unit], dt: f32, upgrades: &Upgrades) {
         unit.calm += dt;
         unit.age += dt;
         unit.hexed = (unit.hexed - dt).max(0.0);
+        unit.chilled = (unit.chilled - dt).max(0.0);
         if upgrades.guard > 0.0 && unit.calm >= AEGIS_CALM_SECONDS && unit.guard < upgrades.guard {
             unit.guard = upgrades.guard;
         }
@@ -479,6 +493,7 @@ pub(crate) fn bury_units(units: &mut Vec<Unit>, fx: &mut Effects) -> usize {
         }
         fx.burst(Vec2::new(unit.x, unit.y), unit_base_color(unit), 6, 200.0);
         fx.fallen.push((Vec2::new(unit.x, unit.y), unit.owner));
+        fx.banes.push(unit.bane);
         somewhere = Some(Vec2::new(unit.x, unit.y));
         false
     });
@@ -596,6 +611,8 @@ impl Unit {
             might: 1.0,
             ward: 1.0,
             hexed: 0.0,
+            chilled: 0.0,
+            bane: 0,
             level: 0,
             xp: 0.0,
             evolutions: 0,

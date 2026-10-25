@@ -23,6 +23,26 @@ pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [U
             let unit = &units[i];
             unit.health > 0.0 && unit.garrison.is_none() && enemy.overlaps_circle(unit.x, unit.y, unit.radius())
         });
+        //a blazing or frigid one burns or slows the units near it
+        if enemy.affixes.has(Affix::Blazing) || enemy.affixes.has(Affix::Frigid) {
+            let reach = enemy.size / 2.0 + AURA_REACH;
+            let mut near: Vec<usize> = Vec::new();
+            grid.near(enemy.position - Vec2::splat(reach), enemy.position + Vec2::splat(reach), &mut near);
+            near.retain(|&i| units[i].health > 0.0 && units[i].garrison.is_none() && Vec2::new(units[i].x, units[i].y).distance_squared(enemy.position) <= reach * reach);
+            if enemy.affixes.has(Affix::Blazing) && !near.is_empty() {
+                let each = enemy.attack * BLAZE_SHARE * dt / near.len() as f32;
+                let cause = cause_of(enemy.name);
+                for &i in &near {
+                    let toughness = relics.of(units[i].owner).toughness;
+                    units[i].hurt_by(each * toughness, cause);
+                }
+            }
+            if enemy.affixes.has(Affix::Frigid) {
+                for &i in &near {
+                    units[i].chilled = AURA_HOLD;
+                }
+            }
+        }
         //an ambusher that a unit stumbles on springs on it, and is not fought until it has
         if enemy.lurking() {
             if let Some(&first) = touching.first() {
@@ -47,6 +67,15 @@ pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [U
         }
         let dealt = enemy.take_damage(damage);
         enemy.hurt += dealt;
+        //a thorned one hurts back the units that hurt it
+        if dealt > 0.0 && enemy.affixes.has(Affix::Thorned) && !touching.is_empty() {
+            let each = dealt * THORNED_SHARE / touching.len() as f32;
+            let cause = cause_of(enemy.name);
+            for &i in &touching {
+                let toughness = relics.of(units[i].owner).toughness;
+                units[i].hurt_by(each * toughness, cause);
+            }
+        }
         //the credit is the army that did the most of it, which is not always the one with the most units on it
         let share = |owner: usize| strength[owner] * hits[owner];
         if let Some(top) = (0..MAX_PLAYERS).filter(|&owner| share(owner) > 0.0).max_by(|&a, &b| share(a).total_cmp(&share(b))) {
@@ -99,6 +128,9 @@ pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [U
                 took[owner_index(unit.owner)] += hit;
                 if unit.health <= 0.0 {
                     enemy.killed += 1;
+                    if unit.bane == 0 {
+                        unit.bane = cause_of(enemy.name);
+                    }
                 }
             }
             done = end;
@@ -111,6 +143,10 @@ pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [U
             if back > 0.0 {
                 enemy.hurt += enemy.take_damage(back);
             }
+        }
+        //a vampiric one heals from the harm it did
+        if budget < spent_from && enemy.affixes.has(Affix::Vampiric) && enemy.health > 0.0 {
+            enemy.health = (enemy.health + (spent_from - budget) * VAMPIRIC_SHARE).min(enemy.max_health);
         }
     }
     let sizes = army_sizes(units);
@@ -194,8 +230,8 @@ pub(crate) fn resolve_deaths_among<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>,
             }
             shattered.push((enemy.position, enemy.size, enemy.max_health, enemy.credit, enemy.id));
         }
-        if enemy.modifier == Modifier::Volatile {
-            fx.hazards.push(Hazard::new(enemy.position, enemy.size * 0.9 + 90.0, 0.4, UNIT_HEALTH, victims_of(army, 0.015), enemy.color, Cue::Explosion));
+        if enemy.has(Affix::Volatile) {
+            fx.hazards.push(Hazard::new(enemy.position, enemy.size * 0.9 + 90.0, 0.4, UNIT_HEALTH, victims_of(army, 0.015), enemy.color, Cue::Explosion).by(enemy.name));
         }
         destroyed += 1;
         false
@@ -259,6 +295,7 @@ pub(crate) enum ShotKind {
 
 //something an enemy that shoots has fired, which flies until it hits a unit or a wall, or gives up
 pub(crate) struct Shot {
+    pub(crate) cause: u16, //what a unit it kills is put down to (see `cause_of`)
     pub(crate) position: Vec2,
     pub(crate) velocity: Vec2, //pixels per second
     pub(crate) age: f32,       //seconds
@@ -275,7 +312,7 @@ pub(crate) struct Shot {
 
 impl Shot {
     pub(crate) fn new(position: Vec2, velocity: Vec2) -> Shot {
-        Shot { position, velocity, age: 0.0, damage: SHOT_DAMAGE, radius: SHOT_RADIUS, color: ORANGE, kind: ShotKind::Plain, life: SHOT_LIFE, pierce: 0, struck: Vec::new(), splash: 0.0, victims: 0 }
+        Shot { cause: 0, position, velocity, age: 0.0, damage: SHOT_DAMAGE, radius: SHOT_RADIUS, color: ORANGE, kind: ShotKind::Plain, life: SHOT_LIFE, pierce: 0, struck: Vec::new(), splash: 0.0, victims: 0 }
     }
 
     //the bigger, harder hitting kind a boss fires
@@ -320,6 +357,7 @@ pub(crate) fn shoot_enemies(enemies: &mut [Enemy], units: &[Unit], shots: &mut V
         };
         let aim = (target - enemy.position).normalize_or_zero();
         let from = |direction: Vec2| enemy.position + direction * enemy.size / 2.0;
+        let first_shot = shots.len();
         match kind_named(enemy.name).shot {
             ShotKind::Plain => {
                 enemy.shot_in = SHOT_INTERVAL * rand::gen_range(0.8, 1.2);
@@ -363,6 +401,10 @@ pub(crate) fn shoot_enemies(enemies: &mut [Enemy], units: &[Unit], shots: &mut V
                     shots.push(Shot::seeker(from(direction), direction * SEEKER_SPEED, enemy.color));
                 }
             }
+        }
+        let cause = cause_of(enemy.name);
+        for shot in &mut shots[first_shot..] {
+            shot.cause = cause;
         }
         fx.cue_at(Cue::Shoot, enemy.position);
     }
@@ -502,7 +544,7 @@ pub(crate) fn update_shots<R: Relics + ?Sized>(shots: &mut Vec<Shot>, units: &mu
                                 if shot.struck.contains(&i) {
                                     continue;
                                 }
-                                unit.hurt(shot.damage * relics.of(unit.owner).toughness);
+                                unit.hurt_by(shot.damage * relics.of(unit.owner).toughness, shot.cause);
                                 fx.burst(shot.position, shot.color, 4, 140.0);
                                 shot.struck.push(i);
                                 shot.pierce = shot.pierce.saturating_sub(1);
@@ -511,7 +553,7 @@ pub(crate) fn update_shots<R: Relics + ?Sized>(shots: &mut Vec<Shot>, units: &mu
                                 }
                             }
                             ShotKind::Plain | ShotKind::Homing => {
-                                unit.hurt(shot.damage * relics.of(unit.owner).toughness);
+                                unit.hurt_by(shot.damage * relics.of(unit.owner).toughness, shot.cause);
                                 fx.burst(shot.position, shot.color, 6, 160.0);
                                 return false;
                             }
@@ -587,13 +629,14 @@ pub(crate) struct Hazard {
     pub(crate) circle: Option<BossCircle>, //which of a boss's circles it is, if it is one, which sets its colour
     pub(crate) shape: Shape,      //its shape (see telegraphs.rs): `position` and `radius` are where it is and how far from there it reaches at most
     pub(crate) group: u32,        //the ones put down together (a fan of beams) share a number, and are warned of as one. 0 for one alone
+    pub(crate) cause: u16,        //what a unit it kills is put down to (see `cause_of`): the kind of a boss's attack, or the enemy that made it
     pub(crate) mine: bool,        //a mine: it waits, faint, for `warn` seconds for a unit to come into it, and goes off MINE_FUSE after one does
     pub(crate) hex: bool,         //a curse: while it lingers, the units in it take HEX_EXTRA more harm
 }
 
 impl Hazard {
     pub(crate) fn new(position: Vec2, radius: f32, warn: f32, damage: f32, victims: usize, color: Color, boom: Cue) -> Hazard {
-        Hazard { position, radius, armed: true, warn, warn_total: warn.max(0.001), damage, victims, linger: 0.0, burn: 0.0, flash: 0.0, color, boom, wall_damage: damage * BLAST_WALL_FACTOR, circle: None, shape: Shape::Circle, group: 0, mine: false, hex: false }
+        Hazard { position, radius, armed: true, warn, warn_total: warn.max(0.001), damage, victims, linger: 0.0, burn: 0.0, flash: 0.0, color, boom, wall_damage: damage * BLAST_WALL_FACTOR, circle: None, shape: Shape::Circle, group: 0, cause: 0, mine: false, hex: false }
     }
 
     //it hurts walls this many times as much as usual: a bigger enemy's blast breaks a wall that was built for a bigger army
@@ -612,6 +655,13 @@ impl Hazard {
     //it is one of a boss's circles, drawn and named as that kind
     pub(crate) fn circle(mut self, circle: BossCircle) -> Hazard {
         self.circle = Some(circle);
+        self.cause = cause_of(circle.name());
+        self
+    }
+
+    //the enemy of this name made it, and what it kills is put down to that
+    pub(crate) fn by(mut self, name: &str) -> Hazard {
+        self.cause = cause_of(name);
         self
     }
 
@@ -663,7 +713,7 @@ impl Hazard {
 
 //count the hazards down, set off the ones that are due and burn the units in the ones that are burning
 pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, units: &mut [Unit], relics: &R, dt: f32, fx: &mut Effects) {
-    let mut burning: Vec<(Vec2, f32, Shape, f32)> = Vec::new(); //where, how far it reaches, its shape and how hard it burns
+    let mut burning: Vec<(Vec2, f32, Shape, f32, u16)> = Vec::new(); //where, how far it reaches, its shape, how hard it burns and what set it
     let mut cursing: Vec<(Vec2, f32, Shape)> = Vec::new();
     hazards.retain_mut(|hazard| {
         //a mine waits out its life for a unit to come into it (looking at MINE_CHECKS of them a frame), and then its fuse burns
@@ -699,7 +749,7 @@ pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, unit
                         break;
                     }
                     if unit.health > 0.0 && unit.garrison.is_none() && hazard.contains(Vec2::new(unit.x, unit.y)) {
-                        unit.hurt(hazard.damage * relics.of(unit.owner).toughness);
+                        unit.hurt_by(hazard.damage * relics.of(unit.owner).toughness, hazard.cause);
                         hurt += 1;
                         killed += (unit.health <= 0.0) as usize;
                     }
@@ -723,7 +773,7 @@ pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, unit
         if hazard.linger > 0.0 {
             hazard.linger -= dt;
             if hazard.burn > 0.0 {
-                burning.push((hazard.position, hazard.radius, hazard.shape, hazard.burn));
+                burning.push((hazard.position, hazard.radius, hazard.shape, hazard.burn, hazard.cause));
             }
             if hazard.hex {
                 cursing.push((hazard.position, hazard.radius, hazard.shape));
@@ -745,9 +795,9 @@ pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, unit
     if !burning.is_empty() {
         for unit in units.iter_mut().filter(|unit| unit.health > 0.0 && unit.garrison.is_none()) {
             let at = Vec2::new(unit.x, unit.y);
-            let worst = burning.iter().filter(|(position, radius, shape, _)| inside(*position, *radius, *shape, at)).map(|(_, _, _, burn)| *burn).fold(0.0, f32::max);
+            let (worst, cause) = burning.iter().filter(|(position, radius, shape, _, _)| inside(*position, *radius, *shape, at)).fold((0.0f32, 0u16), |most, &(_, _, _, burn, cause)| if burn > most.0 { (burn, cause) } else { most });
             if worst > 0.0 {
-                unit.hurt(worst * relics.of(unit.owner).toughness * dt);
+                unit.hurt_by(worst * relics.of(unit.owner).toughness * dt, cause);
             }
         }
     }

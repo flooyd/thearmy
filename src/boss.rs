@@ -93,7 +93,7 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         color: Color::new(0.45, 0.6, 0.85, 1.0),
         size: 200.0,
         growth: 18.0,
-        kill_seconds: 6.6,
+        kill_seconds: 5.8,
         speed: 60.0,
         attack_share: 0.0132,
         babies_share: 0.7,
@@ -118,7 +118,7 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         growth: 13.0,
         kill_seconds: 6.6,
         speed: 120.0,
-        attack_share: 0.022,
+        attack_share: 0.018,
         babies_share: 0.7,
         min_army: 350,
         minion: "Swarmer",
@@ -139,7 +139,7 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         color: Color::new(0.6, 0.3, 0.95, 1.0),
         size: 220.0,
         growth: 17.0,
-        kill_seconds: 7.7,
+        kill_seconds: 6.5,
         speed: 80.0,
         attack_share: 0.0132,
         babies_share: 0.8,
@@ -307,6 +307,8 @@ impl Enemy {
             popup_in: rand::gen_range(0.0, POPUP_INTERVAL),
             behavior: Behavior::Walker,
             modifier: Modifier::None,
+            affixes: Affixes::default().chosen(),
+            knack: 0.0,
             scale: army_scale(army),
             owner: None,
             armor: 0.0,
@@ -582,7 +584,7 @@ pub(crate) fn cast_pattern(enemy: &mut Enemy, state: &mut BossState, pattern: Pa
             let dir = (army_middle(units, player) - enemy.position).try_normalize().unwrap_or(Vec2::Y);
             let landing = enemy.position + dir * CHARGE_SPEED * speed_multiplier(army) * CHARGE_TIME;
             let radius = enemy.size / 2.0 + LEAP_RADIUS + root;
-            fx.hazards.push(blast(landing, radius, BOSS_WARN_LEAP + CHARGE_TIME, 1.0, 0.35, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Leap));
+            fx.hazards.push(blast(landing, radius, BOSS_WARN_LEAP + CHARGE_TIME, 1.0, 0.25, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Leap));
             enemy.mode = Mode::Windup { dir, left: BOSS_WARN_LEAP };
             fx.cue(Cue::Warning);
         }
@@ -778,7 +780,16 @@ pub(crate) fn boss_act_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt: f32, s
             for (timer, other) in state.timers.iter_mut().zip(def.phases[state.phase].casts) {
                 *timer = timer.max(if blast && is_blast(other.pattern) { BOSS_BLAST_HOLD } else { 0.8 });
             }
+            let (first_shot, first_hazard) = (shots.len(), fx.hazards.len());
             cast_pattern(enemy, &mut state, cast.pattern, units, player, owned, &mut born, shots, fx);
+            //(what it fired, and what it put down that is not one of its kinds of attack, is put down to the boss)
+            let cause = cause_of(def.name);
+            for shot in &mut shots[first_shot..] {
+                shot.cause = cause;
+            }
+            for hazard in fx.hazards[first_hazard..].iter_mut().filter(|hazard| hazard.cause == 0) {
+                hazard.cause = cause;
+            }
         }
         enemy.boss = Some(state);
     }
@@ -840,7 +851,6 @@ pub(crate) enum BossCircle {
     Judgement,   //the Sovereign's four in order
 }
 
-#[cfg(test)]
 pub(crate) const CIRCLES: [BossCircle; 18] = [
     BossCircle::Slam,
     BossCircle::Meteor,

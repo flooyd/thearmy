@@ -104,7 +104,7 @@ fn a_gunner_does_a_share_of_its_touch_and_a_huge_army_fires_no_more_than_the_mos
             fire_vanguard(&fronts, &units, &enemy, 10.0 + frame as f32 / 60.0, 1.0 / 60.0, 1.0, true, &mut bolts, None);
             most = most.max(bolts.len() - before);
         }
-        let expected = gunners(&units) as f32 * UNIT_DAMAGE * GUNNER_POWER;
+        let expected = gunners(&units) as f32 * UNIT_DAMAGE * GUNNER_POWER * vanguard_share(count);
         let done = damage_a_second(&bolts, 1.5);
         assert!((done / expected - 1.0).abs() < 0.15, "{count} units: {done} a second, not {expected}");
         assert!(most <= (GUNNERY_BOLTS_A_SECOND / 60.0).ceil() as usize, "{most} in a frame");

@@ -27,14 +27,14 @@ fn row_of(page: Page, act: Act) -> usize {
 fn every_row_is_on_a_page_and_says_what_it_is() {
     let settings = Settings::default();
     let all = [
-        Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit, Act::Back, Act::Master, Act::Effects, Act::Music, Act::Shake,
+        Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::OpenBestiary, Act::Turn, Act::Title, Act::Quit, Act::Back, Act::Master, Act::Effects, Act::Music, Act::Shake,
         Act::Fullscreen, Act::Colours, Act::UnitShape, Act::SimpleShapes, Act::Bolts, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit,
     ];
     for act in all {
-        assert!([Page::Main, Page::Settings, Page::Controls].iter().any(|&page| page_rows(page).contains(&act)), "{act:?} is on no page");
+        assert!([Page::Main, Page::Settings, Page::Controls, Page::Bestiary].iter().any(|&page| page_rows(page).contains(&act)), "{act:?} is on no page");
         assert!(!describe(act, &settings).0.is_empty());
     }
-    for page in [Page::Settings, Page::Controls] {
+    for page in [Page::Settings, Page::Controls, Page::Bestiary] {
         assert_eq!(*page_rows(page).last().unwrap(), Act::Back, "every page leads back");
     }
     assert!(CONTROLS.iter().all(|(key, what)| !key.is_empty() && !what.is_empty()));
@@ -44,7 +44,7 @@ fn every_row_is_on_a_page_and_says_what_it_is() {
 fn the_menu_fits_on_any_screen_the_game_can_be_played_on() {
     for (w, h) in [(800.0, 600.0), (1024.0, 600.0), (1280.0, 720.0), (1920.0, 1080.0), (2560.0, 1440.0), (640.0, 480.0)] {
         let screen = Vec2::new(w, h);
-        for page in [Page::Main, Page::Settings, Page::Controls] {
+        for page in [Page::Main, Page::Settings, Page::Controls, Page::Bestiary] {
             let frame = layout(page, page_rows(page).len(), screen);
             let (panel, rows) = (frame.panel, &frame.rows);
             assert!(panel.x >= 0.0 && panel.y >= 0.0 && panel.right() <= w && panel.bottom() <= h, "{page:?} on {w}x{h}: {panel:?}");
@@ -354,10 +354,10 @@ fn the_reset_button_puts_the_army_limit_back_to_the_usual_one() {
 }
 
 #[test]
-fn the_menu_of_the_title_screen_has_the_settings_the_controls_and_the_way_out_and_nothing_of_a_game() {
+fn the_menu_of_the_title_screen_has_the_settings_the_controls_the_bestiary_and_the_way_out_and_nothing_of_a_game() {
     let settings = Settings::default();
     let rows = page_rows_in(Page::Main, MenuMode::Title);
-    assert_eq!(rows, &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::Quit]);
+    assert_eq!(rows, &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::OpenBestiary, Act::Quit]);
     for act in [Act::Save, Act::Load, Act::Title] {
         assert!(!rows.contains(&act), "{act:?} is no use before there is a game");
     }
@@ -393,7 +393,7 @@ fn on_the_title_screen_the_menu_goes_back_to_it_opens_the_settings_and_quits() {
     //(and it fits where the game's menu does)
     for (w, h) in [(800.0, 600.0), (1280.0, 720.0), (2880.0, 1800.0)] {
         let frame = layout(Page::Main, rows_len(), Vec2::new(w, h));
-        assert!(frame.panel.right() <= w && frame.panel.bottom() <= h && frame.rows.len() == 4);
+        assert!(frame.panel.right() <= w && frame.panel.bottom() <= h && frame.rows.len() == 5);
     }
 
     fn rows_len() -> usize {

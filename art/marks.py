@@ -170,3 +170,55 @@ def _(a):
     crack(a, [(-6, -4), (10, 4)], 4.0)
     crack(a, [(-34, -26), (-20, -30)], 3.0)
     crack(a, [(30, 22), (40, 30)], 3.0)
+
+
+@sym('mark_vampiric', 'Vampiric', 'an elite that heals from the harm it does: fangs and drops of blood', 100, '#d9143a', turns=False)
+def _(a):
+    a.poly([(-14, -58), (-6, -58), (-10, -40)], 'w', o='ot')
+    a.poly([(6, -58), (14, -58), (10, -40)], 'w', o='ot')
+    for x, y in ((-36, -44), (34, -36), (-44, 14), (40, 20)):
+        a.pulse(lambda x=x, y=y: a.ell(x, y, 3.4, 5, 'b', o='ot'), 1.1, 0.2)
+
+
+@sym('mark_thorned', 'Thorned', 'an elite that hurts what hurts it: thorns all round its edge', 100, '#80cc40', turns=False)
+def _(a):
+    a.rep(12, lambda: a.poly([(-5, -50), (0, -66), (5, -50)], 'b', o='ot'), start=15)
+
+
+@sym('mark_teleporting', 'Teleporting', 'an elite that jumps at the army: a turning swirl and sparkles', 100, '#bf80ff', turns=False)
+def _(a):
+    a.spin(lambda: a.rep(3, lambda: a.arc(0, 0, 58, 0, 80, 3.4, 'b', edge=1.2)), 1.6)
+    a.pulse(lambda: a.circ(40, -40, 3, 'w', o=''), 0.5, 0.0)
+    a.pulse(lambda: a.circ(-44, 30, 2.6, 'w', o=''), 0.7, 0.0)
+
+
+@sym('mark_magnetic', 'Magnetic', 'an elite that drags units in: a horseshoe magnet and its field', 100, '#8cb3f2', turns=False)
+def _(a):
+    a.arc(0, -52, 12, 180, 360, 7, 'm', edge=1.6)
+    a.poly([(-15, -52), (-9, -52), (-9, -44), (-15, -44)], 'er', o='ot')
+    a.poly([(9, -52), (15, -52), (15, -44), (9, -44)], 'b', o='ot')
+    a.pulse(lambda: a.ring(0, 0, 62, 2, 'b', edge=0), 0.8, 0.2)
+
+
+@sym('mark_blazing', 'Blazing', 'an elite with a burning aura: a ring of fire round it', 100, '#ff801a', turns=False)
+def _(a):
+    a.pulse(lambda: a.glow(0, 0, 70, '#ff801a', 0.5), 0.6, 0.5)
+    a.spin(lambda: a.rep(10, lambda: a.poly([(-6, -54), (0, -72), (6, -54)], 'eo', o='ot')), 4.0)
+
+
+@sym('mark_frigid', 'Frigid', 'an elite with a freezing aura: ice crystals turning round it', 100, '#b3ebff', turns=False)
+def _(a):
+    a.alpha(0.5, lambda: a.ring(0, 0, 62, 2.4, 'b', edge=0))
+    a.spin(lambda: a.rep(6, lambda: a.poly([(0, -72), (5, -62), (0, -52), (-5, -62)], 'w', o='ot')), 6.0, back=True)
+
+
+@sym('mark_conjuring', 'Conjuring', 'an elite that calls up imps: a ring of runes', 100, '#d966f2', turns=False)
+def _(a):
+    a.spin(lambda: a.rep(8, lambda: a.poly([(-3, -60), (3, -60), (0, -54)], 'b', o='')), 5.0)
+    a.alpha(0.6, lambda: a.ring(0, 0, 57, 1.6, 'b', edge=0))
+
+
+@sym('mark_regenerating', 'Regenerating', 'an elite that mends itself: green crosses rising off it', 100, '#66ff80', turns=False)
+def _(a):
+    for x, y in ((-38, -46), (36, -54), (44, 6)):
+        a.pulse(lambda x=x, y=y: a.place(x, y, lambda: a.poly([(-2.5, -8), (2.5, -8), (2.5, -2.5), (8, -2.5), (8, 2.5), (2.5, 2.5), (2.5, 8), (-2.5, 8), (-2.5, 2.5), (-8, 2.5), (-8, -2.5), (-2.5, -2.5)], 'b', o='ot')), 1.2, 0.2)

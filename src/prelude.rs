@@ -52,6 +52,7 @@ pub(crate) use crate::settings::*;
 pub(crate) use crate::sim::*;
 pub(crate) use crate::sites::*;
 pub(crate) use crate::sound::*;
+pub(crate) use crate::deaths::*;
 pub(crate) use crate::status::*;
 pub(crate) use crate::telegraphs::*;
 pub(crate) use crate::spawning::*;

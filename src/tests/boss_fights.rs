@@ -54,6 +54,10 @@ pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u3
     let mut next_trace = 0.0;
     let mut dodging = false;
     let mut changes = 0;
+    //the front of the army fires the way the player walks, as in the game (see vanguard.rs): at the boss on the way to it, not while running from it
+    let mut bolts: Vec<Bolt> = Vec::new();
+    let mut facing = Vec2::X;
+    let mut was = player;
     while seconds < 150.0 && !units.is_empty() && current_boss(&enemies).is_some() {
         seconds += dt;
         changes = changes.max(enemies.iter().filter_map(|enemy| enemy.boss.as_ref()).map(|state| state.phase + state.generation as usize + state.last_stand as usize).max().unwrap_or(0));
@@ -137,6 +141,13 @@ pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u3
         update_hazards(&mut hazards, &mut units, upgrades, dt, &mut fx);
         let h2 = army_health(&units);
         heal_units(&mut units, dt, upgrades);
+        if player.distance(was) > 0.5 {
+            facing = (player - was).normalize();
+        }
+        was = player;
+        let front = [Front { position: player, facing, formation: Formation::Ring, upgrades }];
+        fire_vanguard(&front, &units, &enemies, seconds, dt, 1.0, true, &mut bolts, Some(&mut fx));
+        fly_bolts(&mut bolts, &mut enemies, dt, Some(&mut fx));
         fight(&mut enemies, &mut units, &mut babies, dt, upgrades, &mut fx);
         let h3 = army_health(&units);
         if trace && h0 - h3 > 1500.0 {

@@ -287,7 +287,8 @@ pub(crate) fn draw_defeat(time: f32, run: &Run, record: &Record, place: Option<u
     };
     let note_size = (h * 0.032).round();
     draw_label_centered(&note, w / 2.0, score_y + note_size * 1.5, note_size, Color::new(CYAN.r, CYAN.g, CYAN.b, fade), Face::Bold);
-    let rows = [
+    let killers = worst_killers(&run.killers, 6);
+    let mut rows = vec![
         ("enemies destroyed", grouped(run.destroyed)),
         ("bosses slain", grouped(run.bosses)),
         ("nests destroyed", grouped(run.nests)),
@@ -296,11 +297,27 @@ pub(crate) fn draw_defeat(time: f32, run: &Run, record: &Record, place: Option<u
         ("units lost", grouped(run.lost)),
         ("survived", clock(run.seconds)),
     ];
+    if let Some((name, count)) = killers.first() {
+        rows.push(("killed most", format!("{name} ({})", grouped(*count))));
+    }
     let top = score_y + note_size * 2.4;
     let row_height = ((h * 0.95 - top) / (rows.len() as f32 + 1.0)).min(46.0);
     let used = draw_stats(&rows, w / 2.0, top, row_height, fade);
-    //the best runs, when there is room beside the stats for them
+    //what killed the army, and the best runs, when there is room beside the stats for them
     let panel_width = (w * 0.9).min(540.0);
+    if w >= panel_width + 2.0 * 360.0 && killers.len() > 1 {
+        let width = (w / 2.0 - panel_width / 2.0 - 48.0).min(420.0);
+        let left = w / 2.0 - panel_width / 2.0 - 24.0 - width;
+        let line = (used / (HIGH_SCORES_KEPT as f32 + 1.0)).min(44.0);
+        panel(left, top, width, line * (killers.len() as f32 + 1.0) + 12.0);
+        draw_label("WHAT KILLED THE ARMY", left + 16.0, top + line * 0.8, (line * 0.5).round().max(14.0), Color::new(ALERT.r, ALERT.g, ALERT.b, fade), Face::Bold);
+        for (i, (name, count)) in killers.iter().enumerate() {
+            let y = top + line * (i as f32 + 1.8);
+            let size = (line * 0.45).round().max(12.0);
+            draw_label(name, left + 16.0, y, fit_size(name, size, width - 110.0, Face::Bold), Color::new(INK.r, INK.g, INK.b, fade), Face::Bold);
+            draw_label_right(&grouped(*count), left + width - 16.0, y, size, Color::new(MUTED.r, MUTED.g, MUTED.b, fade), Face::Bold);
+        }
+    }
     if w >= panel_width + 2.0 * 360.0 && !scores.records.is_empty() {
         let left = w / 2.0 + panel_width / 2.0 + 24.0;
         let width = (w - left - 24.0).min(420.0);

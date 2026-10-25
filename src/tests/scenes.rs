@@ -18,7 +18,7 @@ fn army_at(count: usize, at: Vec2, zoom: f32) -> Snapshot {
         .collect();
     world.enemies.clear();
     respawn_enemies(&mut world.enemies, at.x, at.y, count * 2);
-    world.run = Run { destroyed: 4120, lost: 380, peak_army: count + 300, bosses: 2, nests: 7, villages: 4, seconds: 1480.0, citadels: 0 };
+    world.run = Run { destroyed: 4120, lost: 380, peak_army: count + 300, bosses: 2, nests: 7, villages: 4, seconds: 1480.0, citadels: 0, killers: Vec::new() };
     world.wall_points = 340.0;
     for relic in [Relic::Whetstone, Relic::Whetstone, Relic::IronResolve, Relic::FleetFeet, Relic::Magnet, Relic::Bounty, Relic::Thorns, Relic::Bloodlust, Relic::Freezing, Relic::Freezing, Relic::Aegis, Relic::Archers] {
         world.upgrades.take(relic);

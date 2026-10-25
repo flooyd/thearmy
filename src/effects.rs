@@ -158,6 +158,7 @@ pub(crate) struct Spoils {
 //by main: numbers float up, puffs become particles, the camera shakes and the sounds are played
 #[derive(Default)]
 pub(crate) struct Effects {
+    pub(crate) banes: Vec<u16>, //what killed each unit that died this step (see `cause_of`), for the run's count
     pub(crate) shake: f32, //0 to 1, how hard the camera is shaking
     pub(crate) popups: Vec<Popup>,
     pub(crate) bursts: Vec<Burst>,

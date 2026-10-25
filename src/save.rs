@@ -81,6 +81,11 @@ impl<'a> SaveReader<'a> {
         self.words.clone().next() == Some(label)
     }
 
+    //the next word, without taking it
+    pub(crate) fn peek(&self) -> Option<&'a str> {
+        self.words.clone().next()
+    }
+
     //whether every word has been taken: what is on the end of a file that older saves don't have is there or isn't
     pub(crate) fn is_done(&self) -> bool {
         self.words.clone().next().is_none()
@@ -424,7 +429,7 @@ impl Stored for Unit {
     }
 
     fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
-        Ok(Unit { x: r.get()?, y: r.get()?, speed: r.get()?, steer: r.get()?, steer_in: r.get()?, velocity: r.get()?, nose: Vec2::new(0.0, -1.0), target: r.get()?, health: r.get()?, garrison: r.get()?, guard: r.get()?, calm: r.get()?, age: 99.0, champion: 0, power: 0.0, might: 1.0, ward: 1.0, hexed: 0.0, level: 0, xp: 0.0, evolutions: 0, slot: rand::rand(), id: NEXT_UNIT_ID.fetch_add(1, Ordering::Relaxed), owner: 0 })
+        Ok(Unit { x: r.get()?, y: r.get()?, speed: r.get()?, steer: r.get()?, steer_in: r.get()?, velocity: r.get()?, nose: Vec2::new(0.0, -1.0), target: r.get()?, health: r.get()?, garrison: r.get()?, guard: r.get()?, calm: r.get()?, age: 99.0, champion: 0, power: 0.0, might: 1.0, ward: 1.0, hexed: 0.0, chilled: 0.0, bane: 0, level: 0, xp: 0.0, evolutions: 0, slot: rand::rand(), id: NEXT_UNIT_ID.fetch_add(1, Ordering::Relaxed), owner: 0 })
     }
 }
 stored_fields!(Baby { position, age });
@@ -503,7 +508,7 @@ impl Stored for Run {
     }
 
     fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
-        let mut run = Run { destroyed: r.get()?, lost: r.get()?, peak_army: r.get()?, bosses: r.get()?, nests: r.get()?, villages: r.get()?, seconds: r.get()?, citadels: 0 };
+        let mut run = Run { destroyed: r.get()?, lost: r.get()?, peak_army: r.get()?, bosses: r.get()?, nests: r.get()?, villages: r.get()?, seconds: r.get()?, citadels: 0, killers: Vec::new() };
         if !r.next_is("rerolls") {
             run.citadels = r.get()?;
         }
@@ -514,8 +519,8 @@ stored_fields!(
     Enemy {
         id, name, position, size, color, max_health, health, babies, speed, route, heading_for, attack, aggro, chasing, range, volley, shot_in,
         hurt, killed, popup_in, behavior, modifier, scale, owner, armor, shield, max_shield, shield_idle, mode, timer, flash, blew_up, boss,
-        site, steer, steer_in, stuck, pressing, status
-    } ; provoked: 0.0, grudge: Vec2::ZERO, rout: 0.0, rallied: false, credit: 0, struck: 0.0 //(a freeze lasts a moment, and so do a grudge and a rout, and the rally is worked out again at once, and whose army hurt it is a matter of the next frame, so they are not kept)
+        site, steer, steer_in, stuck, pressing, affixes, status
+    } ; knack: AFFIX_EVERY, provoked: 0.0, grudge: Vec2::ZERO, rout: 0.0, rallied: false, credit: 0, struck: 0.0 //(a freeze lasts a moment, and so do a grudge and a rout, and the rally is worked out again at once, and whose army hurt it is a matter of the next frame, so they are not kept)
 );
 
 //the walls are kept in order of their squares, so the same walls make the same file
@@ -543,6 +548,24 @@ impl Stored for Statuses {
 
     fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
         Ok(Statuses { slow: r.get()?, ..Statuses::default() })
+    }
+}
+
+//an elite's affixes besides its first, as one word: a plus and their names joined by pluses ("+Vampiric+Thorned", "+" for none). a save from
+//before there were affixes has no such word, and its enemies have them chosen when the game goes on. (it comes before the last of an enemy's
+//words, so a save cut off just before it is still cut short, and not taken for an older one that is whole)
+impl Stored for Affixes {
+    fn store(&self, w: &mut SaveWriter) {
+        let names: Vec<&str> = self.list().map(Affix::label).collect();
+        w.word(&format!("+{}", names.join("+")));
+    }
+
+    fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
+        if !r.peek().is_some_and(|word| word.starts_with('+')) {
+            return Ok(Affixes::default());
+        }
+        let word = r.word()?;
+        Ok(word.split('+').filter_map(Affix::named).fold(Affixes::default().chosen(), Affixes::with))
     }
 }
 

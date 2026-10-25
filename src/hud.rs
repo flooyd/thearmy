@@ -341,6 +341,9 @@ pub(crate) fn traits(enemy: &Enemy) -> Vec<String> {
         Modifier::Frenzied => traits.push("hits twice as hard".to_owned()),
         Modifier::Captain => traits.push("leads a horde, rallies those round it".to_owned()),
     }
+    for affix in enemy.affixes.list().filter(|affix| *affix != Affix::Armored) {
+        traits.push(affix.blurb().to_owned());
+    }
     if enemy.rallied {
         traits.push("rallied by its captain".to_owned());
     }

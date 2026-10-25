@@ -91,6 +91,146 @@ impl Modifier {
     }
 }
 
+//what an elite can be: its first modifier is one of the first four (see Modifier), and it may have up to two more of any of these besides
+//(`Enemy::affixes`), the more likely the harder the game. what each does to its numbers is done when it is given (`Enemy::add_affix`); the rest act
+//as it goes: the auras, thorns and the vampire's healing in `fight`, the others in `enemy_abilities_among`
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Affix {
+    Swift,
+    Armored,
+    Volatile,
+    Frenzied,
+    Vampiric,     //heals from the harm it does
+    Thorned,      //hurts the units that hurt it by touch
+    Teleporting,  //jumps at the army now and then
+    Magnetic,     //drags the units near it in now and then
+    Blazing,      //burns the units near it
+    Frigid,       //slows the units near it
+    Conjuring,    //calls up imps now and then
+    Shielded,     //has a shield that grows back
+    Regenerating, //mends itself
+}
+
+pub(crate) const AFFIXES: [Affix; 13] = [
+    Affix::Swift,
+    Affix::Armored,
+    Affix::Volatile,
+    Affix::Frenzied,
+    Affix::Vampiric,
+    Affix::Thorned,
+    Affix::Teleporting,
+    Affix::Magnetic,
+    Affix::Blazing,
+    Affix::Frigid,
+    Affix::Conjuring,
+    Affix::Shielded,
+    Affix::Regenerating,
+];
+
+impl Affix {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Affix::Swift => "Swift",
+            Affix::Armored => "Armored",
+            Affix::Volatile => "Volatile",
+            Affix::Frenzied => "Frenzied",
+            Affix::Vampiric => "Vampiric",
+            Affix::Thorned => "Thorned",
+            Affix::Teleporting => "Teleporting",
+            Affix::Magnetic => "Magnetic",
+            Affix::Blazing => "Blazing",
+            Affix::Frigid => "Frigid",
+            Affix::Conjuring => "Conjuring",
+            Affix::Shielded => "Shielded",
+            Affix::Regenerating => "Regenerating",
+        }
+    }
+
+    pub(crate) fn color(self) -> Color {
+        match self {
+            Affix::Swift => Modifier::Swift.color(),
+            Affix::Armored => Modifier::Armored.color(),
+            Affix::Volatile => Modifier::Volatile.color(),
+            Affix::Frenzied => Modifier::Frenzied.color(),
+            Affix::Vampiric => Color::new(0.85, 0.08, 0.2, 1.0),
+            Affix::Thorned => Color::new(0.5, 0.8, 0.25, 1.0),
+            Affix::Teleporting => Color::new(0.75, 0.5, 1.0, 1.0),
+            Affix::Magnetic => Color::new(0.55, 0.7, 0.95, 1.0),
+            Affix::Blazing => Color::new(1.0, 0.5, 0.1, 1.0),
+            Affix::Frigid => Color::new(0.7, 0.92, 1.0, 1.0),
+            Affix::Conjuring => Color::new(0.85, 0.4, 0.95, 1.0),
+            Affix::Shielded => Color::new(0.4, 0.85, 1.0, 1.0),
+            Affix::Regenerating => Color::new(0.4, 1.0, 0.5, 1.0),
+        }
+    }
+
+    //what it does, in a few words, for the tooltip and the bestiary
+    pub(crate) fn blurb(self) -> &'static str {
+        match self {
+            Affix::Swift => "fast",
+            Affix::Armored => "shrugs off half the damage",
+            Affix::Volatile => "explodes when destroyed",
+            Affix::Frenzied => "hits twice as hard",
+            Affix::Vampiric => "heals from the harm it does",
+            Affix::Thorned => "hurts the units that hurt it",
+            Affix::Teleporting => "jumps at the army",
+            Affix::Magnetic => "drags the units near it in",
+            Affix::Blazing => "burns the units near it",
+            Affix::Frigid => "slows the units near it",
+            Affix::Conjuring => "calls up imps",
+            Affix::Shielded => "a shield that grows back",
+            Affix::Regenerating => "mends itself",
+        }
+    }
+
+    //the first modifier an elite is named for, as an affix
+    pub(crate) fn of(modifier: Modifier) -> Option<Affix> {
+        match modifier {
+            Modifier::Swift => Some(Affix::Swift),
+            Modifier::Armored => Some(Affix::Armored),
+            Modifier::Volatile => Some(Affix::Volatile),
+            Modifier::Frenzied => Some(Affix::Frenzied),
+            Modifier::None | Modifier::Captain => None,
+        }
+    }
+
+    fn bit(self) -> u16 {
+        1 << self as u16
+    }
+
+    pub(crate) fn named(label: &str) -> Option<Affix> {
+        AFFIXES.into_iter().find(|affix| affix.label() == label)
+    }
+}
+
+//the affixes an elite has besides its first, as bits, and whether they have been chosen yet (they are, once, see `Enemy::roll_affixes`)
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Hash)]
+pub(crate) struct Affixes(pub(crate) u16);
+
+const AFFIXES_ROLLED: u16 = 1 << 15;
+
+impl Affixes {
+    pub(crate) fn has(self, affix: Affix) -> bool {
+        self.0 & affix.bit() != 0
+    }
+
+    pub(crate) fn list(self) -> impl Iterator<Item = Affix> {
+        AFFIXES.into_iter().filter(move |affix| self.has(*affix))
+    }
+
+    pub(crate) fn rolled(self) -> bool {
+        self.0 & AFFIXES_ROLLED != 0
+    }
+
+    pub(crate) fn with(self, affix: Affix) -> Affixes {
+        Affixes(self.0 | affix.bit())
+    }
+
+    pub(crate) fn chosen(self) -> Affixes {
+        Affixes(self.0 | AFFIXES_ROLLED)
+    }
+}
+
 //what an enemy is in the middle of, when it is not just walking its route or running at the player
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum Mode {
@@ -227,6 +367,8 @@ pub(crate) struct Enemy {
     pub(crate) popup_in: f32,      //seconds until it shows them
     pub(crate) behavior: Behavior,
     pub(crate) modifier: Modifier,
+    pub(crate) affixes: Affixes,   //what more an elite is than its first modifier (see Affix)
+    pub(crate) knack: f32,         //seconds until an affix that acts now and then does
     pub(crate) scale: f32,         //how many times bigger than its kind it was made, what it makes is scaled from this
     pub(crate) owner: Option<u32>, //the enemy that made it, which it dies with. what is made is no kill and drops no babies
     pub(crate) armor: f32,         //the share of the damage it takes that it shrugs off
@@ -294,6 +436,8 @@ impl Enemy {
             popup_in: rand::gen_range(0.0, POPUP_INTERVAL),
             behavior: kind.behavior,
             modifier: Modifier::None,
+            affixes: Affixes::default(),
+            knack: rand::gen_range(1.0, AFFIX_EVERY),
             scale,
             owner: None,
             armor: 0.0,
@@ -332,12 +476,62 @@ impl Enemy {
         self.owner.is_some()
     }
 
-    //its kind's name with the modifier in front of it
+    //its kind's name with the modifier, and any more affixes, in front of it
     pub(crate) fn title(&self) -> String {
-        if self.modifier == Modifier::None {
-            self.name.to_owned()
-        } else {
-            format!("{} {}", self.modifier.label(), self.name)
+        let mut words: Vec<&str> = Vec::new();
+        if self.modifier != Modifier::None {
+            words.push(self.modifier.label());
+        }
+        words.extend(self.affixes.list().map(Affix::label));
+        words.push(self.name);
+        words.join(" ")
+    }
+
+    //whether it has an affix, as the modifier it is named for or one more
+    pub(crate) fn has(&self, affix: Affix) -> bool {
+        Affix::of(self.modifier) == Some(affix) || self.affixes.has(affix)
+    }
+
+    //one more affix, and what it does to its numbers (the rest act as it goes)
+    pub(crate) fn add_affix(&mut self, affix: Affix) {
+        if self.has(affix) {
+            return;
+        }
+        self.affixes = self.affixes.with(affix);
+        match affix {
+            Affix::Swift => self.speed *= 1.7,
+            Affix::Armored => self.armor = self.armor.max(0.5),
+            Affix::Frenzied => {
+                self.attack *= 2.0;
+                self.speed *= 1.25;
+            }
+            Affix::Shielded => {
+                self.max_shield += self.max_health * SHIELDED_SHARE;
+                self.shield = self.max_shield;
+            }
+            _ => {}
+        }
+    }
+
+    //an elite's affixes besides its first, chosen once: each of up to two more with `chance` (which the difficulty sets). nothing for one that is
+    //not an elite, a captain or a boss
+    pub(crate) fn roll_affixes(&mut self, chance: f32) {
+        if self.affixes.rolled() {
+            return;
+        }
+        self.affixes = self.affixes.chosen();
+        if matches!(self.modifier, Modifier::None | Modifier::Captain) || self.boss.is_some() {
+            return;
+        }
+        for _ in 0..2 {
+            if rand::gen_range(0.0, 1.0) >= chance {
+                break;
+            }
+            let open: Vec<Affix> = AFFIXES.into_iter().filter(|affix| !self.has(*affix)).collect();
+            if open.is_empty() {
+                break;
+            }
+            self.add_affix(open[rand::gen_range(0, open.len())]);
         }
     }
 
@@ -888,7 +1082,10 @@ pub(crate) fn marks_of(enemy: &Enemy) -> Vec<(&'static str, Color)> {
     if enemy.modifier != Modifier::None {
         marks.push((enemy.modifier.label(), enemy.modifier.color()));
     }
-    if enemy.armor > 0.0 && enemy.boss.is_none() && enemy.modifier != Modifier::Armored {
+    for affix in enemy.affixes.list() {
+        marks.push((affix.label(), affix.color()));
+    }
+    if enemy.armor > 0.0 && enemy.boss.is_none() && !enemy.has(Affix::Armored) {
         marks.push((Modifier::Armored.label(), Modifier::Armored.color()));
     }
     //a boss cracks as it goes from phase to phase, the more the further on, and the most in its last stand

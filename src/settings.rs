@@ -75,6 +75,16 @@ impl Difficulty {
         }
     }
 
+    //the chance an elite has each of up to two more affixes besides its first (see Enemy::roll_affixes)
+    pub(crate) fn affix_chance(self) -> f32 {
+        match self {
+            Difficulty::Easy => 0.0,
+            Difficulty::Normal => 0.35,
+            Difficulty::Hard => 0.6,
+            Difficulty::Brutal => 0.85,
+        }
+    }
+
     //the power of the damage the relics add that the enemies shrug off (see `Upgrades::hit`): 0 for none of it, 1 for all of it
     pub(crate) fn relic_answer(self) -> f32 {
         match self {

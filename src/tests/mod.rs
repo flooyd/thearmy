@@ -58,6 +58,7 @@ mod sound;
 mod status;
 mod telegraphs;
 mod signatures;
+mod learning;
 mod squads;
 mod team;
 mod titlescene;

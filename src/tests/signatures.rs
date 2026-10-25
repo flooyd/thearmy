@@ -147,7 +147,7 @@ fn the_bosses_are_tougher_and_three_of_them_enrage_at_the_end() {
         assert_eq!(BOSSES[index].phases.len(), 4, "{}", BOSSES[index].name);
         assert!(BOSSES[index].phases[3].below > LAST_STAND_AT && BOSSES[index].phases[3].below < 0.25 && BOSSES[index].phases[3].speed > 1.0, "an enraged last phase just before the last stand");
     }
-    assert!(BOSSES.iter().all(|def| def.kill_seconds >= 6.5) && FINAL_BOSS.kill_seconds >= 11.0);
+    assert!(BOSSES.iter().all(|def| def.kill_seconds >= 5.5) && FINAL_BOSS.kill_seconds >= 11.0);
     assert_eq!(Difficulty::Brutal.boss_rounds(), 3);
     assert!(LAST_STAND_AT >= 0.18 && LAST_STAND_RATE > 1.6);
     //every attack in every phase is one a boss can do

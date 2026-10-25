@@ -137,3 +137,49 @@ fn the_wild_enemies_are_made_for_a_bigger_army_for_every_boss_destroyed() {
         assert!(ratio > tougher * 0.79, "{} has {ratio}x, wanted at least {}", enemy.name, tougher * 0.79);
     }
 }
+
+//how far into a big army's fire an enemy gets: it starts at the edge of what the front of the army sees, straight ahead, and runs at the player, with
+//the vanguard firing at it as in the game and the units fighting it when it gets there. what is printed is how long it lasted, and whether it reached
+//the army (and how many units it killed) or how far from the player it fell. made to see whether the late game is still a fight with the army firing
+#[test]
+#[ignore]
+fn how_far_enemies_get_into_a_big_armys_fire() {
+    let player = Vec2::splat(WORLD_SIZE / 2.0);
+    for army in [1000usize, 4000, 15000, 50000] {
+        rand::srand(11);
+        let units = settled_army(army, player);
+        let reach = units.iter().map(|unit| Vec2::new(unit.x, unit.y).distance(player)).fold(0.0f32, f32::max);
+        println!("{army} units, reaching {reach:.0} px, firing {:.0} px, enemies {:.1}x tougher", gunnery_range(army), army_might(army).powf(ENEMY_MIGHT_HEALTH));
+        for name in ["Grunt", "Brute", "Titan", "Colossus"] {
+            let kind = kind_named(name);
+            let start = player + Vec2::new(reach + gunnery_range(army) * 0.95, 0.0);
+            let mut enemy = made_for(kind, army, start);
+            enemy.chasing = true;
+            enemy.aggro = 1.0e6;
+            let (mut enemies, mut units, mut bolts, mut babies) = (vec![enemy], units.clone(), Vec::new(), Vec::new());
+            let mut fx = Effects::default();
+            let front = [Front { position: player, facing: -Vec2::X, formation: Formation::Ring, upgrades: &Upgrades::default() }];
+            let (mut seconds, mut nearest) = (0.0f32, f32::MAX);
+            let mut touched = false;
+            while seconds < 60.0 && !enemies.is_empty() {
+                seconds += DT;
+                patrol_free(&mut enemies, player, DT, speed_multiplier(army), &mut fx);
+                if let Some(enemy) = enemies.first() {
+                    nearest = nearest.min(enemy.position.distance(player));
+                }
+                //(the army faces the enemy coming at it: the player has turned to it)
+                let facing = enemies.first().map_or(Vec2::X, |enemy| (enemy.position - player).normalize_or_zero());
+                let front = [Front { facing, ..front[0] }];
+                fire_vanguard(&front, &units, &enemies, seconds, DT, 1.0, true, &mut bolts, Some(&mut fx));
+                fly_bolts(&mut bolts, &mut enemies, DT, Some(&mut fx));
+                let before = units.iter().filter(|unit| unit.health > 0.0).count();
+                fight(&mut enemies, &mut units, &mut babies, DT, &Upgrades::default(), &mut fx);
+                touched |= units.iter().filter(|unit| unit.health > 0.0).count() < before || nearest <= reach;
+                fx = Effects::default();
+            }
+            let lost = units.iter().filter(|unit| unit.health <= 0.0).count();
+            let outcome = if !enemies.is_empty() { "still there after a minute".to_owned() } else if touched { format!("reached the army, killed {lost}") } else { format!("fell {nearest:.0} px from the player") };
+            println!("    {name:9} lasted {seconds:5.2}s, {outcome}");
+        }
+    }
+}

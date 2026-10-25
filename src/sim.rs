@@ -108,7 +108,7 @@ impl Sim {
 
     //a world with nothing in it, to be filled in from what a host says of its own (see `Replica`): it is only ever looked at, never stepped
     pub(crate) fn mirror() -> Sim {
-        let run = Run { destroyed: 0, lost: 0, peak_army: 0, bosses: 0, nests: 0, villages: 0, seconds: 0.0, citadels: 0 };
+        let run = Run { destroyed: 0, lost: 0, peak_army: 0, bosses: 0, nests: 0, villages: 0, seconds: 0.0, citadels: 0, killers: Vec::new() };
         Sim { players: Players { list: Vec::new() }, run, director: Director::new(), hordes: Hordes::new(), units: Vec::new(), babies: Vec::new(), walls: Walls::default(), sites: Vec::new(), enemies: Vec::new(), shots: Vec::new(), hazards: Vec::new(), pulls: Vec::new(), bolts: Vec::new(), fx: Effects::default(), walls_dirty: false }
     }
 
@@ -321,7 +321,13 @@ impl Sim {
         }
         //the enemies are made for the size of army of the fight they are in (the army of the player they are near, and the armies of the players
         //near them), with the bosses that have been slain and the difficulty chosen
-        let (bosses, harder) = (run.bosses, rules.difficulty.pressure());
+        //(and with the tide: a lull, the usual or a surge, which is announced as it comes)
+        let tide = tide_at(run.seconds, current_boss(enemies).is_some());
+        if tide == Tide::Surge && tide_at(run.seconds - dt, current_boss(enemies).is_some()) != Tide::Surge && !stands_still {
+            fx.announce("THE ENEMY SURGES".to_owned(), Color::new(1.0, 0.45, 0.2, 1.0));
+            fx.cue(Cue::Warning);
+        }
+        let (bosses, harder) = (run.bosses, rules.difficulty.pressure() * tide.pressure());
         let pressure_of = move |team: usize| ((enemy_pressure(team, bosses) as f32 * harder) as usize).max(1);
         if !stands_still {
             let boss_busy = current_boss(enemies).is_some();
@@ -431,6 +437,7 @@ impl Sim {
         hazards.append(&mut fx.hazards);
         tick_enemy_numbers(enemies, dt, fx);
         run.lost += bury_units(units, fx);
+        tally_killers(&mut run.killers, &std::mem::take(&mut fx.banes));
         martyr_blasts(enemies, &std::mem::take(&mut fx.fallen), players);
         for other in players.list.iter_mut() {
             opening_salvo(enemies, other.position, &mut other.salvo_wait, dt, &other.upgrades, fx);
@@ -440,7 +447,12 @@ impl Sim {
         {
             //(the army has been added to and lost from since the step began, and the armies are where they are in the list now)
             let ranges = arrange(units, count);
-            respawn_enemies_among(enemies, &pressures(&prey_of(players, units, &ranges, pressure_of)));
+            respawn_enemies_up_to(enemies, &pressures(&prey_of(players, units, &ranges, pressure_of)), (ENEMY_COUNT as f32 * tide.crowd()).round() as usize);
+        }
+        //an elite that has come into the world this step has its affixes chosen, more of them the harder the game
+        let chance = rules.difficulty.affix_chance();
+        for enemy in enemies.iter_mut().filter(|enemy| !enemy.affixes.rolled()) {
+            enemy.roll_affixes(chance);
         }
         let screens: Vec<Vec2> = inputs.iter().map(|input| input.screen).collect();
         report.pickup_ranges = grow_armies(players, &armies, units, babies, &screens, dt, fx);

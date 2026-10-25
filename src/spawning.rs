@@ -79,6 +79,46 @@ pub(crate) fn spawn_warband(player_x: f32, player_y: f32, army: usize) -> Vec<En
     band
 }
 
+//the rhythm of the wild enemies, so the fighting is not all the same: a lull, then as usual, then a surge, over and over (TIDE_PERIOD), from the
+//run's clock. no surge while a boss is being fought
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) enum Tide {
+    Lull,
+    Usual,
+    Surge,
+}
+
+pub(crate) fn tide_at(seconds: f32, boss: bool) -> Tide {
+    let into = seconds.rem_euclid(TIDE_PERIOD);
+    if into < TIDE_LULL {
+        Tide::Lull
+    } else if into >= TIDE_PERIOD - TIDE_SURGE && !boss {
+        Tide::Surge
+    } else {
+        Tide::Usual
+    }
+}
+
+impl Tide {
+    //how many wild enemies are kept round a player, as a share of ENEMY_COUNT
+    pub(crate) fn crowd(self) -> f32 {
+        match self {
+            Tide::Lull => TIDE_LULL_CROWD,
+            Tide::Usual => 1.0,
+            Tide::Surge => TIDE_SURGE_CROWD,
+        }
+    }
+
+    //how much tougher than usual the ones that turn up are made
+    pub(crate) fn pressure(self) -> f32 {
+        match self {
+            Tide::Lull => TIDE_LULL_PRESSURE,
+            Tide::Usual => 1.0,
+            Tide::Surge => TIDE_SURGE_PRESSURE,
+        }
+    }
+}
+
 //the same for one player, at a place, with enemies made for an army of `army`
 pub(crate) fn respawn_enemies(enemies: &mut Vec<Enemy>, player_x: f32, player_y: f32, army: usize) {
     respawn_enemies_among(enemies, &[(Vec2::new(player_x, player_y), army)]);
@@ -91,6 +131,11 @@ pub(crate) fn respawn_enemies(enemies: &mut Vec<Enemy>, player_x: f32, player_y:
 //a group starts at the emptiest of a few places in the ring, otherwise the ones left behind would pile up at the player's back while the
 //ground ahead stayed bare. players who are near each other have the same enemies round them, so there are no more of them than for one
 pub(crate) fn respawn_enemies_among(enemies: &mut Vec<Enemy>, players: &[(Vec2, usize)]) {
+    respawn_enemies_up_to(enemies, players, ENEMY_COUNT);
+}
+
+//the same, keeping `wanted` round each player instead of ENEMY_COUNT (see Tide)
+pub(crate) fn respawn_enemies_up_to(enemies: &mut Vec<Enemy>, players: &[(Vec2, usize)], wanted: usize) {
     let leash = ENEMY_LEASH_TILES * TILE_SIZE;
     enemies.retain(|enemy| !is_wild(enemy) || players.iter().any(|(player, _)| enemy.position.distance_squared(*player) <= leash * leash));
     let mut crowd: Vec<Vec2> = enemies.iter().filter(|enemy| is_wild(enemy)).map(|enemy| enemy.position).collect();
@@ -99,7 +144,7 @@ pub(crate) fn respawn_enemies_among(enemies: &mut Vec<Enemy>, players: &[(Vec2, 
     let most_lurkers = ENEMY_COUNT / MAX_LURKERS_SHARE * players.len();
     for &(player, army) in players {
         let mut round_them = crowd.iter().filter(|at| at.distance_squared(player) <= leash * leash).count();
-        while round_them < ENEMY_COUNT {
+        while round_them < wanted {
             let mut group = spawn_group(player.x, player.y, army);
             for _ in 0..8 {
                 if group[0].lurking() && lurkers + group.len() > most_lurkers {

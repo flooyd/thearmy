@@ -4,7 +4,7 @@
 use super::*;
 use crate::creature_art::{ARTS, HELPERS};
 
-const MARKS: [&str; 15] = ["Cracked I", "Cracked II", "Cracked III", "Slowed", "Swift", "Armored", "Volatile", "Frenzied", "Captain", "Frozen", "Shield", "Chilled", "Burning", "Shocked", "Poisoned"];
+const MARKS: [&str; 23] = ["Vampiric", "Thorned", "Teleporting", "Magnetic", "Blazing", "Frigid", "Conjuring", "Regenerating", "Cracked I", "Cracked II", "Cracked III", "Slowed", "Swift", "Armored", "Volatile", "Frenzied", "Captain", "Frozen", "Shield", "Chilled", "Burning", "Shocked", "Poisoned"];
 
 #[test]
 fn a_creature_is_exactly_what_the_shader_reads_for_each_one() {

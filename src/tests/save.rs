@@ -95,7 +95,7 @@ fn busy_world() -> Snapshot {
     }
     world.player = Vec2::new(15123.5, 15456.75);
     world.zoom = 0.73;
-    world.run = Run { destroyed: 1234, lost: 567, peak_army: 2890, bosses: 5, nests: 12, villages: 3, seconds: 1801.25, citadels: 2 };
+    world.run = Run { destroyed: 1234, lost: 567, peak_army: 2890, bosses: 5, nests: 12, villages: 3, seconds: 1801.25, citadels: 2, killers: Vec::new() };
     world.rerolls = 3;
     world.wall_kind = WallKind::Tower;
     world.wall_points = 77.5;
@@ -356,10 +356,13 @@ fn a_save_that_stops_part_way_is_refused_wherever_it_stops() {
     //a save cut short by a crash would end anywhere: none of them may panic, and none but the whole of it may load
     //(a save cut off just where the champions would begin is a save from before there were any, which is whole)
     let old_format = text[..text.find("champions ").unwrap()].trim_end();
+    //(and so is one cut off just where the hordes would begin, a save from before they were kept)
+    let before_hordes = text[..text.find("
+hordes ").unwrap()].trim_end();
     let mut cuts = 0;
     for i in (0..words.len() - 1).step_by(words.len() / 300) {
         let cut = &text[..words[i]];
-        if cut.trim_end() == old_format {
+        if cut.trim_end() == old_format || cut.trim_end() == before_hordes {
             assert!(Snapshot::from_text(cut).is_ok());
         } else {
             assert!(Snapshot::from_text(cut).is_err(), "cut after {} words", i);

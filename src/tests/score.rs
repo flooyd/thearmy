@@ -3,7 +3,7 @@
 use super::*;
 
 fn run(destroyed: usize, bosses: usize, peak_army: usize, seconds: f32) -> Run {
-    Run { destroyed, lost: 0, peak_army, bosses, nests: 0, villages: 0, seconds, citadels: 0 }
+    Run { destroyed, lost: 0, peak_army, bosses, nests: 0, villages: 0, seconds, citadels: 0, killers: Vec::new() }
 }
 
 fn record(score: u64) -> Record {

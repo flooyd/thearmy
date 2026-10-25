@@ -67,6 +67,7 @@ mod showcase;
 mod sim;
 mod sites;
 mod sound;
+mod deaths;
 mod status;
 mod telegraphs;
 mod spawning;

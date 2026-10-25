@@ -41,10 +41,22 @@ pub(crate) fn patrol_enemies_among(enemies: &mut [Enemy], prey: &[Prey], dt: f32
     };
     let no_route = FlowField::new();
     //the tank champions of each player: an enemy chasing a player that comes near one goes for it instead (see `Champion::taunts`)
-    let taunts: Vec<Vec<Vec2>> = prey
-        .iter()
-        .map(|hunted| hunted.units.iter().filter(|unit| unit.garrison.is_none() && unit.health > 0.0 && unit.champion_kind().is_some_and(|kind| kind.taunts())).map(|unit| Vec2::new(unit.x, unit.y)).collect())
-        .collect();
+    //and the others, which an elite goes for (see CHAMPION_HUNT_RANGE)
+    let mut taunts: Vec<Vec<Vec2>> = Vec::with_capacity(prey.len());
+    let mut champions: Vec<Vec<Vec2>> = Vec::with_capacity(prey.len());
+    for hunted in prey {
+        let (mut tanks, mut others) = (Vec::new(), Vec::new());
+        for unit in hunted.units.iter().filter(|unit| unit.champion != 0 && unit.garrison.is_none() && unit.health > 0.0) {
+            let at = Vec2::new(unit.x, unit.y);
+            if unit.champion_kind().is_some_and(|kind| kind.taunts()) {
+                tanks.push(at);
+            } else {
+                others.push(at);
+            }
+        }
+        taunts.push(tanks);
+        champions.push(others);
+    }
     for enemy in enemies {
         let which = nearest_to(prey, enemy.position);
         let hunted = &prey[which];
@@ -121,16 +133,43 @@ pub(crate) fn patrol_enemies_among(enemies: &mut [Enemy], prey: &[Prey], dt: f32
             }
             //one that shoots or lobs shells (only a horde sends them running) stops at a distance and fires from there
             let stop = if enemy.range > 0.0 && matches!(enemy.behavior, Behavior::Shooter | Behavior::Mortar | Behavior::Sniper | Behavior::Hexer | Behavior::Overseer) { enemy.range * CHASE_STANDOFF } else { CHASE_STOP };
+            //and backs away when the army comes too close
+            if stop > CHASE_STOP && enemy.boss.is_none() && player.distance(enemy.position) < enemy.range * KITE_SHARE {
+                let goal = enemy.position + (enemy.position - player).normalize_or_zero() * 400.0;
+                walk(enemy, goal, 0.0, speed * KITE_SPEED, dt, false, walls, &no_route);
+                continue;
+            }
             //a tank champion near it draws it off the player (a boss is not so easily led)
             let at = enemy.position;
-            let taunted = if enemy.boss.is_some() { None } else { taunts[which].iter().copied().filter(|spot| spot.distance_squared(at) <= TAUNT_RANGE * TAUNT_RANGE).min_by(|a, b| a.distance_squared(at).total_cmp(&b.distance_squared(at))) };
-            match taunted {
-                Some(champion) => walk(enemy, champion, stop, speed, dt, true, walls, &no_route),
-                None => walk(enemy, player, stop, speed, dt, true, walls, field),
+            let nearest_of = |spots: &[Vec2], reach: f32| spots.iter().copied().filter(|spot| spot.distance_squared(at) <= reach * reach).min_by(|a, b| a.distance_squared(at).total_cmp(&b.distance_squared(at)));
+            let taunted = if enemy.boss.is_some() { None } else { nearest_of(&taunts[which], TAUNT_RANGE) };
+            //an elite, an executioner or a blinker goes for a champion near it rather than the player
+            let hunts = enemy.boss.is_none() && (enemy.modifier != Modifier::None || matches!(enemy.behavior, Behavior::Executioner | Behavior::Blinker));
+            let marked = if hunts { nearest_of(&champions[which], CHAMPION_HUNT_RANGE) } else { None };
+            //a pack comes round the side of the army before it closes in, half of it from each side
+            let flank = {
+                let to = player - at;
+                let far = to.length();
+                (enemy.behavior == Behavior::Ambusher || enemy.name == "Swarmer").then_some(()).filter(|_| far > FLANK_CLOSE).map(|_| {
+                    let side = if enemy.id % 2 == 0 { 1.0 } else { -1.0 };
+                    player + to.perp().normalize_or_zero() * side * FLANK_WIDTH.min(far - FLANK_CLOSE)
+                })
+            };
+            match (taunted, marked, flank) {
+                (Some(champion), _, _) | (None, Some(champion), _) => walk(enemy, champion, stop, speed, dt, true, walls, &no_route),
+                (None, None, Some(goal)) => walk(enemy, goal, 0.0, speed, dt, true, walls, &no_route),
+                (None, None, None) => walk(enemy, player, stop, speed, dt, true, walls, field),
             }
             continue;
         }
         if enemy.behavior == Behavior::Healer {
+            //(it keeps out of the army's reach, and mends from there)
+            if player.distance(enemy.position) < HEALER_KEEP_AWAY {
+                let goal = enemy.position + (enemy.position - player).normalize_or_zero() * 400.0;
+                let speed = enemy.speed * CHASE_SPEED * speed_multiplier * enemy.pace();
+                walk(enemy, goal, 0.0, speed, dt, false, walls, &no_route);
+                continue;
+            }
             let position = enemy.position;
             let nearest = others.iter().copied().min_by(|a, b| a.distance_squared(position).total_cmp(&b.distance_squared(position)));
             if let Some(nearest) = nearest {
@@ -279,6 +318,34 @@ pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt:
         if enemy.status.frozen > 0.0 || enemy.routed() {
             continue;
         }
+        //what an elite's affixes do as it goes: a regenerating one mends, and while it chases, now and then a teleporting one jumps at the army, a
+        //magnetic one drags the units near it in and a conjuring one calls up imps
+        if enemy.affixes.0 != 0 && enemy.health > 0.0 {
+            if enemy.affixes.has(Affix::Regenerating) {
+                enemy.health = (enemy.health + enemy.max_health * REGEN_SHARE * dt).min(enemy.max_health);
+            }
+            enemy.knack -= dt;
+            if enemy.knack <= 0.0 && enemy.chasing {
+                enemy.knack = AFFIX_EVERY * rand::gen_range(0.8, 1.2);
+                if enemy.affixes.has(Affix::Teleporting) && player.distance(enemy.position) > TELEPORT_STEP {
+                    let to = enemy.position + (player - enemy.position).normalize_or_zero() * TELEPORT_STEP;
+                    fx.burst(enemy.position, enemy.color, 12, 220.0);
+                    enemy.position = to;
+                    fx.burst(to, enemy.color, 12, 220.0);
+                    fx.cue_at(Cue::Pop, to);
+                }
+                if enemy.affixes.has(Affix::Magnetic) {
+                    fx.pulls.push(Pull { position: enemy.position, radius: enemy.size / 2.0 + MAGNET_REACH, left: MAGNET_SECONDS, total: MAGNET_SECONDS });
+                }
+                if enemy.affixes.has(Affix::Conjuring) {
+                    let alive = owned.get(&enemy.id).copied().unwrap_or(0);
+                    for _ in 0..CONJURE_COUNT.min(MAX_MINIONS.saturating_sub(alive)) {
+                        let around = enemy.position + Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * (enemy.size / 2.0 + 20.0);
+                        born.push(Enemy::minion(around, kind_named("Imp"), enemy.scale, enemy.id));
+                    }
+                }
+            }
+        }
         match enemy.behavior {
             Behavior::Bomber => {
                 if let Mode::Fuse { left } = enemy.mode {
@@ -287,7 +354,7 @@ pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt:
                     } else {
                         //it goes off, and is gone
                         let radius = BLAST_RADIUS * blast_scale(enemy.scale) + enemy.size / 2.0;
-                        fx.hazards.push(Hazard::new(enemy.position, radius, 0.0, UNIT_HEALTH, victims_of(army, 0.007), enemy.color, Cue::Explosion).vs_walls(enemy.scale));
+                        fx.hazards.push(Hazard::new(enemy.position, radius, 0.0, UNIT_HEALTH, victims_of(army, 0.007), enemy.color, Cue::Explosion).vs_walls(enemy.scale).by(enemy.name));
                         enemy.health = 0.0;
                         enemy.blew_up = true;
                     }
@@ -345,7 +412,7 @@ pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt:
                     enemy.timer = MORTAR_INTERVAL * rand::gen_range(0.8, 1.2);
                     enemy.flash = 0.0;
                     let radius = BLAST_RADIUS * blast_scale(enemy.scale);
-                    fx.hazards.push(Hazard::new(target, radius, SHELL_WARN, UNIT_HEALTH, victims_of(army, 0.01), enemy.color, Cue::Explosion).vs_walls(enemy.scale));
+                    fx.hazards.push(Hazard::new(target, radius, SHELL_WARN, UNIT_HEALTH, victims_of(army, 0.01), enemy.color, Cue::Explosion).vs_walls(enemy.scale).by(enemy.name));
                     fx.cue_at(Cue::Shoot, enemy.position);
                 }
             }
@@ -389,7 +456,7 @@ pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt:
                 let dir = (target - enemy.position).try_normalize().unwrap_or(Vec2::Y);
                 enemy.mode = Mode::Cast { left: EXECUTIONER_WINDUP + 0.2 };
                 let cleave = Hazard::new(enemy.position, reach, EXECUTIONER_WINDUP, UNIT_HEALTH * 3.0, EXECUTIONER_VICTIMS, enemy.color, Cue::Slam);
-                fx.hazards.push(cleave.shaped(Shape::Cone { dir, arc: EXECUTIONER_ARC }).vs_walls(enemy.scale));
+                fx.hazards.push(cleave.shaped(Shape::Cone { dir, arc: EXECUTIONER_ARC }).vs_walls(enemy.scale).by(enemy.name));
                 fx.cue_at(Cue::Charge, enemy.position);
             }
             Behavior::Sniper => {
@@ -405,7 +472,7 @@ pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt:
                 let dir = (target - enemy.position).try_normalize().unwrap_or(Vec2::Y);
                 enemy.mode = Mode::Cast { left: SNIPER_WARN + 0.3 };
                 let line = Hazard::new(enemy.position + dir * enemy.size / 2.0, 0.0, SNIPER_WARN, UNIT_HEALTH * 3.0, SNIPER_VICTIMS, enemy.color, Cue::Shoot);
-                fx.hazards.push(line.shaped(Shape::Line { dir, length: enemy.range * 1.1, width: SNIPER_WIDTH }).vs_walls(enemy.scale));
+                fx.hazards.push(line.shaped(Shape::Line { dir, length: enemy.range * 1.1, width: SNIPER_WIDTH }).vs_walls(enemy.scale).by(enemy.name));
             }
             Behavior::Hexer => {
                 enemy.timer -= dt;
@@ -455,7 +522,7 @@ pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt:
                 }
                 enemy.timer = MINE_EVERY * rand::gen_range(0.8, 1.2);
                 let mine = Hazard::new(enemy.position, MINE_RADIUS * blast_scale(enemy.scale), MINE_LIFE, UNIT_HEALTH * 3.0, MINE_VICTIMS, enemy.color, Cue::Explosion);
-                fx.hazards.push(mine.mined().vs_walls(enemy.scale));
+                fx.hazards.push(mine.mined().vs_walls(enemy.scale).by(enemy.name));
             }
             Behavior::Overseer => {
                 enemy.timer -= dt;
@@ -476,7 +543,7 @@ pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt:
                 enemy.timer = OVERSEER_EVERY * rand::gen_range(0.85, 1.15);
                 enemy.mode = Mode::Cast { left: 0.6 };
                 let blow = Hazard::new(target, OVERSEER_RADIUS * blast_scale(enemy.scale), OVERSEER_WARN, UNIT_HEALTH * OVERSEER_HIT, OVERSEER_VICTIMS, enemy.color, Cue::Slam);
-                fx.hazards.push(blow.vs_walls(enemy.scale));
+                fx.hazards.push(blow.vs_walls(enemy.scale).by(enemy.name));
                 fx.ring(target, OVERSEER_RADIUS * 0.4, enemy.color);
                 fx.cue_at(Cue::Warning, target);
             }

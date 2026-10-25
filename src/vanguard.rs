@@ -36,6 +36,14 @@ pub(crate) fn gunnery_range(army: usize) -> f32 {
     GUNNERY_WIDE_RANGE + (GUNNERY_HUGE_RANGE - GUNNERY_WIDE_RANGE) * grown
 }
 
+//the share of the usual each gunner of an army of `army` does: all of it while the front has no more than VANGUARD_FULL_GUNNERS, and less past that, so
+//that what the front does between them grows only as the square root of how many there are. the fighting by touch takes in only the units at the
+//enemy, whatever the army's size, and a front that grew with the army would cut down everything far off before it came near
+pub(crate) fn vanguard_share(army: usize) -> f32 {
+    let gunners = army as f32 * GUNNERY_FRONT_SHARE;
+    (VANGUARD_FULL_GUNNERS / gunners.max(1.0)).sqrt().min(1.0)
+}
+
 //the enemy a gunner at a place fires at: the nearest within `range` in the narrow cone round the heading, or failing that the nearest in the wide one.
 //nothing outside the wide cone, which never takes in what is behind
 fn target_for(at: Vec2, facing: Vec2, range: f32, targets: &[(Vec2, f32)], aim_cos: f32, search_cos: f32) -> Option<Vec2> {
@@ -104,6 +112,7 @@ pub(crate) fn fire_vanguard(fronts: &[Front], units: &[Unit], enemies: &[Enemy],
             continue;
         }
         let rate = gunner_rate(front);
+        let share = vanguard_share(size[owner]);
         let due: Vec<&Unit> = units
             .iter()
             .filter(|unit| fights(unit) && owner_index(unit.owner) == owner)
@@ -151,7 +160,7 @@ pub(crate) fn fire_vanguard(fronts: &[Front], units: &[Unit], enemies: &[Enemy],
             };
             //each does what the gunner does by touch in a second, times GUNNER_POWER, over the shots it fires in a second at the usual rate: so firing
             //more often (a wedge, a Volley Drill) is more damage, and a lower density or a full frame only fewer, heavier bolts
-            let hurt = if hurts { Hurt { each: UNIT_DAMAGE * front.upgrades.hit() * unit.might * GUNNER_POWER / GUNNER_RATE * heavier, ember: 0.0, owner: owner as u8 } } else { Hurt::default() };
+            let hurt = if hurts { Hurt { each: UNIT_DAMAGE * front.upgrades.hit() * unit.might * GUNNER_POWER / GUNNER_RATE * heavier * share, ember: 0.0, owner: owner as u8 } } else { Hurt::default() };
             launch_volley(bolts, &volley, hurt);
             fired += 1;
         }
