@@ -68,6 +68,7 @@ mod sim;
 mod sites;
 mod sound;
 mod status;
+mod telegraphs;
 mod spawning;
 mod squads;
 mod sync;

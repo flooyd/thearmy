@@ -218,7 +218,7 @@ fn draining_the_effects_turns_what_is_for_the_eyes_and_ears_into_events_and_leav
 fn what_the_world_has_to_act_on_itself_is_not_taken_from_it() {
     let mut fx = Effects::default();
     fx.hazards.push(hazard_at(Vec2::new(5.0, 5.0), 100.0, 1.0, 10.0, 5));
-    fx.blasts.push(Blast { position: Vec2::ZERO, radius: 50.0, damage: 10.0 });
+    fx.blasts.push(Blast { position: Vec2::ZERO, radius: 50.0, damage: 10.0, shape: Shape::Circle });
     fx.wall_hits.push(((1, 1), 5.0));
     fx.fallen.push((Vec2::ZERO, 0));
     fx.earn(1, 25.0);

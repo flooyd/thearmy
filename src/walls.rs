@@ -388,7 +388,12 @@ pub(crate) fn update_walls(walls: &mut Walls, units: &mut [Unit], dt: f32, fx: &
         for col in first_col..=last_col {
             for row in first_row..=last_row {
                 if let Some(wall) = walls.get(&(col, row)).filter(|wall| wall.side == Side::Friendly) {
-                    if wall.overlaps_circle(blast.position.x, blast.position.y, blast.radius) {
+                    let hit = match blast.shape {
+                        Shape::Circle => wall.overlaps_circle(blast.position.x, blast.position.y, blast.radius),
+                        //(another shape hits the walls its edge comes within half a tile of the middle of)
+                        shape => outside_by(blast.position, blast.radius, shape, tile_center((col, row))) <= TILE_SIZE * 0.5,
+                    };
+                    if hit {
                         fx.wall_hits.push(((col, row), blast.damage));
                     }
                 }

@@ -99,6 +99,7 @@ pub(crate) struct Blast {
     pub(crate) position: Vec2,
     pub(crate) radius: f32,
     pub(crate) damage: f32, //to each wall
+    pub(crate) shape: Shape, //a circle, but for a hazard of another shape (and then `radius` is how far that reaches)
 }
 
 //a sound for main to play
@@ -142,6 +143,7 @@ pub(crate) enum Cue {
     Crit,      //a champion's bolt hit hard
     Volley,    //the front of the army fired
     Shatter,   //a frozen enemy broke
+    Tick,      //the warning the army is in, counting down
 }
 
 //what a player's army has earned in a frame from the enemies it destroyed, which the game hands out to that player

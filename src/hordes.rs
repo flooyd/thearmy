@@ -447,7 +447,8 @@ pub(crate) fn draw_edge_arrow(at: Vec2, player: Vec2, zoom: f32, color: Color, l
     draw_triangle(spot + direction * 22.0, spot - direction * 12.0 + side * 16.0, spot - direction * 12.0 - side * 16.0, Color::new(0.0, 0.0, 0.0, 0.6));
     draw_triangle(spot + direction * 20.0, spot - direction * 11.0 + side * 14.0, spot - direction * 11.0 - side * 14.0, pulsing);
     let width = text_width(label, 18.0, Face::Bold);
-    let label_at = (spot - direction * 38.0 - Vec2::new(width / 2.0, -7.0)).max(Vec2::splat(4.0)).min(Vec2::new(screen_width() - width - 4.0, screen_height() - 4.0));
+    //(behind the arrow, far enough back that a long label pointing left or right is clear of it)
+    let label_at = (spot - direction * (38.0 + width / 2.0 * direction.x.abs()) - Vec2::new(width / 2.0, -7.0)).max(Vec2::splat(4.0)).min(Vec2::new(screen_width() - width - 4.0, screen_height() - 4.0));
     let light = Color::new((color.r + 1.0) / 2.0, (color.g + 1.0) / 2.0, (color.b + 1.0) / 2.0, 1.0);
     draw_label_shadowed(label, label_at.x, label_at.y, 18.0, light, Face::Bold);
 }

@@ -414,7 +414,7 @@ fn detonate<R: Relics + ?Sized>(shot: &Shot, grid: &TileMap<Vec<usize>>, units: 
         let toughness = relics.of(units[i].owner).toughness;
         units[i].hurt(shot.damage * toughness);
     }
-    fx.blasts.push(Blast { position: shot.position, radius: shot.splash, damage: shot.damage * BLAST_WALL_FACTOR });
+    fx.blasts.push(Blast { position: shot.position, radius: shot.splash, damage: shot.damage * BLAST_WALL_FACTOR, shape: Shape::Circle });
     fx.burst(shot.position, shot.color, (shot.splash / 5.0).clamp(10.0, 60.0) as usize, shot.splash * 2.0);
     fx.ring(shot.position, shot.splash, shot.color);
     fx.mark(shot.position, shot.splash * 0.7, shot.color, MarkKind::Scorch);
@@ -585,11 +585,13 @@ pub(crate) struct Hazard {
     pub(crate) boom: Cue,         //the sound it makes when it goes off
     pub(crate) wall_damage: f32,  //to each of the player's walls in it when it goes off
     pub(crate) circle: Option<BossCircle>, //which of a boss's circles it is, if it is one, which sets its colour
+    pub(crate) shape: Shape,      //its shape (see telegraphs.rs): `position` and `radius` are where it is and how far from there it reaches at most
+    pub(crate) group: u32,        //the ones put down together (a fan of beams) share a number, and are warned of as one. 0 for one alone
 }
 
 impl Hazard {
     pub(crate) fn new(position: Vec2, radius: f32, warn: f32, damage: f32, victims: usize, color: Color, boom: Cue) -> Hazard {
-        Hazard { position, radius, armed: true, warn, warn_total: warn.max(0.001), damage, victims, linger: 0.0, burn: 0.0, flash: 0.0, color, boom, wall_damage: damage * BLAST_WALL_FACTOR, circle: None }
+        Hazard { position, radius, armed: true, warn, warn_total: warn.max(0.001), damage, victims, linger: 0.0, burn: 0.0, flash: 0.0, color, boom, wall_damage: damage * BLAST_WALL_FACTOR, circle: None, shape: Shape::Circle, group: 0 }
     }
 
     //it hurts walls this many times as much as usual: a bigger enemy's blast breaks a wall that was built for a bigger army
@@ -610,11 +612,43 @@ impl Hazard {
         self.circle = Some(circle);
         self
     }
+
+    //it has another shape than a circle: its radius becomes how far the shape reaches (see Shape::reach)
+    pub(crate) fn shaped(mut self, shape: Shape) -> Hazard {
+        self.shape = shape;
+        self.radius = shape.reach(self.radius);
+        self
+    }
+
+    //it is one of a few put down together, which are warned of as one
+    pub(crate) fn grouped(mut self, group: u32) -> Hazard {
+        self.group = group;
+        self
+    }
+
+    pub(crate) fn contains(&self, at: Vec2) -> bool {
+        inside(self.position, self.radius, self.shape, at)
+    }
+
+    pub(crate) fn middle(&self) -> Vec2 {
+        shape_middle(self.position, self.shape)
+    }
+
+    //the quickest way out of it from a point in it (the boss harness's player takes it)
+    #[cfg(test)]
+    pub(crate) fn way_out(&self, at: Vec2) -> Vec2 {
+        way_out(self.position, self.radius, self.shape, at)
+    }
+
+    //the colour it is drawn in: its kind's, or its own
+    pub(crate) fn tint(&self) -> Color {
+        self.circle.map_or(self.color, BossCircle::color)
+    }
 }
 
 //count the hazards down, set off the ones that are due and burn the units in the ones that are burning
 pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, units: &mut [Unit], relics: &R, dt: f32, fx: &mut Effects) {
-    let mut burning: Vec<(Vec2, f32, f32)> = Vec::new(); //where, how far it reaches and how hard it burns
+    let mut burning: Vec<(Vec2, f32, Shape, f32)> = Vec::new(); //where, how far it reaches, its shape and how hard it burns
     hazards.retain_mut(|hazard| {
         if hazard.armed {
             hazard.warn -= dt;
@@ -624,7 +658,7 @@ pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, unit
             hazard.armed = false;
             hazard.flash = HAZARD_FLASH;
             if hazard.wall_damage > 0.0 {
-                fx.blasts.push(Blast { position: hazard.position, radius: hazard.radius, damage: hazard.wall_damage });
+                fx.blasts.push(Blast { position: hazard.position, radius: hazard.radius, damage: hazard.wall_damage, shape: hazard.shape });
             }
             let (mut hurt, mut killed) = (0, 0);
             if hazard.damage > 0.0 {
@@ -632,19 +666,24 @@ pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, unit
                     if hurt >= hazard.victims {
                         break;
                     }
-                    if unit.health > 0.0 && unit.garrison.is_none() && Vec2::new(unit.x, unit.y).distance(hazard.position) <= hazard.radius {
+                    if unit.health > 0.0 && unit.garrison.is_none() && hazard.contains(Vec2::new(unit.x, unit.y)) {
                         unit.hurt(hazard.damage * relics.of(unit.owner).toughness);
                         hurt += 1;
                         killed += (unit.health <= 0.0) as usize;
                     }
                 }
             }
-            fx.burst(hazard.position, hazard.color, (hazard.radius / 5.0).clamp(12.0, 80.0) as usize, hazard.radius * 2.0);
+            //(sparks and scorch marks over all of it: one lot in the middle of a circle, a row along a lane)
+            let places = spots(hazard.position, hazard.radius, hazard.shape);
+            let share = (places.len() as f32).sqrt();
+            for &(at, size) in &places {
+                fx.burst(at, hazard.color, ((size / 5.0).clamp(12.0, 80.0) / share).ceil() as usize, size * 2.0);
+                fx.mark(at, size * 0.85, hazard.color, MarkKind::Scorch);
+            }
             fx.add_shake((hazard.radius / 1500.0).clamp(0.05, 0.6));
-            fx.mark(hazard.position, hazard.radius * 0.85, hazard.color, MarkKind::Scorch);
-            fx.cue_at(hazard.boom, hazard.position);
+            fx.cue_at(hazard.boom, hazard.middle());
             if killed > 0 {
-                fx.popup(hazard.position, 0.0, 0.0, format!("-{killed} units"), Color::new(1.0, 0.35, 0.35, 1.0));
+                fx.popup(hazard.middle(), 0.0, 0.0, format!("-{killed} units"), Color::new(1.0, 0.35, 0.35, 1.0));
             }
             return hazard.linger > 0.0 || hazard.flash > 0.0;
         }
@@ -652,7 +691,7 @@ pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, unit
         if hazard.linger > 0.0 {
             hazard.linger -= dt;
             if hazard.burn > 0.0 {
-                burning.push((hazard.position, hazard.radius, hazard.burn));
+                burning.push((hazard.position, hazard.radius, hazard.shape, hazard.burn));
             }
         }
         hazard.linger > 0.0 || hazard.flash > 0.0
@@ -662,47 +701,10 @@ pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, unit
     if !burning.is_empty() {
         for unit in units.iter_mut().filter(|unit| unit.health > 0.0 && unit.garrison.is_none()) {
             let at = Vec2::new(unit.x, unit.y);
-            let worst = burning.iter().filter(|(position, radius, _)| at.distance(*position) <= *radius).map(|(_, _, burn)| *burn).fold(0.0, f32::max);
+            let worst = burning.iter().filter(|(position, radius, shape, _)| inside(*position, *radius, *shape, at)).map(|(_, _, _, burn)| *burn).fold(0.0, f32::max);
             if worst > 0.0 {
                 unit.hurt(worst * relics.of(unit.owner).toughness * dt);
             }
-        }
-    }
-}
-
-//hazards on the ground: one that has not gone off is a red disc that fills up as the time runs out, one that has is a
-//flash, and one that is burning flickers orange
-pub(crate) fn draw_hazards(hazards: &[Hazard], time: f32) {
-    for hazard in hazards {
-        let (x, y, radius) = (hazard.position.x, hazard.position.y, hazard.radius);
-        let sides = (radius.sqrt() * 3.0).clamp(24.0, 96.0) as u8;
-        let color = hazard.color;
-        if hazard.armed {
-            let filled = 1.0 - (hazard.warn / hazard.warn_total).clamp(0.0, 1.0);
-            let pulse = 0.5 + 0.5 * (time * 12.0).sin();
-            //one of a boss's circles is drawn in the colour of its kind, and the rest are red
-            let edge = match hazard.circle {
-                Some(circle) => {
-                    let tint = circle.color();
-                    Color::new(tint.r, tint.g, tint.b, 0.55 + 0.45 * pulse)
-                }
-                None => danger_color(0.55 + 0.45 * pulse),
-            };
-            let fill = hazard.circle.map_or(color, BossCircle::color);
-            draw_poly(x, y, sides, radius, 0.0, Color::new(fill.r, fill.g, fill.b, 0.10 + 0.06 * pulse));
-            draw_poly(x, y, sides, radius * filled, 0.0, Color::new(fill.r, fill.g, fill.b, 0.22));
-            draw_poly_lines(x, y, sides, radius, 0.0, (radius * 0.02).clamp(3.0, 10.0), edge);
-            continue;
-        }
-        if hazard.flash > 0.0 {
-            let fade = hazard.flash / HAZARD_FLASH;
-            draw_poly(x, y, sides, radius, 0.0, Color::new(1.0, 0.95, 0.8, 0.55 * fade));
-        }
-        if hazard.linger > 0.0 {
-            let flicker = 0.5 + 0.5 * (time * 9.0 + x * 0.01).sin();
-            let fade = hazard.linger.min(1.0);
-            draw_poly(x, y, sides, radius, 0.0, Color::new(1.0, 0.45, 0.1, (0.16 + 0.1 * flicker) * fade));
-            draw_poly_lines(x, y, sides, radius, 0.0, 4.0, Color::new(1.0, 0.6, 0.15, (0.5 + 0.3 * flicker) * fade));
         }
     }
 }

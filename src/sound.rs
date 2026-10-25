@@ -254,6 +254,11 @@ pub(crate) fn synthesize(cue: Cue) -> Vec<f32> {
             add_tone(&mut buffer, 0.0, 0.05, 1900.0, 900.0, Square, 0.25, 42.0);
             add_tone(&mut buffer, 0.0, 0.06, 4500.0, 1500.0, Noise, 0.35, 38.0);
         }
+        //a dry click, like a clock's
+        Cue::Tick => {
+            add_tone(&mut buffer, 0.0, 0.07, 2600.0, 2200.0, Square, 0.3, 60.0);
+            add_tone(&mut buffer, 0.0, 0.03, 6000.0, 3000.0, Noise, 0.2, 110.0);
+        }
         //glass breaking: a high crash of hiss and two bright, ringing notes falling a little
         Cue::Shatter => {
             add_tone(&mut buffer, 0.0, 0.25, 8000.0, 2500.0, Noise, 0.7, 14.0);
@@ -297,7 +302,7 @@ pub(crate) fn wav_bytes(samples: &[f32]) -> Vec<u8> {
     wav
 }
 
-pub(crate) const ALL_CUES: [Cue; 38] = [
+pub(crate) const ALL_CUES: [Cue; 39] = [
     Cue::Pop,
     Cue::Thud,
     Cue::Dispatch,
@@ -336,6 +341,7 @@ pub(crate) const ALL_CUES: [Cue; 38] = [
     Cue::Crit,
     Cue::Volley,
     Cue::Shatter,
+    Cue::Tick,
 ];
 
 impl Cue {
@@ -376,6 +382,7 @@ impl Cue {
             Cue::Crit => 0.5,
             Cue::Volley => 0.16,
             Cue::Shatter => 0.6,
+            Cue::Tick => 0.3,
         }
     }
 
@@ -416,6 +423,7 @@ impl Cue {
             Cue::Crit => 0.12,
             Cue::Volley => 0.07,
             Cue::Shatter => 0.06,
+            Cue::Tick => 0.04,
         }
     }
 }

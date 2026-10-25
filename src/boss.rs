@@ -15,6 +15,10 @@ pub(crate) enum Pattern {
     Pull,    //drags the army towards it for a moment, and then goes off where they end up
     Fortify, //raises a ring of barriers round itself, with gaps, and holds its ground inside it
     Volley,  //a fan of heavy shots at the army
+    Piston,      //slams a lane out from itself at the army, wider than itself: step aside
+    GravityRing, //a ring round itself with a safe middle: stand close
+    Beams,       //a fan of beams out from itself, with gaps between them to stand in
+    Cleave,      //a cone from itself at the army: get behind it or to its side
 }
 
 //a pattern and how many seconds between one use and the next
@@ -92,8 +96,8 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         flank: false,
         phases: &[
             Phase { name: "shields up", below: 1.0, shield: 0.2, speed: 1.0, casts: &[Cast { pattern: Pattern::Slam, every: 6.0 }, Cast { pattern: Pattern::Meteors, every: 9.0 }] },
-            Phase { name: "reinforced", below: 0.65, shield: 0.3, speed: 1.0, casts: &[Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Ring, every: 6.0 }, Cast { pattern: Pattern::Brood, every: 10.0 }] },
-            Phase { name: "overload", below: 0.3, shield: 0.0, speed: 1.3, casts: &[Cast { pattern: Pattern::Nova, every: 8.0 }, Cast { pattern: Pattern::Slam, every: 4.0 }, Cast { pattern: Pattern::Meteors, every: 6.0 }] },
+            Phase { name: "reinforced", below: 0.65, shield: 0.3, speed: 1.0, casts: &[Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Ring, every: 6.0 }, Cast { pattern: Pattern::Brood, every: 10.0 }, Cast { pattern: Pattern::Piston, every: 7.0 }] },
+            Phase { name: "overload", below: 0.3, shield: 0.0, speed: 1.3, casts: &[Cast { pattern: Pattern::Nova, every: 8.0 }, Cast { pattern: Pattern::Slam, every: 4.0 }, Cast { pattern: Pattern::Meteors, every: 6.0 }, Cast { pattern: Pattern::Piston, every: 6.0 }] },
         ],
     },
     BossDef {
@@ -114,8 +118,8 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         flank: false,
         phases: &[
             Phase { name: "the charge", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Charge, every: 5.0 }, Cast { pattern: Pattern::Brood, every: 9.0 }] },
-            Phase { name: "stampede", below: 0.6, shield: 0.0, speed: 1.15, casts: &[Cast { pattern: Pattern::Charge, every: 3.5 }, Cast { pattern: Pattern::Slam, every: 7.0 }, Cast { pattern: Pattern::Brood, every: 8.0 }] },
-            Phase { name: "berserk", below: 0.25, shield: 0.0, speed: 1.5, casts: &[Cast { pattern: Pattern::Charge, every: 2.5 }, Cast { pattern: Pattern::Ring, every: 6.0 }, Cast { pattern: Pattern::Slam, every: 6.0 }] },
+            Phase { name: "stampede", below: 0.6, shield: 0.0, speed: 1.15, casts: &[Cast { pattern: Pattern::Charge, every: 3.5 }, Cast { pattern: Pattern::Slam, every: 7.0 }, Cast { pattern: Pattern::Brood, every: 8.0 }, Cast { pattern: Pattern::Cleave, every: 6.0 }] },
+            Phase { name: "berserk", below: 0.25, shield: 0.0, speed: 1.5, casts: &[Cast { pattern: Pattern::Charge, every: 2.5 }, Cast { pattern: Pattern::Ring, every: 6.0 }, Cast { pattern: Pattern::Slam, every: 6.0 }, Cast { pattern: Pattern::Cleave, every: 5.0 }] },
         ],
     },
     BossDef {
@@ -136,8 +140,8 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         flank: false,
         phases: &[
             Phase { name: "the light fails", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Meteors, every: 5.0 }, Cast { pattern: Pattern::Nova, every: 11.0 }] },
-            Phase { name: "totality", below: 0.66, shield: 0.15, speed: 1.0, casts: &[Cast { pattern: Pattern::Meteors, every: 4.5 }, Cast { pattern: Pattern::Brood, every: 8.0 }, Cast { pattern: Pattern::Burn, every: 8.0 }] },
-            Phase { name: "oblivion", below: 0.33, shield: 0.0, speed: 1.25, casts: &[Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Nova, every: 7.0 }, Cast { pattern: Pattern::Meteors, every: 4.0 }, Cast { pattern: Pattern::Ring, every: 5.0 }] },
+            Phase { name: "totality", below: 0.66, shield: 0.15, speed: 1.0, casts: &[Cast { pattern: Pattern::Meteors, every: 4.5 }, Cast { pattern: Pattern::Brood, every: 8.0 }, Cast { pattern: Pattern::Burn, every: 8.0 }, Cast { pattern: Pattern::Beams, every: 8.0 }] },
+            Phase { name: "oblivion", below: 0.33, shield: 0.0, speed: 1.25, casts: &[Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Nova, every: 7.0 }, Cast { pattern: Pattern::Meteors, every: 4.0 }, Cast { pattern: Pattern::Ring, every: 5.0 }, Cast { pattern: Pattern::Beams, every: 7.0 }] },
         ],
     },
     //tears in two when it is hurt, and each half does it again: four queens, each with a quarter of the health
@@ -182,8 +186,8 @@ pub(crate) static BOSSES: [BossDef; 7] = [
         flank: false,
         phases: &[
             Phase { name: "gravity gathers", below: 1.0, shield: 0.0, speed: 1.0, casts: &[Cast { pattern: Pattern::Pull, every: 10.0 }, Cast { pattern: Pattern::Meteors, every: 8.0 }] },
-            Phase { name: "event horizon", below: 0.62, shield: 0.15, speed: 1.0, casts: &[Cast { pattern: Pattern::Pull, every: 7.5 }, Cast { pattern: Pattern::Nova, every: 10.0 }, Cast { pattern: Pattern::Ring, every: 8.0 }] },
-            Phase { name: "collapse", below: 0.3, shield: 0.0, speed: 1.2, casts: &[Cast { pattern: Pattern::Pull, every: 6.0 }, Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Meteors, every: 6.0 }, Cast { pattern: Pattern::Brood, every: 9.0 }] },
+            Phase { name: "event horizon", below: 0.62, shield: 0.15, speed: 1.0, casts: &[Cast { pattern: Pattern::Pull, every: 7.5 }, Cast { pattern: Pattern::Nova, every: 10.0 }, Cast { pattern: Pattern::Ring, every: 8.0 }, Cast { pattern: Pattern::GravityRing, every: 9.0 }] },
+            Phase { name: "collapse", below: 0.3, shield: 0.0, speed: 1.2, casts: &[Cast { pattern: Pattern::Pull, every: 6.0 }, Cast { pattern: Pattern::Slam, every: 5.0 }, Cast { pattern: Pattern::Meteors, every: 6.0 }, Cast { pattern: Pattern::Brood, every: 9.0 }, Cast { pattern: Pattern::GravityRing, every: 8.0 }] },
         ],
     },
     //fights from a distance and behind barriers, and its front is armoured: it turns to face the player, so the army has to
@@ -364,6 +368,16 @@ pub(crate) fn blast(position: Vec2, radius: f32, warn: f32, weight: f32, share: 
     hazard
 }
 
+//the middle of the army (of up to 256 of its units, spread through it), or the player when it has none
+fn army_middle(units: &[Unit], player: Vec2) -> Vec2 {
+    if units.is_empty() {
+        return player;
+    }
+    let step = (units.len() / 256).max(1);
+    let (sum, count) = units.iter().step_by(step).fold((Vec2::ZERO, 0), |(sum, count), unit| (sum + Vec2::new(unit.x, unit.y), count + 1));
+    sum / count as f32
+}
+
 //move a boss into its next phase: a pause in which it can't be hurt, a pulse that clears the army from round it, a new
 //set of attacks and a new shield
 pub(crate) fn enter_phase(enemy: &mut Enemy, state: &mut BossState, phase: usize, army: usize, fx: &mut Effects) {
@@ -469,6 +483,45 @@ pub(crate) fn cast_pattern(enemy: &mut Enemy, state: &mut BossState, pattern: Pa
             fx.hazards.push(blast(enemy.position, enemy.size * 0.5 + 200.0, warn, 1.2, 0.45, army, state.tier, color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Pull));
             enemy.mode = Mode::Cast { left: warn + 0.4 };
             fx.cue_at(Cue::Pull, enemy.position);
+        }
+        Pattern::Piston => {
+            let toward = (army_middle(units, player) - enemy.position).try_normalize().unwrap_or(Vec2::Y);
+            let length = PISTON_LENGTH + enemy.size;
+            let width = enemy.size + PISTON_WIDTH + root;
+            let warn = blast_warn(BOSS_WARN_PISTON, length / 2.0);
+            let middle = enemy.position + toward * length / 2.0;
+            fx.hazards.push(blast(middle, 0.0, warn, 1.0, 0.35, army, state.tier, color, Cue::Slam).shaped(Shape::Rect { dir: toward, length, width }).vs_walls(enemy.scale).circle(BossCircle::Piston));
+            enemy.mode = Mode::Cast { left: warn + 0.4 };
+            fx.cue(Cue::Warning);
+        }
+        Pattern::GravityRing => {
+            let inner = enemy.size / 2.0 + RING_SAFE;
+            let outer = inner + RING_WIDTH + root * 4.0;
+            let warn = blast_warn(BOSS_WARN_RING, outer);
+            fx.hazards.push(blast(enemy.position, outer, warn, 1.0, 0.5, army, state.tier, color, Cue::Slam).shaped(Shape::Ring { inner }).vs_walls(enemy.scale).circle(BossCircle::GravityRing));
+            enemy.mode = Mode::Cast { left: warn + 0.4 };
+            fx.cue(Cue::Warning);
+        }
+        Pattern::Beams => {
+            let count = BEAMS + tier.min(2);
+            let turn = rand::gen_range(0.0, std::f32::consts::TAU);
+            let (length, width) = (BEAM_LENGTH + enemy.size, BEAM_WIDTH + root * 0.8);
+            let warn = blast_warn(BOSS_WARN_BEAM, length / 2.0);
+            let group = rand::rand() | 1;
+            for k in 0..count {
+                let dir = Vec2::from_angle(turn + std::f32::consts::TAU * k as f32 / count as f32);
+                fx.hazards.push(blast(enemy.position, 0.0, warn, 1.0, 0.12, army, state.tier, color, Cue::Slam).shaped(Shape::Line { dir, length, width }).grouped(group).vs_walls(enemy.scale).circle(BossCircle::Beam));
+            }
+            enemy.mode = Mode::Cast { left: warn + 0.4 };
+            fx.cue(Cue::Warning);
+        }
+        Pattern::Cleave => {
+            let toward = (army_middle(units, player) - enemy.position).try_normalize().unwrap_or(Vec2::Y);
+            let reach = CLEAVE_REACH + enemy.size;
+            let warn = blast_warn(BOSS_WARN_CLEAVE, reach);
+            fx.hazards.push(blast(enemy.position, reach, warn, 1.0, 0.35, army, state.tier, color, Cue::Slam).shaped(Shape::Cone { dir: toward, arc: CLEAVE_ARC }).vs_walls(enemy.scale).circle(BossCircle::Cleave));
+            enemy.mode = Mode::Cast { left: warn + 0.3 };
+            fx.cue(Cue::Warning);
         }
         Pattern::Fortify => {
             //barriers go up round it, with two gaps, and it stays put inside them until they are down
@@ -602,7 +655,7 @@ pub(crate) fn blast_warn(base: f32, radius: f32) -> f32 {
 
 //whether an attack shows a circle on the ground that kills what it lands on, the ones to get out of the way of
 pub(crate) fn is_blast(pattern: Pattern) -> bool {
-    matches!(pattern, Pattern::Slam | Pattern::Meteors | Pattern::Nova | Pattern::Pull)
+    matches!(pattern, Pattern::Slam | Pattern::Meteors | Pattern::Nova | Pattern::Pull | Pattern::Piston | Pattern::GravityRing | Pattern::Beams | Pattern::Cleave)
 }
 
 //the kinds of circle a boss puts on the ground that kill what they land on. each has a colour of its own, so the army can tell at a
@@ -615,10 +668,26 @@ pub(crate) enum BossCircle {
     Pull,   //the well that drags the army in, and goes off where it ends up
     Shift,  //the pulse as a boss changes phase
     Split,  //the pulse as a boss tears in two
+    //(the ones that are not circles, see telegraphs.rs)
+    Piston,      //the Iron Warden's lane
+    Beam,        //the Eclipse's fan of beams
+    Cleave,      //Warlord Grakk's cone
+    GravityRing, //the Singularity's ring with a safe middle
 }
 
 #[cfg(test)]
-pub(crate) const CIRCLES: [BossCircle; 6] = [BossCircle::Slam, BossCircle::Meteor, BossCircle::Nova, BossCircle::Pull, BossCircle::Shift, BossCircle::Split];
+pub(crate) const CIRCLES: [BossCircle; 10] = [
+    BossCircle::Slam,
+    BossCircle::Meteor,
+    BossCircle::Nova,
+    BossCircle::Pull,
+    BossCircle::Shift,
+    BossCircle::Split,
+    BossCircle::Piston,
+    BossCircle::Beam,
+    BossCircle::Cleave,
+    BossCircle::GravityRing,
+];
 
 impl BossCircle {
     pub(crate) fn name(self) -> &'static str {
@@ -629,6 +698,10 @@ impl BossCircle {
             BossCircle::Pull => "GRAVITY WELL",
             BossCircle::Shift => "PHASE PULSE",
             BossCircle::Split => "SPLIT PULSE",
+            BossCircle::Piston => "PISTON LINE",
+            BossCircle::Beam => "ECLIPSE BEAMS",
+            BossCircle::Cleave => "CLEAVE",
+            BossCircle::GravityRing => "GRAVITY RING",
         }
     }
 
@@ -640,6 +713,10 @@ impl BossCircle {
             BossCircle::Pull => Color::new(0.4, 0.58, 1.0, 1.0),    //blue
             BossCircle::Shift => Color::new(0.25, 1.0, 0.8, 1.0),   //teal
             BossCircle::Split => Color::new(1.0, 0.5, 0.78, 1.0),   //pink
+            BossCircle::Piston => Color::new(0.55, 0.6, 0.7, 1.0),  //steel
+            BossCircle::Beam => Color::new(0.2, 0.8, 1.0, 1.0),     //cyan
+            BossCircle::Cleave => Color::new(0.6, 1.0, 0.25, 1.0),  //lime
+            BossCircle::GravityRing => Color::new(0.95, 0.95, 1.0, 1.0), //white
         }
     }
 
@@ -652,6 +729,10 @@ impl BossCircle {
             BossCircle::Pull => "BLUE",
             BossCircle::Shift => "TEAL",
             BossCircle::Split => "PINK",
+            BossCircle::Piston => "STEEL",
+            BossCircle::Beam => "CYAN",
+            BossCircle::Cleave => "LIME",
+            BossCircle::GravityRing => "WHITE",
         }
     }
 
@@ -662,6 +743,10 @@ impl BossCircle {
             BossCircle::Meteor => "keep moving",
             BossCircle::Nova => "run out of the huge circle",
             BossCircle::Pull => "run from the well",
+            BossCircle::Piston => "step out of the lane",
+            BossCircle::Beam => "stand in a gap between the beams",
+            BossCircle::Cleave => "get behind it or to its side",
+            BossCircle::GravityRing => "stand close to the boss",
         }
     }
 }
@@ -673,6 +758,10 @@ pub(crate) fn circle_of(pattern: Pattern) -> Option<BossCircle> {
         Pattern::Meteors => Some(BossCircle::Meteor),
         Pattern::Nova => Some(BossCircle::Nova),
         Pattern::Pull => Some(BossCircle::Pull),
+        Pattern::Piston => Some(BossCircle::Piston),
+        Pattern::GravityRing => Some(BossCircle::GravityRing),
+        Pattern::Beams => Some(BossCircle::Beam),
+        Pattern::Cleave => Some(BossCircle::Cleave),
         _ => None,
     }
 }

@@ -18,7 +18,9 @@ are the fonts.
   formations (`F`) change how the rest of the army follows you: a ring with you safe in the middle (the usual one), a wedge, or a line.
   Playing alone there is also *Free*, where the units just pile up on you; in a hosted or joined game that one is left out, as it costs too much with several armies.
 - **Survive bosses.** Seven bosses with several phases each, plus the Sovereign. They raise barriers, call meteors, charge,
-  slam and mark the ground in red. When you hear "get out of the red", walk. Slaying one gives you a choice of relics.
+  slam and mark the ground. Each kind of warning has its own colour and hatching, and not all are circles: the later phases add a
+  ring that is safe in the middle, a fan of beams with gaps, a cone and a lane. The warning says what to do, it ticks faster as it
+  comes due, and a big one off the screen gets an arrow at the edge. Slaying a boss gives you a choice of relics.
   A boss makes an entrance: the camera goes to it and back, with its name across the screen (`Space` skips it). Playing alone the
   world crawls meanwhile; with others it can't be slowed for one of you, so you keep steering and the entrance ends early if your army is in trouble.
 - **Break hordes.** Hordes (Swarm Tide, Iron Column, Wildfire, Stampede, Titan March and more) are announced on screen and

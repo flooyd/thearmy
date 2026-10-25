@@ -144,21 +144,34 @@ pub(crate) struct BlastWarning {
     pub(crate) units: usize,       //the most units it will kill, which is the ones inside it or its limit
     pub(crate) player_inside: bool,
     pub(crate) circle: Option<BossCircle>, //which of a boss's circles it is, if it is one
+    pub(crate) shape: Shape,               //its shape, which the headline names when it is not a circle
 }
 
 //the circle that is due to go off that would cost the most units, if it would cost enough (a few, or a hundredth of the army) or
 //the player is in it. the quick ones, like a shell, and the ones that do no harm by themselves are not worth a warning
 pub(crate) fn blast_warning(hazards: &[Hazard], player: Vec2, units: &[Unit]) -> Option<BlastWarning> {
-    let mut worst: Option<BlastWarning> = None;
+    //(the ones put down together, like a fan of beams, are one warning, of what is at stake in all of them)
+    let mut found: Vec<(u32, BlastWarning)> = Vec::new();
     for hazard in hazards.iter().filter(|hazard| hazard.armed && hazard.damage >= UNIT_HEALTH && hazard.warn_total >= BLAST_WARNING_MIN_SECONDS) {
-        let reach = hazard.radius * hazard.radius;
-        let inside = units.iter().filter(|unit| unit.health > 0.0 && unit.garrison.is_none() && Vec2::new(unit.x, unit.y).distance_squared(hazard.position) <= reach).count();
+        let inside = units.iter().filter(|unit| unit.health > 0.0 && unit.garrison.is_none() && hazard.contains(Vec2::new(unit.x, unit.y))).count();
         let at_stake = inside.min(hazard.victims);
-        let player_inside = player.distance_squared(hazard.position) <= reach;
-        let worth_it = player_inside || at_stake >= (units.len() / 100).max(3);
-        let worse = worst.as_ref().is_none_or(|other| (player_inside, at_stake) > (other.player_inside, other.units));
+        let player_inside = hazard.contains(player);
+        match found.iter_mut().find(|(group, _)| hazard.group != 0 && *group == hazard.group) {
+            Some((_, warning)) => {
+                warning.units += at_stake;
+                warning.player_inside |= player_inside;
+                warning.seconds = warning.seconds.min(hazard.warn.max(0.0));
+            }
+            None => found.push((hazard.group, BlastWarning { seconds: hazard.warn.max(0.0), units: at_stake, player_inside, circle: hazard.circle, shape: hazard.shape })),
+        }
+    }
+    let enough = (units.len() / 100).max(3);
+    let mut worst: Option<BlastWarning> = None;
+    for (_, warning) in found {
+        let worth_it = warning.player_inside || warning.units >= enough;
+        let worse = worst.as_ref().is_none_or(|other| (warning.player_inside, warning.units) > (other.player_inside, other.units));
         if worth_it && worse {
-            worst = Some(BlastWarning { seconds: hazard.warn.max(0.0), units: at_stake, player_inside, circle: hazard.circle });
+            worst = Some(warning);
         }
     }
     worst
@@ -169,9 +182,8 @@ pub(crate) fn blast_warning(hazards: &[Hazard], player: Vec2, units: &[Unit]) ->
 pub(crate) fn draw_blast_warning(warning: &BlastWarning, time: f32) {
     let (w, h) = (screen_width(), screen_height());
     let flash = 0.5 + 0.5 * (time * 10.0).sin();
-    //(a boss's circle is named by its colour, so the one on the ground can be told from the other kinds)
-    let colour_name = warning.circle.map_or("RED", |circle| circle.colour_name());
-    let title = if warning.player_inside { format!("GET OUT OF THE {colour_name}!") } else { format!("THE ARMY IS IN THE {colour_name}!") };
+    //(a boss's circle is named by its colour, so the one on the ground can be told from the other kinds, and one of another shape by that as well)
+    let title = warning_title(warning);
     let room = w - HUD_PANEL_RIGHT - 20.0;
     let size = fit_size(&title, (h * 0.06).round(), room, Face::Header);
     let left = ((w - text_width(&title, size, Face::Header)) / 2.0).max(HUD_PANEL_RIGHT);
@@ -179,7 +191,7 @@ pub(crate) fn draw_blast_warning(warning: &BlastWarning, time: f32) {
     //it flashes between the colour of the circle and white
     let flashing = Color::new(tint.r + (1.0 - tint.r) * flash * 0.8, tint.g + (1.0 - tint.g) * flash * 0.8, tint.b + (1.0 - tint.b) * flash * 0.8, 1.0);
     draw_label_shadowed(&title, left, h * 0.14, size, flashing, Face::Header);
-    let advice = warning.circle.map_or("walk clear", |circle| circle.advice());
+    let advice = warning.circle.map_or(warning.shape.advice(), |circle| circle.advice());
     let line = match warning.circle {
         Some(circle) => format!("{}: {} units will die in {:.1}s - {advice}, [R] recalls squads", circle.name(), grouped(warning.units), warning.seconds),
         None => format!("{} units will die in {:.1}s - {advice}, [R] recalls squads", grouped(warning.units), warning.seconds),

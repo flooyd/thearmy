@@ -161,12 +161,21 @@ pub(crate) fn draw_minimap(
             draw_circle_lines(point.x, point.y, 3.5, 1.2, WHITE);
         }
     }
-    //what is about to go off, as the circle it will hurt
+    //what is about to go off, as the shape it will hurt, in red or the colour of a boss's kind
     for hazard in hazards.iter().filter(|hazard| hazard.armed) {
         let point = map.to_screen(hazard.position);
-        let radius = (hazard.radius * map.scale()).max(2.0).min(rect.w / 3.0);
-        if on_map(point, radius) {
-            draw_circle_lines(point.x, point.y, radius, 1.5, danger_color(0.5 + 0.4 * (0.5 + 0.5 * (time * 12.0).sin())));
+        let alpha = 0.5 + 0.4 * (0.5 + 0.5 * (time * 12.0).sin());
+        let color = hazard.circle.map_or(danger_color(alpha), |circle| {
+            let tint = circle.color();
+            Color::new(tint.r, tint.g, tint.b, alpha)
+        });
+        if hazard.shape == Shape::Circle {
+            let radius = (hazard.radius * map.scale()).max(2.0).min(rect.w / 3.0);
+            if on_map(point, radius) {
+                draw_circle_lines(point.x, point.y, radius, 1.5, color);
+            }
+        } else if on_map(point, hazard.radius * map.scale()) {
+            draw_hazard_on_map(map, hazard, color);
         }
     }
     for (i, enemy) in enemies.iter().enumerate() {

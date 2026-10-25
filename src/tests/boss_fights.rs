@@ -66,24 +66,23 @@ pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u3
         let enemy_boost = speed_multiplier(units.len());
         let boost = upgrades.army_boost(units.len());
         //what the player does
-        let mut threat: Option<Vec2> = None;
+        let mut threat: Option<Vec2> = None; //the way out of the one to get out of
         if let (Style::Dodge, Some(_)) = (style, current_boss(&enemies)) {
             //the circles on the ground that count down for a while and would kill what is in them (the slams, waves, pulses and
             //meteors), once there are a few of the army in one. the player takes a moment to see one, then runs
-            let in_the_red = |hazard: &Hazard| units.iter().filter(|unit| Vec2::new(unit.x, unit.y).distance(hazard.position) <= hazard.radius).count() >= (units.len() / 50).max(3);
+            let in_the_red = |hazard: &Hazard| units.iter().filter(|unit| hazard.contains(Vec2::new(unit.x, unit.y))).count() >= (units.len() / 50).max(3);
             threat = hazards
                 .iter()
                 .find(|hazard| hazard.armed && hazard.damage >= UNIT_HEALTH && hazard.warn_total >= 1.2 && hazard.warn_total - hazard.warn >= DODGE_REACTION && in_the_red(hazard))
-                .map(|hazard| hazard.position);
+                .map(|hazard| hazard.way_out(player));
         }
-        if let Some(from) = threat {
+        if let Some(away) = threat {
             if !dodging {
                 dodging = true;
                 recalls += 1;
                 recall_squads(&mut units, &mut squads, player, &mut fx);
             }
             away_for = 0.3;
-            let away = (player - from).normalize_or_zero();
             player = (player + away * 800.0 * boost * dt).clamp(Vec2::splat(RADIUS), Vec2::splat(WORLD_SIZE - RADIUS));
         } else {
             away_for -= dt;
@@ -408,4 +407,27 @@ fn the_boss_balance_of_a_late_run_for_a_few_answers() {
             );
         }
     }
+}
+
+//the same over many seeds for an army that gets out of the way: BOSS_ONLY picks the boss (default 0), SEEDS the number of fights (default 10) and
+//FACTOR how many times the army it asks for (default 1)
+#[test]
+#[ignore]
+fn how_a_dodging_army_fares_over_many_seeds() {
+    let index: usize = std::env::var("BOSS_ONLY").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+    let seeds: u64 = std::env::var("SEEDS").ok().and_then(|v| v.parse().ok()).unwrap_or(10);
+    let factor: usize = std::env::var("FACTOR").ok().and_then(|v| v.parse().ok()).unwrap_or(1);
+    let def = &BOSSES[index];
+    let army = def.min_army * factor;
+    let runs: Vec<Fought> = (0..seeds).map(|seed| fight_a_boss(def, army, 0, Style::Dodge, &Upgrades::default(), 2000 + seed)).collect();
+    let won: Vec<&Fought> = runs.iter().filter(|run| run.won).collect();
+    let mean = |values: Vec<f32>| values.iter().sum::<f32>() / values.len().max(1) as f32;
+    eprintln!(
+        "{} at {army} units dodging over {seeds} seeds: won {}, the won ones {:.1} s and {:.0}% of the army lost on average, {:.0} recalls",
+        def.name,
+        won.len(),
+        mean(won.iter().map(|run| run.seconds).collect()),
+        mean(won.iter().map(|run| run.lost as f32 / run.army as f32 * 100.0).collect()),
+        mean(runs.iter().map(|run| run.recalls as f32).collect())
+    );
 }

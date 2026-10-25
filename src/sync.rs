@@ -528,7 +528,67 @@ pub(crate) fn read_shot(input: &mut Reader) -> Option<Shot> {
     Some(shot)
 }
 
-const ALL_CIRCLES: [BossCircle; 6] = [BossCircle::Slam, BossCircle::Meteor, BossCircle::Nova, BossCircle::Pull, BossCircle::Shift, BossCircle::Split];
+const ALL_CIRCLES: [BossCircle; 10] = [
+    BossCircle::Slam,
+    BossCircle::Meteor,
+    BossCircle::Nova,
+    BossCircle::Pull,
+    BossCircle::Shift,
+    BossCircle::Split,
+    BossCircle::Piston,
+    BossCircle::Beam,
+    BossCircle::Cleave,
+    BossCircle::GravityRing,
+];
+const SHAPE_MOST: f32 = 50_000.0; //a size of a shape a message tells of that is bigger than this is not believed
+
+fn write_shape(out: &mut Writer, shape: Shape) {
+    let angle = |dir: Vec2| dir.y.atan2(dir.x);
+    match shape {
+        Shape::Circle => out.u8(0),
+        Shape::Ring { inner } => {
+            out.u8(1);
+            out.f32(inner);
+        }
+        Shape::Line { dir, length, width } => {
+            out.u8(2);
+            out.f32(angle(dir));
+            out.f32(length);
+            out.f32(width);
+        }
+        Shape::Cone { dir, arc } => {
+            out.u8(3);
+            out.f32(angle(dir));
+            out.f32(arc);
+        }
+        Shape::Rect { dir, length, width } => {
+            out.u8(4);
+            out.f32(angle(dir));
+            out.f32(length);
+            out.f32(width);
+        }
+    }
+}
+
+fn read_shape(input: &mut Reader) -> Option<Shape> {
+    let size = |value: f32| (value.is_finite() && (0.0..=SHAPE_MOST).contains(&value)).then_some(value);
+    let way = |angle: f32| angle.is_finite().then(|| Vec2::from_angle(angle));
+    Some(match input.u8()? {
+        0 => Shape::Circle,
+        1 => Shape::Ring { inner: size(input.f32()?)? },
+        2 => Shape::Line { dir: way(input.f32()?)?, length: size(input.f32()?)?, width: size(input.f32()?)? },
+        3 => {
+            let dir = way(input.f32()?)?;
+            let arc = input.f32()?;
+            if !(arc > 0.0 && arc <= std::f32::consts::TAU) {
+                return None;
+            }
+            Shape::Cone { dir, arc }
+        }
+        4 => Shape::Rect { dir: way(input.f32()?)?, length: size(input.f32()?)?, width: size(input.f32()?)? },
+        _ => return None,
+    })
+}
 
 pub(crate) fn write_hazard(out: &mut Writer, hazard: &Hazard) {
     out.vec2(hazard.position);
@@ -543,6 +603,8 @@ pub(crate) fn write_hazard(out: &mut Writer, hazard: &Hazard) {
     out.f32(hazard.flash);
     out.color(hazard.color);
     out.u8(hazard.circle.map_or(0, |circle| 1 + ALL_CIRCLES.iter().position(|&other| other == circle).unwrap_or(0) as u8));
+    write_shape(out, hazard.shape);
+    out.u32(hazard.group);
 }
 
 pub(crate) fn read_hazard(input: &mut Reader) -> Option<Hazard> {
@@ -557,7 +619,11 @@ pub(crate) fn read_hazard(input: &mut Reader) -> Option<Hazard> {
         0 => None,
         tag => Some(*ALL_CIRCLES.get(tag as usize - 1)?),
     };
+    let shape = read_shape(input)?;
+    let group = input.u32()?;
     let mut hazard = Hazard::new(position, radius, warn, damage, victims, color, Cue::Pop);
+    hazard.shape = shape;
+    hazard.group = group;
     hazard.armed = armed;
     hazard.warn_total = warn_total;
     hazard.linger = linger;

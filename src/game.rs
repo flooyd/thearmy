@@ -123,6 +123,10 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         if let Err(why) = await_world(seat, &mut sim).await {
             return Ending::Left(why);
         }
+    } else if let Some(first) = sim.players.list.first() {
+        //(a showcase of the warnings puts one of each shape down, see showcase.rs)
+        let laid = showcase_hazards(first.position);
+        sim.hazards.extend(laid);
     }
     //the players at other machines that are in the game already
     let mut table = Table::new();
@@ -155,6 +159,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
     let mut map_view = MapView::Near;
     let mut autosave_in = AUTOSAVE_SECONDS; //seconds until the game saves by itself
     let mut heartbeat_in = 0.0; //seconds until the next beat while the army is failing
+    let mut tick_in = 0.0; //seconds until the next tick of the warning the army is in
     let mut beat = 0.0; //1 as the heart beats, fading
     let mut peril_now = 0.0; //how badly the army was doing at the end of the last frame
     let mut pause: Option<Pause> = None; //the menu, while it is up
@@ -572,6 +577,18 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         //(the enemies near the player at this keyboard are as fast as their army makes them)
         let enemy_boost = speed_multiplier(my_army);
         let ranges = sim.arrange();
+        //the worst warning the army is in ticks, quicker as it comes due (the tick is heard next frame)
+        let warning = blast_warning(&sim.hazards, player, &sim.units[ranges[me].clone()]);
+        match &warning {
+            Some(warning) if !paused => {
+                tick_in -= real_dt;
+                if tick_in <= 0.0 {
+                    feedback.fx.cue(Cue::Tick);
+                    tick_in = tick_gap(warning.seconds);
+                }
+            }
+            _ => tick_in = 0.0,
+        }
         let Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots, hazards, pulls, bolts, .. } = &sim;
         let fx = &feedback.fx;
 
@@ -592,7 +609,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         draw_enemies(enemies, &players.list[me].squads, get_time() as f32, enemy_boost, &camera, &watch, settings.simple_shapes);
         draw_shards(&feedback.shards, drawn);
         draw_fragments(&feedback.fragments, drawn, drawn_zoom);
-        draw_hazards(hazards, get_time() as f32);
+        draw_hazards(hazards, get_time() as f32, drawn_zoom);
         draw_pulls(pulls, get_time() as f32);
         draw_chests(&hordes.chests, drawn, get_time() as f32);
         draw_champion_auras(units, drawn, drawn_zoom, get_time() as f32);
@@ -644,8 +661,8 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         if settings.hints && !paused && run.seconds < HINT_SECONDS {
             draw_hints(run.seconds);
         }
-        if let Some(warning) = blast_warning(hazards, player, my_units) {
-            draw_blast_warning(&warning, get_time() as f32);
+        if let Some(warning) = &warning {
+            draw_blast_warning(warning, get_time() as f32);
         }
         draw_build_bar(&players.list[me].mason, get_time() as f32);
         if players.list[me].choice.is_none() && evolve_shown.0.is_none() {
@@ -679,6 +696,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             draw_horde_arrow(at, camera_at, camera_zoom, hordes.coming.map(|coming| coming.left));
         }
         draw_captain_arrows(enemies, camera_at, camera_zoom);
+        draw_hazard_arrows(hazards, camera_at, camera_zoom);
         draw_mate_arrows(&mates, camera_at, camera_zoom);
         draw_team_panel(&mates);
         //(a player with no army in a world that goes on has a few units again in a moment)
