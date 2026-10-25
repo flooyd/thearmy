@@ -270,11 +270,12 @@ pub(crate) fn slider_bar(row: Rect) -> Rect {
 }
 
 //the keys the game uses, for the controls page
-pub(crate) const CONTROLS: [(&str, &str); 18] = [
+pub(crate) const CONTROLS: [(&str, &str); 19] = [
     ("W A S D", "move"),
     ("mouse wheel", "zoom"),
     ("click an enemy", "send a squad"),
     ("R", "recall the squads"),
+    ("Q", "the champions' ultimates"),
     ("F", "change the formation"),
     ("click, drag", "build walls"),
     ("right click", "delete a wall"),

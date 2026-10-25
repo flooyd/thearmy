@@ -378,6 +378,7 @@ pub(crate) struct Unit {
     pub(crate) hexed: f32,         //seconds left of a hexer's curse on it, while which it takes HEX_EXTRA more harm
     pub(crate) chilled: f32,       //seconds left of a frigid elite's aura on it, while which it goes at FRIGID_SLOW of its speed
     pub(crate) bane: u16,          //what killed it, once something has (see `cause_of`), 0 while it lives
+    pub(crate) ultimate: f32,      //seconds until a champion's ultimate is ready again (see `fire_ultimates`)
     pub(crate) level: u8,          //0 for an ordinary unit, otherwise the champion's level, from 1
     pub(crate) xp: f32,            //a champion's experience towards its next level
     pub(crate) evolutions: u8,     //a champion's evolutions: two bits for each of EVOLUTION_LEVELS, 0 for none chosen yet, 1 or 2 for the way chosen
@@ -436,6 +437,7 @@ impl Unit {
             hexed: 0.0,
             chilled: 0.0,
             bane: 0,
+            ultimate: 0.0,
             level: 0,
             xp: 0.0,
             evolutions: 0,
@@ -641,6 +643,7 @@ impl Unit {
             hexed: 0.0,
             chilled: 0.0,
             bane: 0,
+            ultimate: 0.0,
             level: 0,
             xp: 0.0,
             evolutions: 0,

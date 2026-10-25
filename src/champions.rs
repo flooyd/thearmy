@@ -671,6 +671,7 @@ pub(crate) fn champion_acts<R: Relics + ?Sized>(units: &mut [Unit], enemies: &mu
         let upgrades = relics.of(owner);
         let (army, cap) = (sizes[owner_index(owner)], upgrades.unit_cap());
         let mut timer = unit.power;
+        unit.ultimate = (unit.ultimate - dt).max(0.0);
         match kind.power.grown(unit.level, &unit.growth()) {
             Power::Fireball { every, range, radius, weight } => {
                 timer -= dt;
@@ -1251,6 +1252,12 @@ pub(crate) fn draw_roster(units: &[Unit], mouse: Vec2, ping: Option<u32>, simple
     let panel = team_panel(screen);
     let rows = roster_rows(roster.len(), screen, panel);
     draw_label_right(&format!("CHAMPIONS {}/{}", roster.len(), MAX_CHAMPIONS), screen.x - 14.0, roster_origin(panel) + ROSTER_TOP - 2.0, 15.0, CYAN, Face::Bold);
+    //(and how many ultimates are ready, for Q)
+    let ready = roster.iter().filter(|unit| ultimate_ready(unit)).count();
+    if ready > 0 {
+        let pulse = 0.7 + 0.3 * (get_time() as f32 * 4.0).sin();
+        draw_label_right(&format!("[Q] {ready} ULTIMATE{} READY", if ready == 1 { "" } else { "S" }), screen.x - 14.0, roster_origin(panel) + ROSTER_TOP - 20.0, 13.0, Color::new(1.0, 0.85, 0.3, pulse), Face::Bold);
+    }
     let mut hovered = None;
     for (unit, row) in roster.iter().zip(&rows) {
         let Some(kind) = unit.champion_kind() else {
@@ -1525,4 +1532,111 @@ pub(crate) fn draw_champion_ping(units: &[Unit], id: u32, age: f32, zoom: f32) {
     }
     let flash = 0.5 + 0.5 * (age * 14.0).sin();
     draw_circle_lines(unit.x, unit.y, radius * 1.2, 4.0 * pixel, Color::new(TROPHY.r, TROPHY.g, TROPHY.b, fade * flash));
+}
+
+// ---------- ultimates ----------
+
+//the name of the ultimate a kind of champion has, if it has one: a power the player sets off with Q, on a long cooldown (ULTIMATE_COOLDOWN)
+pub(crate) fn ultimate_name(kind: &Champion) -> Option<&'static str> {
+    match kind.power {
+        Power::Frost { .. } => Some("ABSOLUTE ZERO"),
+        Power::Fireball { .. } => Some("METEOR STORM"),
+        Power::Lightning { .. } => Some("TEMPEST"),
+        Power::Quake { .. } => Some("FAULT LINE"),
+        Power::Mend { .. } => Some("RAPTURE"),
+        _ => None,
+    }
+}
+
+pub(crate) fn ultimate_ready(unit: &Unit) -> bool {
+    unit.ultimate <= 0.0 && unit.health > 0.0 && unit.champion_kind().is_some_and(|kind| ultimate_name(kind).is_some())
+}
+
+//a player's ultimates set off, every one of their champions' that is ready: Absolute Zero freezes every enemy in reach (a boss is chilled through), Meteor
+//Storm rains shells on them, Tempest strikes lightning through them and leaves them shocked, Fault Line splits the ground ahead of the army (`facing`), and
+//Rapture mends every unit in reach. `units` are the player's army, `army` its size. returns how many went off
+pub(crate) fn fire_ultimates(units: &mut [Unit], enemies: &mut [Enemy], owner: u8, facing: Vec2, army: usize, upgrades: &Upgrades, fx: &mut Effects) -> usize {
+    let touch = army_touch(army, upgrades);
+    let ready: Vec<usize> = (0..units.len()).filter(|&i| ultimate_ready(&units[i])).collect();
+    for &i in &ready {
+        let (at, kind) = (Vec2::new(units[i].x, units[i].y), units[i].champion_kind().expect("a champion"));
+        units[i].ultimate = ULTIMATE_COOLDOWN;
+        let name = ultimate_name(kind).unwrap_or_default();
+        fx.announce(format!("{}: {name}!", kind.name.to_uppercase()), kind.color);
+        fx.ring(at, ULTIMATE_REACH, kind.color);
+        fx.add_shake(0.4);
+        match kind.power {
+            Power::Frost { .. } => {
+                for enemy in enemies.iter_mut().filter(|enemy| in_reach(enemy, at, ULTIMATE_REACH)) {
+                    if enemy.can_freeze() {
+                        freeze(enemy, ABSOLUTE_ZERO_SECONDS);
+                    } else {
+                        chill(enemy, CHILL_FULL, ABSOLUTE_ZERO_SECONDS);
+                    }
+                }
+                fx.burst(at, ICE, 80, 600.0);
+                fx.cue_at(Cue::Frost, at);
+            }
+            Power::Fireball { .. } => {
+                let mut targets: Vec<Vec2> = enemies.iter().filter(|enemy| in_reach(enemy, at, ULTIMATE_REACH)).map(|enemy| enemy.position).collect();
+                targets.sort_by(|a, b| a.distance_squared(at).total_cmp(&b.distance_squared(at)));
+                for target in targets.into_iter().take(METEORS) {
+                    let volley = Volley {
+                        from: at,
+                        aim: target - at,
+                        kind: BoltKind::Shell,
+                        shape: VolleyShape::Burst,
+                        count: 1,
+                        scatter: 0.0,
+                        speed: SHELL_SPEED,
+                        reach: at.distance(target),
+                        pierce: 0,
+                        bounce: 0,
+                        homing: 0.0,
+                        splash: METEOR_RADIUS,
+                        embers: 0,
+                        champion: units[i].champion,
+                        seed: volley_seed(),
+                    };
+                    fx.volleys.push((volley, Hurt { each: touch * METEOR_WEIGHT, ember: 0.0, owner }));
+                }
+                fx.cue_at(Cue::Explosion, at);
+            }
+            Power::Lightning { .. } => {
+                let mut struck: Vec<usize> = (0..enemies.len()).filter(|&k| in_reach(&enemies[k], at, ULTIMATE_REACH)).collect();
+                struck.sort_by(|&a, &b| enemies[a].position.distance_squared(at).total_cmp(&enemies[b].position.distance_squared(at)));
+                for k in struck.into_iter().take(TEMPEST_STRIKES) {
+                    let enemy = &mut enemies[k];
+                    let sky = enemy.position + Vec2::new(0.0, -600.0);
+                    streak(fx, sky, enemy.position, kind.color);
+                    let damage = touch * TEMPEST_WEIGHT * boss_share(enemy);
+                    strike(enemy, damage, owner);
+                    shock(enemy, SHOCK_SECONDS);
+                }
+                fx.cue_at(Cue::Explosion, at);
+            }
+            Power::Quake { .. } => {
+                let dir = facing.try_normalize().unwrap_or(Vec2::NEG_Y);
+                let lane = Shape::Line { dir, length: FAULT_LENGTH, width: FAULT_WIDTH };
+                for enemy in enemies.iter_mut().filter(|enemy| enemy.health > 0.0 && !enemy.lurking() && inside(at, FAULT_LENGTH, lane, enemy.position)) {
+                    let damage = touch * FAULT_WEIGHT * boss_share(enemy);
+                    strike(enemy, damage, owner);
+                }
+                for k in 0..8 {
+                    fx.mark(at + dir * FAULT_LENGTH * (k as f32 + 0.5) / 8.0, FAULT_WIDTH * 0.4, kind.color, MarkKind::Scorch);
+                }
+                fx.add_shake(0.6);
+                fx.cue_at(Cue::Slam, at);
+            }
+            Power::Mend { .. } => {
+                for unit in units.iter_mut().filter(|unit| unit.health > 0.0 && Vec2::new(unit.x, unit.y).distance(at) <= ULTIMATE_REACH) {
+                    unit.health = unit.max_health();
+                }
+                fx.burst(at, GREEN, 60, 400.0);
+                fx.cue_at(Cue::Heal, at);
+            }
+            _ => {}
+        }
+    }
+    ready.len()
 }

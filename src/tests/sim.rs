@@ -303,6 +303,7 @@ fn busy_input() -> PlayerInput {
         send: Some(4_000_000_001),
         relic: Some(RelicAct::Pick(2)),
         evolve: Some(EvolvePick { champion: 4_000_000_002, tier: 0, choice: 1 }),
+        ultimate: false,
     }
 }
 
@@ -835,6 +836,7 @@ fn two_players_stepped_for_a_while_with_every_kind_of_input_keep_the_world_sane(
                         _ => None,
                     },
                     evolve: (noise(&mut seed) % 30 == 0).then(|| EvolvePick { champion: noise(&mut seed) as u32, tier: (noise(&mut seed) % 4) as u8, choice: (noise(&mut seed) % 3) as u8 }),
+                    ultimate: false,
                 }
             })
             .collect();

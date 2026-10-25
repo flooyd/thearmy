@@ -40,7 +40,9 @@ are the fonts.
 - **Collect champions.** Eighteen special units won as loot, each drawn as itself: Juggernaut, Medic, Pyromancer, Stormcaller,
   Phoenix, Frostweaver, the elemental Emberlord, Chronomancer, Venomancer and Gravitron, and eight more, each with a power of its own that is a share of what the whole army does. Kills and a second
   of a kind raise its level, up to 10; the shooters fire longer bursts, rings and spirals as they rise, and at level 10 you choose its
-  final form, once. The roster on the right shows each one's power coming round; click a row to find it in the world.
+  final form, once. Five have an ultimate you set off with `Q` (Absolute Zero, Meteor Storm, Tempest, Fault Line and Rapture), and
+  elements react: burning and frozen make steam, shocked and burning overload, poisoned and burning spread plague fire. The
+  roster on the right shows each one's power coming round; click a row to find it in the world.
 - **The front fires.** The front 60% of the army shoots ahead of it, the way it is going, at anything in front of it (never
   behind), and sees further the bigger the army grows: past the width of the screen at 10,000 units, and further still at 50,000.
   Past a couple of thousand at the front, each bolt hits lighter, so big enemies still reach a huge army.
@@ -71,6 +73,7 @@ You are a stick figure that runs: facing you going down, showing its back going 
 | mouse wheel | zoom |
 | click an enemy | send a squad |
 | `R` | recall the squads |
+| `Q` | set off the champions' ultimates that are ready |
 | `F` | change the formation |
 | click, drag | build walls |
 | right click | delete a wall |

@@ -69,6 +69,7 @@ fn hostile(noise: &mut Noise) -> PlayerInput {
             _ => Some(RelicAct::Pick(noise.below(3) as u8)),
         },
         evolve: (noise.below(2) == 0).then(|| EvolvePick { champion: noise.next() as u32, tier: noise.next() as u8, choice: noise.next() as u8 }),
+        ultimate: false,
     };
     //(as the host gets it: in a message, read, and put right as far as it can be)
     let frame = ClientFrame { seq: 1, tick_ack: noise.next() as u32, zoom: noise.unit() * 50.0, input };
@@ -168,6 +169,7 @@ fn a_full_frame() -> Vec<u8> {
             send: Some(9),
             relic: Some(RelicAct::Pick(1)),
             evolve: Some(EvolvePick { champion: 77, tier: 0, choice: 0 }),
+            ultimate: false,
         },
     }
     .to_bytes()

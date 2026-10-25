@@ -40,12 +40,13 @@ pub(crate) struct PlayerInput {
     pub(crate) send: Option<u32>,      //the enemy (by its id) they sent a squad at
     pub(crate) relic: Option<RelicAct>,
     pub(crate) evolve: Option<EvolvePick>, //how they chose for a champion of theirs to grow
+    pub(crate) ultimate: bool,         //they set off their champions' ultimates that are ready
 }
 
 impl PlayerInput {
     //a player doing nothing: standing still, their window as it is and their army in the shape it was
     pub(crate) fn idle(formation: Formation, screen: Vec2) -> PlayerInput {
-        PlayerInput { direction: Vec2::ZERO, screen, formation, select: None, place: Vec::new(), delete: Vec::new(), tower: None, recall: false, send: None, relic: None, evolve: None }
+        PlayerInput { direction: Vec2::ZERO, screen, formation, select: None, place: Vec::new(), delete: Vec::new(), tower: None, recall: false, send: None, relic: None, evolve: None, ultimate: false }
     }
 
     //the same thing with whatever couldn't be asked for put right: walking no faster than walking, a window of a believable size, no more squares than a drag
@@ -74,6 +75,7 @@ impl PlayerInput {
         self.delete.truncate(MAX_SQUARES_AN_INPUT);
         self.tower = later.tower.or(self.tower);
         self.recall |= later.recall;
+        self.ultimate |= later.ultimate;
         self.send = later.send.or(self.send);
         self.relic = self.relic.or(later.relic);
         self.evolve = self.evolve.or(later.evolve);
@@ -118,6 +120,7 @@ impl PlayerInput {
         out.u32(pick.champion);
         out.u8(pick.tier);
         out.u8(pick.choice);
+        out.flag(self.ultimate);
     }
 
     pub(crate) fn read(input: &mut Reader) -> Option<PlayerInput> {
@@ -137,6 +140,7 @@ impl PlayerInput {
             _ => return None,
         };
         let (has_evolve, champion, tier, choice) = (input.flag()?, input.u32()?, input.u8()?, input.u8()?);
+        let ultimate = input.flag()?;
         Some(PlayerInput {
             direction,
             screen,
@@ -149,6 +153,7 @@ impl PlayerInput {
             send: has_send.then_some(send),
             relic,
             evolve: has_evolve.then_some(EvolvePick { champion, tier, choice }),
+            ultimate,
         })
     }
 
@@ -253,6 +258,7 @@ impl Controls {
         let mut input = PlayerInput::idle(view.formation, view.screen);
         input.direction = keyboard_direction();
         input.recall = is_key_pressed(KeyCode::R);
+        input.ultimate = is_key_pressed(KeyCode::Q);
         let mouse = Vec2::from(mouse_position());
         let over_map = view.map.contains(mouse);
         let mut clicked_enemy = false;

@@ -152,3 +152,32 @@ fn shocked_and_burning_overload_and_poisoned_and_burning_spread_plague_fire_that
     assert!(total < 40, "{total} went off");
     assert_eq!(react_statuses(&mut enemies, &mut fx), 0);
 }
+
+#[test]
+fn q_sets_off_the_ultimates_that_are_ready_and_they_wait_their_cooldown() {
+    let names = ["Frostweaver", "Pyromancer", "Stormcaller", "Earthshaker", "Medic", "Juggernaut"];
+    let mut units: Vec<Unit> = names.iter().enumerate().map(|(i, name)| champion_unit(champion_named(name).unwrap(), MIDDLE + Vec2::new(i as f32 * 40.0, 0.0))).collect();
+    units.extend((0..40).map(|i| {
+        let mut unit = unit_on(MIDDLE + Vec2::new((i % 10) as f32 * 20.0, 60.0 + (i / 10) as f32 * 20.0));
+        unit.health = 10.0;
+        unit
+    }));
+    assert_eq!(units.iter().filter(|unit| ultimate_ready(unit)).count(), 5, "a juggernaut has none");
+    let mut enemies = crowd(MIDDLE + Vec2::new(0.0, -600.0));
+    enemies.push(Enemy::boss(&BOSSES[0], 200, 0, MIDDLE + Vec2::new(600.0, -600.0)));
+    let mut fx = Effects::default();
+    let fired = fire_ultimates(&mut units, &mut enemies, 0, Vec2::NEG_Y, 200, &Upgrades::default(), &mut fx);
+    assert_eq!(fired, 5);
+    assert!(enemies[..6].iter().all(|enemy| enemy.status.frozen > 0.0), "absolute zero freezes them");
+    assert_eq!(enemies[6].status.frozen, 0.0, "a boss is not frozen");
+    assert!(fx.volleys.len() >= 6, "a storm of meteors");
+    assert!(enemies[..6].iter().all(|enemy| enemy.health < enemy.max_health), "the tempest and the fault line hurt them");
+    assert!(units[6..].iter().all(|unit| unit.health == unit.max_health()), "rapture mends the army");
+    assert_eq!(fire_ultimates(&mut units, &mut enemies, 0, Vec2::NEG_Y, 200, &Upgrades::default(), &mut fx), 0, "and they wait");
+    assert!(units[0].ultimate > 0.0 && CONTROLS.iter().any(|(key, _)| *key == "Q"));
+    //(the key goes to the host with the rest of what the player did)
+    let input = PlayerInput { ultimate: true, ..PlayerInput::idle(Formation::Ring, Vec2::new(1280.0, 720.0)) };
+    let mut out = Writer::new();
+    input.write(&mut out);
+    assert!(PlayerInput::read(&mut Reader::new(&out.bytes)).expect("it reads").ultimate);
+}

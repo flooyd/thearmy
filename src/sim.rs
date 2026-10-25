@@ -295,7 +295,12 @@ impl Sim {
                 recall_squads(&mut units[mine.clone()], &mut players.list[i].squads, at[i], fx);
             }
             if let Some(id) = input.send {
-                send_squad_at(&mut units[mine], &mut players.list[i].squads, enemies, id, fx);
+                send_squad_at(&mut units[mine.clone()], &mut players.list[i].squads, enemies, id, fx);
+            }
+            //and the champions' ultimates that are ready are set off
+            if input.ultimate {
+                let player = &players.list[i];
+                fire_ultimates(&mut units[mine], enemies, i as u8, player.facing, armies.size(i), &player.upgrades, fx);
             }
         }
         //what hit the walls last step is spent, then the players build and walk
