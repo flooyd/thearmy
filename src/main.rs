@@ -39,6 +39,7 @@ mod game;
 mod handshake;
 mod hordes;
 mod hud;
+mod icon;
 mod input;
 mod lobby;
 mod minimap;
@@ -88,6 +89,7 @@ fn window_conf() -> Conf {
         window_width: 1280,
         window_height: 720,
         fullscreen: starts_fullscreen(),
+        icon: Some(window_icon()),
         ..Default::default()
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "mygame"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2024"
 
 #without this a debug build drops to about 60 fps when zoomed all the way out, too slow for a 120hz display (and at 13,000 units, level 1 was not enough)

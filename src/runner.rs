@@ -5,11 +5,11 @@
 use crate::prelude::*;
 
 //the art, in pixels at zoom 1 (a unit's radius is 16), with the figure standing on the ground below its hip: x is to its right, y is down
-const OUTLINE: f32 = 1.15; //the black edge round every part, outside it, as on the ships
+pub(crate) const OUTLINE: f32 = 1.15; //the black edge round every part, outside it, as on the ships
 const LIMB_WIDTH: f32 = 2.7;
 const TORSO_WIDTH: f32 = 3.1;
 const SHOULDER_WIDTH: f32 = 3.0;
-const HEAD_RADIUS: f32 = 4.4;
+pub(crate) const HEAD_RADIUS: f32 = 4.4;
 const THIGH: f32 = 8.6;
 const SHIN: f32 = 8.6;
 const UPPER_ARM: f32 = 6.2;
@@ -17,8 +17,8 @@ const FOREARM: f32 = 6.0;
 const TORSO: f32 = 11.5;
 const GROUND: f32 = 17.6; //where its shadow is, below the hip
 const FIGURE_LIFT: f32 = -2.0; //the figure is drawn this far above the player's position, so the middle of it is where the circle was
-const EYE_RADIUS: f32 = 0.8;
-const EDGE: Color = Color::new(0.024, 0.035, 0.05, 1.0);
+pub(crate) const EYE_RADIUS: f32 = 0.8;
+pub(crate) const EDGE: Color = Color::new(0.024, 0.035, 0.05, 1.0);
 
 //how much of the colour of the player each part of the figure is, so a limb on the far side is darker than one on the near side
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -215,7 +215,7 @@ pub(crate) fn runner_shown(screen_radius: f32) -> bool {
     screen_radius >= RUNNER_MIN_RADIUS
 }
 
-fn tone_color(tone: RunnerTone, color: Color) -> Color {
+pub(crate) fn tone_color(tone: RunnerTone, color: Color) -> Color {
     let shaded = match tone {
         RunnerTone::Body => color,
         RunnerTone::Dark => lerp_color(color, EDGE, 0.3),

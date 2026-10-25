@@ -25,6 +25,7 @@ mod horde_fights;
 mod handshake;
 mod hardening;
 mod hordes;
+mod icon;
 mod lobby;
 mod minimap;
 mod online;

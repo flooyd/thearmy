@@ -25,6 +25,7 @@ pub(crate) use crate::game::*;
 pub(crate) use crate::handshake::*;
 pub(crate) use crate::hordes::*;
 pub(crate) use crate::hud::*;
+pub(crate) use crate::icon::*;
 pub(crate) use crate::input::*;
 pub(crate) use crate::lobby::*;
 pub(crate) use crate::minimap::*;

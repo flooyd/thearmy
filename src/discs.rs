@@ -62,12 +62,12 @@ pub(crate) const DART_NOSE: Vec2 = Vec2::new(0.0, -27.0);
 pub(crate) const DART_WING: Vec2 = Vec2::new(19.5, 21.0);
 const DART_NOTCH: Vec2 = Vec2::new(0.0, 12.5);
 pub(crate) const COCKPIT_AT: Vec2 = Vec2::new(0.0, -5.5);
-const COCKPIT_SIZE: Vec2 = Vec2::new(2.9, 6.5);
+pub(crate) const COCKPIT_SIZE: Vec2 = Vec2::new(2.9, 6.5);
 pub(crate) const FLAME_TIP: Vec2 = Vec2::new(0.0, 27.0);
-const FLAME_BASE: Vec2 = Vec2::new(4.5, 15.0);
+pub(crate) const FLAME_BASE: Vec2 = Vec2::new(4.5, 15.0);
 const FLAME_TOP: f32 = 15.0; //the flame is cut off flat here, at its base, just under the notch
-const GLASS: [f32; 3] = [0.063, 0.125, 0.169];
-const FLAME: [f32; 3] = [1.0, 0.65, 0.24];
+pub(crate) const GLASS: [f32; 3] = [0.063, 0.125, 0.169];
+pub(crate) const FLAME: [f32; 3] = [1.0, 0.65, 0.24];
 
 //a ship has a black outline outside its hull, half as wide as a circle's border (that one is inside its radius), and never more than this many art units
 const OUTLINE_SHARE: f32 = 0.5;
