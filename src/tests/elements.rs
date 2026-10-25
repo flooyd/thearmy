@@ -104,3 +104,51 @@ fn a_frostweavers_pulse_throws_ice_bolts_that_chill_what_they_hit() {
     assert!(target[0].status.chill > 0.0 || target[0].status.frozen > 0.0);
     assert!(!is_ice(units[0].champion + 1), "only a frostweaver's");
 }
+
+//enemies in a ring, tough enough to see what a reaction does
+fn ring_of(count: usize) -> Vec<Enemy> {
+    (0..count)
+        .map(|i| {
+            let mut enemy = kind_at("Grunt", MIDDLE + Vec2::from_angle(i as f32) * 70.0);
+            enemy.max_health = 1000.0;
+            enemy.health = 1000.0;
+            enemy
+        })
+        .collect()
+}
+
+#[test]
+fn burning_and_frozen_make_steam_that_scalds_and_blinds_the_ones_round_it_once() {
+    let mut enemies = ring_of(5);
+    freeze(&mut enemies[0], 2.0);
+    ignite(&mut enemies[0], 3.0, 10.0);
+    let mut fx = Effects::default();
+    assert_eq!(react_statuses(&mut enemies, &mut fx), 1);
+    assert!(enemies.iter().all(|enemy| enemy.health < 1000.0), "all of them are scalded");
+    assert!(enemies[0].status.burning == 0.0 && enemies[0].status.frozen == 0.0, "it used up what made it");
+    assert!(matches!(enemies[1].mode, Mode::Cast { .. }), "and blinds them");
+    assert_eq!(react_statuses(&mut enemies, &mut fx), 0, "once");
+}
+
+#[test]
+fn shocked_and_burning_overload_and_poisoned_and_burning_spread_plague_fire_that_dies_out() {
+    let mut enemies = ring_of(5);
+    shock(&mut enemies[0], 2.0);
+    ignite(&mut enemies[0], 3.0, 10.0);
+    let mut fx = Effects::default();
+    assert_eq!(react_statuses(&mut enemies, &mut fx), 1);
+    assert!(enemies[0].status.shocked == 0.0 && enemies.iter().all(|enemy| enemy.health < 1000.0));
+    let mut enemies = ring_of(5);
+    poison(&mut enemies[0], 8.0);
+    ignite(&mut enemies[0], 3.0, 10.0);
+    assert_eq!(react_statuses(&mut enemies, &mut fx), 1);
+    assert!(enemies[1].status.poison > 0.0 && enemies[1].status.burning > 0.0, "the poison and the fire spread");
+    //and the plague goes round a few times, a weaker one each time, and stops
+    let mut total = 1;
+    for _ in 0..120 {
+        tick_statuses(&mut enemies, 1.0 / 60.0);
+        total += react_statuses(&mut enemies, &mut fx);
+    }
+    assert!(total < 40, "{total} went off");
+    assert_eq!(react_statuses(&mut enemies, &mut fx), 0);
+}

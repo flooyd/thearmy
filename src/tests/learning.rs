@@ -210,7 +210,7 @@ fn every_death_is_put_down_to_what_did_it_and_the_worst_are_listed() {
 #[test]
 fn the_bestiary_has_a_line_for_everything_and_keeps_what_has_been_met() {
     let all = lessons();
-    assert_eq!(all.len(), ENEMY_KINDS.len() + BOSSES.len() + 1 + CIRCLES.len() + AFFIXES.len());
+    assert_eq!(all.len(), ENEMY_KINDS.len() + BOSSES.len() + 1 + CIRCLES.len() + REACTIONS.len() + AFFIXES.len());
     assert!(all.iter().all(|lesson| !lesson.lesson.is_empty() && !lesson.shown.is_empty()), "every line says something");
     meet(["Sapper", "LEAP"].into_iter());
     assert!(has_met("Sapper") && has_met("LEAP"));

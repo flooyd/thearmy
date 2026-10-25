@@ -11,6 +11,7 @@ use crate::prelude::*;
 pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut Vec<Baby>, dt: f32, relics: &R, fx: &mut Effects) -> usize {
     //what is being done to the enemies (chill, freezes, burning, poison) runs first, once a frame
     tick_statuses(enemies, dt);
+    react_statuses(enemies, fx);
     let grid = UnitGrid::new(units);
     //what each player's relics make of a unit's touch, worked out once as the power in it is not cheap
     let hits: [f32; MAX_PLAYERS] = std::array::from_fn(|owner| relics.of(owner as u8).hit());

@@ -132,6 +132,7 @@ pub(crate) fn lessons() -> Vec<Lesson> {
     let mut all: Vec<Lesson> = ENEMY_KINDS.iter().map(|kind| Lesson { name: kind.name, shown: kind.name.to_owned(), color: kind.color, lesson: kind_lesson(kind.name).to_owned(), sort: "an enemy" }).collect();
     all.extend(BOSSES.iter().chain([&FINAL_BOSS]).map(|boss| Lesson { name: boss.name, shown: boss.name.to_owned(), color: boss.color, lesson: boss_lesson(boss.name).to_owned(), sort: "a boss" }));
     all.extend(CIRCLES.iter().map(|circle| Lesson { name: circle.name(), shown: in_title_case(circle.name()), color: circle.color(), lesson: format!("{} ({})", circle.advice(), circle.colour_name().to_lowercase()), sort: "a boss's attack" }));
+    all.extend(REACTIONS.iter().map(|reaction| Lesson { name: reaction.word(), shown: in_title_case(reaction.word()), color: reaction.color(), lesson: reaction.lesson().to_owned(), sort: "a reaction" }));
     all.extend(AFFIXES.iter().map(|affix| Lesson { name: affix.label(), shown: affix.label().to_owned(), color: affix.color(), lesson: format!("an elite that {}", affix_phrase(*affix)), sort: "an elite's affix" }));
     all
 }

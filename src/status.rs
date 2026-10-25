@@ -130,3 +130,136 @@ pub(crate) fn tick_statuses(enemies: &mut [Enemy], dt: f32) {
         }
     }
 }
+
+// ---------- reactions ----------
+
+//what two things done to an enemy at once can make: burning and frozen, steam (it scalds the enemies round it and blinds them a moment); shocked and
+//burning, an overload (a burst of sparks); poisoned and burning, plague fire (it spreads the poison and the fire to the enemies round it)
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Reaction {
+    Steam,
+    Overload,
+    PlagueFire,
+}
+
+pub(crate) const REACTIONS: [Reaction; 3] = [Reaction::Steam, Reaction::Overload, Reaction::PlagueFire];
+
+impl Reaction {
+    //what comes up over it, which the bestiary knows it by
+    pub(crate) fn word(self) -> &'static str {
+        match self {
+            Reaction::Steam => "STEAM",
+            Reaction::Overload => "OVERLOAD",
+            Reaction::PlagueFire => "PLAGUE FIRE",
+        }
+    }
+
+    pub(crate) fn color(self) -> Color {
+        match self {
+            Reaction::Steam => Color::new(0.85, 0.92, 1.0, 1.0),
+            Reaction::Overload => Color::new(0.85, 0.65, 1.0, 1.0),
+            Reaction::PlagueFire => Color::new(0.6, 1.0, 0.3, 1.0),
+        }
+    }
+
+    //what it does to each enemy it reaches, as a share of that one's most health
+    fn share(self) -> f32 {
+        match self {
+            Reaction::Steam => STEAM_SHARE,
+            Reaction::Overload => OVERLOAD_SHARE,
+            Reaction::PlagueFire => PLAGUE_SHARE,
+        }
+    }
+
+    //how far past the edge of the one it comes off it reaches
+    fn reach(self) -> f32 {
+        match self {
+            Reaction::Steam => STEAM_REACH,
+            Reaction::Overload => OVERLOAD_REACH,
+            Reaction::PlagueFire => PLAGUE_REACH,
+        }
+    }
+
+    fn cue(self) -> Cue {
+        match self {
+            Reaction::Steam => Cue::Frost,
+            Reaction::Overload => Cue::Explosion,
+            Reaction::PlagueFire => Cue::Summon,
+        }
+    }
+
+    //for the bestiary
+    pub(crate) fn lesson(self) -> &'static str {
+        match self {
+            Reaction::Steam => "burning and frozen: a scalding cloud that blinds",
+            Reaction::Overload => "shocked and burning: a burst of sparks",
+            Reaction::PlagueFire => "poisoned and burning: the poison and the fire spread",
+        }
+    }
+}
+
+//the reaction an enemy is ripe for, if any
+fn ripe(status: &Statuses) -> Option<Reaction> {
+    if status.burning <= 0.0 {
+        return None;
+    }
+    if status.frozen > 0.0 {
+        Some(Reaction::Steam)
+    } else if status.shocked > 0.0 {
+        Some(Reaction::Overload)
+    } else if status.poison >= PLAGUE_MIN_POISON {
+        Some(Reaction::PlagueFire)
+    } else {
+        None
+    }
+}
+
+//a frame of reactions: each enemy ripe for one has it go off, which uses up what made it (so it goes off once), hurts every enemy round it (and does what
+//else that one does), and puts its word over it, no more than REACTION_WORDS a frame. plague fire passes on half of the poison, and goes off only where
+//there are PLAGUE_MIN_POISON stacks or more, so it dies out. returns how many went off
+pub(crate) fn react_statuses(enemies: &mut [Enemy], fx: &mut Effects) -> usize {
+    let ripe: Vec<(usize, Reaction)> = enemies.iter().enumerate().filter(|(_, enemy)| enemy.health > 0.0).filter_map(|(i, enemy)| ripe(&enemy.status).map(|reaction| (i, reaction))).collect();
+    let mut words = 0;
+    for &(i, reaction) in &ripe {
+        let enemy = &mut enemies[i];
+        let (at, size, burn, poisoned) = (enemy.position, enemy.size, enemy.status.burn, enemy.status.poison);
+        match reaction {
+            Reaction::Steam => {
+                enemy.status.burning = 0.0;
+                enemy.status.burn = 0.0;
+                enemy.status.frozen = 0.0;
+                enemy.status.chill = 0.0;
+            }
+            Reaction::Overload => {
+                enemy.status.burning = 0.0;
+                enemy.status.burn = 0.0;
+                enemy.status.shocked = 0.0;
+            }
+            Reaction::PlagueFire => enemy.status.poison = 0.0,
+        }
+        let reach = size / 2.0 + reaction.reach();
+        for other in enemies.iter_mut().filter(|other| other.health > 0.0 && !other.lurking() && other.position.distance(at) <= reach + other.size / 2.0) {
+            let harm = other.max_health * reaction.share() * taken(other);
+            wear(other, harm);
+            match reaction {
+                Reaction::Steam if other.boss.is_none() && other.mode == Mode::Roam => other.mode = Mode::Cast { left: STEAM_BLIND },
+                Reaction::PlagueFire if other.position != at => {
+                    poison(other, poisoned * PLAGUE_SPREAD);
+                    ignite(other, BURN_SECONDS, burn);
+                }
+                _ => {}
+            }
+        }
+        fx.burst(at, reaction.color(), 24, 300.0);
+        fx.ring(at, reach, reaction.color());
+        fx.cue_at(reaction.cue(), at);
+        if words < REACTION_WORDS {
+            fx.popup(at, size / 2.0, 30.0, format!("{}!", reaction.word()), reaction.color());
+            words += 1;
+        }
+    }
+    if !ripe.is_empty() {
+        meet(ripe.iter().map(|(_, reaction)| reaction.word()));
+    }
+    ripe.len()
+}
