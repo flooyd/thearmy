@@ -7,7 +7,8 @@
 //! (see showcase_hazards), with a big one off the screen for its arrow. ARMY_SHOWCASE_ARMY and ARMY_SHOWCASE_ZOOM, if set, are the size of the army and
 //! the zoom, in place of SHOWCASE_ARMY and SHOWCASE_ZOOM, and a big army has a crowd as wide as it ahead of it. ARMY_SHOWCASE set to the name of a boss's
 //! attack (acid, rush, whirlwind, leap, sweep, blackhole, twin, barrage or judgement) puts the boss whose it is above the army, cracked, with no champions
-//! or crowd, and has it make that attack at once (see showcase_attack)
+//! or crowd, and has it make that attack at once (see showcase_attack). ARMY_SHOWCASE=babies scatters babies of all ages round the army, with no
+//! champions or crowd
 //!
 //!     THE_ARMY_HOME=<folder> ARMY_SHOWCASE=1 ARMY_SHOT=<shot.png> mygame
 
@@ -25,7 +26,8 @@ pub(crate) fn showcase_run() -> Snapshot {
     let mut run = new_run();
     let at = run.player;
     let statuses = showcase_is("statuses");
-    let telegraphs = showcase_is("telegraphs") || showcase_attack().is_some();
+    let babies = showcase_is("babies");
+    let telegraphs = showcase_is("telegraphs") || showcase_attack().is_some() || babies;
     let asked = |name: &str| std::env::var(name).ok().and_then(|text| text.parse::<f32>().ok());
     run.zoom = asked("ARMY_SHOWCASE_ZOOM").unwrap_or(SHOWCASE_ZOOM);
     let army = asked("ARMY_SHOWCASE_ARMY").map_or(SHOWCASE_ARMY, |count| count as usize);
@@ -58,6 +60,13 @@ pub(crate) fn showcase_run() -> Snapshot {
         }
         run.enemies.push(enemy);
     }
+    //(a showcase of the babies scatters some just past where the army picks them up, of all ages, so the last of them are fading)
+    if babies {
+        for i in 0..SHOWCASE_BABIES {
+            let spot = at + Vec2::from_angle(i as f32 * 2.399_963) * (620.0 + (i % 7) as f32 * 40.0);
+            run.babies.push(Baby { position: spot, age: (i as f32 * 0.37) % BABY_LIFE });
+        }
+    }
     if let Some((def, _)) = showcase_attack() {
         let mut boss = Enemy::boss(def, army, 0, at + SHOWCASE_BOSS);
         if let Some(state) = boss.boss.as_mut() {
@@ -69,6 +78,7 @@ pub(crate) fn showcase_run() -> Snapshot {
 }
 
 const SHOWCASE_BOSS: Vec2 = Vec2::new(0.0, -800.0); //where a showcase's boss is, from the player
+const SHOWCASE_BABIES: usize = 80; //how many babies a showcase of them scatters
 
 //the boss and the attack a showcase of one asks for
 fn showcase_attack() -> Option<(&'static BossDef, Pattern)> {

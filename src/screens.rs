@@ -108,7 +108,7 @@ pub(crate) fn draw_splash(time: f32, saved: Option<&SaveInfo>, problem: Option<&
     let step = |share: f32| first + h * share * ts;
     match saved {
         None => {
-            draw_label_centered("PRESS ANY KEY TO CONTINUE", center_x, step(0.04), prompt_size, pulse, Face::Bold);
+            draw_label_centered("PRESS ENTER TO START", center_x, step(0.04), prompt_size, pulse, Face::Bold);
             draw_label_centered("OR M FOR MULTIPLAYER", center_x, step(0.11), (prompt_size * 0.7).round(), theme.muted, Face::Bold);
         }
         Some(info) => {
@@ -174,7 +174,7 @@ impl Start {
 
 //show the title screen until a key is pressed. when there is a save to go on from, Enter picks it up and N starts afresh. M is the multiplayer screens. Escape (or
 //the button) opens the menu, with the settings and the way out, and Tab goes to the next of the looks the screen has (which is not said anywhere on it)
-pub(crate) async fn show_splash(saves: &Saves, settings: &mut Settings, notice: Option<String>) -> Start {
+pub(crate) async fn show_splash(saves: &Saves, settings: &mut Settings, sounds: &mut Sounds, notice: Option<String>) -> Start {
     let mut saved = saves.newest();
     let mut problem: Option<String> = notice;
     let best = saves.load_high_scores().best();
@@ -187,6 +187,8 @@ pub(crate) async fn show_splash(saves: &Saves, settings: &mut Settings, notice: 
         let mouse = Vec2::from(mouse_position());
         draw_splash(time, saved.as_ref().map(|(_, info)| info), problem.as_deref(), best, mouse, &mut scene, settings.unit_shape, settings.simple_shapes);
         let key = get_last_key_pressed();
+        //the music plays on the title screen, calm (see TITLE_MOOD)
+        sounds.tune_music(&TITLE_MOOD, get_frame_time());
         //the menu is over the picture, and takes the keys
         if let Some(open) = menu.as_mut() {
             open.draw(settings, miniquad::date::now(), None);            let input = MenuInput::read(&mut open.last_mouse);
@@ -199,6 +201,7 @@ pub(crate) async fn show_splash(saves: &Saves, settings: &mut Settings, notice: 
                 }
                 PauseEvent::Changed => {
                     settings.apply();
+                    settings.tune(sounds);
                     if settings.fullscreen != was_fullscreen {
                         miniquad::window::set_fullscreen(settings.fullscreen);
                     }
@@ -243,8 +246,9 @@ pub(crate) async fn show_splash(saves: &Saves, settings: &mut Settings, notice: 
                         None => {}
                     }
                 }
-                (None, _) | (Some(_), KeyCode::N) => return Start::Solo(None),
-                (Some((slot, _)), KeyCode::Enter | KeyCode::KpEnter | KeyCode::C | KeyCode::Space) => match saves.read(*slot) {
+                //(only Enter starts or goes on with a run, as the screen says, and N starts a new one when there is a run to go on with)
+                (None, KeyCode::Enter | KeyCode::KpEnter) | (Some(_), KeyCode::N) => return Start::Solo(None),
+                (Some((slot, _)), KeyCode::Enter | KeyCode::KpEnter) => match saves.read(*slot) {
                     Ok(snapshot) => return Start::Solo(Some(snapshot)),
                     Err(error) => {
                         eprintln!("could not load the save: {error}");
@@ -335,7 +339,7 @@ pub(crate) fn draw_defeat(time: f32, run: &Run, record: &Record, place: Option<u
     }
     if time >= DEFEAT_LOCKOUT {
         let pulse = 0.6 + 0.4 * (time * 3.0).sin();
-        draw_label_centered("PRESS ANY KEY TO TRY AGAIN", w / 2.0, h * 0.95, (h * 0.036).round(), Color::new(CYAN.r, CYAN.g, CYAN.b, pulse), Face::Bold);
+        draw_label_centered("PRESS ENTER TO TRY AGAIN", w / 2.0, h * 0.95, (h * 0.036).round(), Color::new(CYAN.r, CYAN.g, CYAN.b, pulse), Face::Bold);
     }
 }
 
@@ -351,13 +355,15 @@ pub(crate) fn ordinal(number: usize) -> String {
     format!("{number}{suffix}")
 }
 
-//show the defeat screen until a key is pressed
-pub(crate) async fn show_defeat(run: &Run, record: &Record, place: Option<usize>, scores: &HighScores) {
+//show the defeat screen until Enter is pressed
+pub(crate) async fn show_defeat(run: &Run, record: &Record, place: Option<usize>, scores: &HighScores, sounds: &mut Sounds) {
     let mut time = 0.0;
     loop {
         quit_if_asked();
+        //(the music goes down to its low drone)
+        sounds.tune_music(&DEFEAT_MOOD, get_frame_time());
         draw_defeat(time, run, record, place, scores);
-        if time >= DEFEAT_LOCKOUT && get_last_key_pressed().is_some() {
+        if time >= DEFEAT_LOCKOUT && (is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)) {
             return;
         }
         time += get_frame_time();

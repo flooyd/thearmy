@@ -378,9 +378,9 @@ impl Cue {
             Cue::Fall => 0.7,
             Cue::Zap => 0.45,
             Cue::Frost => 0.4,
-            Cue::Hit => 0.22,
+            Cue::Hit => 0.15,
             Cue::Crit => 0.5,
-            Cue::Volley => 0.16,
+            Cue::Volley => 0.1,
             Cue::Shatter => 0.6,
             Cue::Tick => 0.3,
         }

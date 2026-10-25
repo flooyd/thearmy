@@ -12,7 +12,7 @@ are the fonts.
 
 ## What you do
 
-- **Grow.** Enemies drop babies, villages are freed into more army, and barracks you take send recruits and sometimes a champion.
+- **Grow.** Enemies drop babies (little toddlers that wait to be picked up), villages are freed into more army, and barracks you take send recruits and sometimes a champion.
   The army fights on its own around you. Walk where you want it to be.
 - **Send squads.** Click an enemy to send part of the army at it, sized to what it takes to win. `R` recalls them. Three
   formations (`F`) change how the rest of the army follows you: a ring with you safe in the middle (the usual one), a wedge, or a line.

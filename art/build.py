@@ -16,6 +16,7 @@ import enemies  # noqa: E402,F401
 import bosses  # noqa: E402,F401
 import marks  # noqa: E402,F401
 import champions  # noqa: E402,F401
+import babies  # noqa: E402,F401
 from dsl import GLOWS, REGISTRY, STYLE, mix  # noqa: E402
 
 SPAN = 160   #art units across the whole picture: the hitbox is the middle 100, and a horn or a crown may go out to 80

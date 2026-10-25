@@ -572,6 +572,32 @@ pub(crate) fn baby_discs(babies: &[Baby], view: Rect) -> Vec<Disc> {
     discs
 }
 
+//the babies in view as little figures (see art/babies.py), each in one of the BABY_POSES by where it lies: rocking from foot to foot as it waits,
+//tumbling up as it drops, and in its last seconds rocking harder as it fades (see `baby_blink`). in the colour of what is picked up, as the discs are
+pub(crate) fn baby_figures(babies: &[Baby], view: Rect, time: f32) -> Vec<Creature> {
+    let poses: Vec<usize> = BABY_POSES.iter().filter_map(|name| shape_named(name)).collect();
+    if poses.is_empty() {
+        return Vec::new();
+    }
+    let pickup = pickup_color();
+    babies
+        .iter()
+        .filter(|baby| view.contains(baby.position))
+        .map(|baby| {
+            let which = (baby.position.x.to_bits() ^ baby.position.y.to_bits().rotate_left(7)) as usize;
+            let grown = (baby.age / 0.15).min(1.0);
+            let left = BABY_LIFE - baby.age;
+            let shaky = if left < BABY_BLINK_SECONDS { 1.0 + 2.0 * (1.0 - left / BABY_BLINK_SECONDS).clamp(0.0, 1.0) } else { 1.0 };
+            let phase = (which % 628) as f32 / 100.0;
+            let rock = (time * BABY_WADDLE + phase).sin() * BABY_ROCK * shaky + (1.0 - grown) * 1.5;
+            let bob = (time * BABY_WADDLE + phase).sin().abs() * BABY_RADIUS * 0.15;
+            let facing = Vec2::from_angle(-std::f32::consts::FRAC_PI_2 + rock);
+            let color = Color { a: pickup.a * baby_blink(baby.age), ..pickup };
+            Creature::new(poses[which % poses.len()], baby.position - Vec2::new(0.0, bob), BABY_FIGURE_SIZE * grown, facing, color)
+        })
+        .collect()
+}
+
 //how much of its colour a baby shows: all of it, until the last BABY_BLINK_SECONDS of its life, when it flickers between
 //full and faint, quicker and fainter as the time runs out
 pub(crate) fn baby_blink(age: f32) -> f32 {

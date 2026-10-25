@@ -9,7 +9,7 @@ pub(crate) const BEAT: f32 = 60.0 / BEATS_PER_MINUTE;
 pub(crate) const BARS: usize = 8;
 pub(crate) const LOOP_SECONDS: f32 = BEAT * 4.0 * BARS as f32; //20 seconds, then it starts again
 pub(crate) const MUSIC_LAYERS: usize = 5;
-pub(crate) const MUSIC_GAIN: f32 = 0.3; //how loud the music is next to the sounds, which it must not drown
+pub(crate) const MUSIC_GAIN: f32 = 0.7; //how loud the music is next to the sounds, which it must not drown (0.3 was lost under a fight)
 pub(crate) const MUSIC_FADE: f32 = 0.45; //how much of a layer's volume it gains or loses a second
 
 //what the music follows: how big the army is, how much danger there is, whether a boss is about, and how close the army is to
@@ -21,6 +21,11 @@ pub(crate) struct Mood {
     pub(crate) boss: bool,
     pub(crate) peril: f32, // 0 to 1
 }
+
+//the music of the title screen: calm, with the bass and a little of the arpeggio, and no drums
+pub(crate) const TITLE_MOOD: Mood = Mood { army: 1200, danger: 0.0, boss: false, peril: 0.0 };
+//and of the defeat screen: the pad and the low drone
+pub(crate) const DEFEAT_MOOD: Mood = Mood { army: 0, danger: 0.0, boss: false, peril: 1.0 };
 
 //how loud each layer should be, 0 to 1, for a mood
 pub(crate) fn layer_targets(mood: &Mood) -> [f32; MUSIC_LAYERS] {

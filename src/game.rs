@@ -622,7 +622,12 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         draw_chests(&hordes.chests, drawn, get_time() as f32);
         draw_champion_auras(units, drawn, drawn_zoom, get_time() as f32);
         draw_discs(Layer::Army, &unit_discs_in(units, drawn, team_tint, settings.unit_shape), &camera);
-        draw_discs(Layer::Babies, &baby_discs(babies, drawn), &camera);
+        //(a baby is a little figure where it is big enough on the screen to make out, and the plain disc where it is not, or with simple shapes)
+        if settings.simple_shapes || BABY_FIGURE_SIZE * camera.zoom.x.abs() * screen_width() / 2.0 < BABY_FIGURE_PX {
+            draw_discs(Layer::Babies, &baby_discs(babies, drawn), &camera);
+        } else {
+            draw_creatures(&baby_figures(babies, drawn, get_time() as f32), &camera);
+        }
         draw_champions(units, enemies, drawn, drawn_zoom, &camera, settings.simple_shapes);
         if let Some((id, age)) = ping {
             draw_champion_ping(units, id, age, drawn_zoom);

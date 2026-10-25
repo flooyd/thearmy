@@ -134,9 +134,10 @@ async fn main() {
     warm_up_some(Duration::from_millis(WARM_UP_AT_START));
     //a game being hosted (so that others can join it) is kept for as long as runs follow one another, and closed when the title screen is back
     //(a showcase, for screenshots, goes straight to a run: see showcase.rs)
-    let (mut link, mut start) = if showcase_asked() { (Link::Solo, Some(showcase_run())) } else { show_splash(&saves, &mut settings, None).await.into_parts() };
+    //(the sounds and the music are made before the title screen, which has the music too)
     let mut sounds = Sounds::load(1.0).await;
     settings.tune(&mut sounds);
+    let (mut link, mut start) = if showcase_asked() { (Link::Solo, Some(showcase_run())) } else { show_splash(&saves, &mut settings, &mut sounds, None).await.into_parts() };
     loop {
         match play(&mut sounds, &saves, &mut settings, start.take(), &mut link).await {
             Ending::Fallen(run) => {
@@ -149,7 +150,7 @@ async fn main() {
                 if place.is_some() {
                     saves.save_high_scores(&scores);
                 }
-                show_defeat(&run, &record, place, &scores).await;
+                show_defeat(&run, &record, place, &scores, &mut sounds).await;
             }
             Ending::Reload(snapshot) => {
                 start = Some(snapshot);
@@ -160,13 +161,13 @@ async fn main() {
                 //the run was kept as the game's own save, which the title screen offers to carry on from
                 next_frame().await;
                 drop(std::mem::replace(&mut link, Link::Solo));
-                (link, start) = show_splash(&saves, &mut settings, None).await.into_parts();
+                (link, start) = show_splash(&saves, &mut settings, &mut sounds, None).await.into_parts();
             }
             Ending::Left(why) => {
                 //a stay in the game of another is over
                 next_frame().await;
                 drop(std::mem::replace(&mut link, Link::Solo));
-                (link, start) = show_splash(&saves, &mut settings, Some(why.to_uppercase())).await.into_parts();
+                (link, start) = show_splash(&saves, &mut settings, &mut sounds, Some(why.to_uppercase())).await.into_parts();
             }
             Ending::Lost(reconnect, why) => {
                 //the connection went: the player is put back in the game, as the same player, if the host has it still
@@ -174,7 +175,7 @@ async fn main() {
                 drop(std::mem::replace(&mut link, Link::Solo));
                 match reconnect_to(&reconnect, &why).await {
                     Ok((client, lobby)) => link = Link::Guest(client, lobby),
-                    Err(why) => (link, start) = show_splash(&saves, &mut settings, Some(why.to_uppercase())).await.into_parts(),
+                    Err(why) => (link, start) = show_splash(&saves, &mut settings, &mut sounds, Some(why.to_uppercase())).await.into_parts(),
                 }
             }
         }

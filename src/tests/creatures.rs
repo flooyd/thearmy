@@ -31,7 +31,7 @@ fn every_enemy_and_boss_and_mark_has_a_drawing() {
     }
     //(and nothing is drawn that nothing in the game is: the rest are the champions' pictures)
     let champions = (0..CHAMPIONS.len()).filter(|&kind| champion_shape(kind).is_some()).count();
-    assert_eq!(ARTS.len(), ENEMY_KINDS.len() + BOSSES.len() + 1 + MARKS.len() + champions);
+    assert_eq!(ARTS.len(), ENEMY_KINDS.len() + BOSSES.len() + 1 + MARKS.len() + champions + BABY_POSES.len());
     assert_eq!(shape_named("nothing"), None);
 }
 
@@ -316,4 +316,21 @@ fn simple_shapes_is_a_row_in_the_settings_that_flips() {
     assert!(nudge(&mut settings, Act::SimpleShapes, -1, false), "either way");
     assert!(!settings.simple_shapes);
     assert!(!explain_in(Act::SimpleShapes, &settings, MenuMode::Solo).is_empty());
+}
+
+#[test]
+fn a_baby_is_a_little_figure_in_one_of_its_poses_that_pops_up_and_fades_at_the_end() {
+    assert!(BABY_POSES.iter().all(|name| shape_named(name).is_some_and(|shape| !ARTS[shape - 1].mark)), "every pose is drawn");
+    let view = Rect::new(0.0, 0.0, 2000.0, 2000.0);
+    let babies = vec![
+        Baby { position: Vec2::new(100.0, 100.0), age: 0.0 },
+        Baby { position: Vec2::new(300.0, 140.0), age: 5.0 },
+        Baby { position: Vec2::new(500.0, 180.0), age: BABY_LIFE - 0.3 },
+        Baby { position: Vec2::new(9000.0, 100.0), age: 5.0 },
+    ];
+    let figures = baby_figures(&babies, view, 1.0);
+    assert_eq!(figures.len(), 3, "only the ones in view");
+    let drawn = |figure: &Creature| figure.instance.radius;
+    assert!(drawn(&figures[0]) < drawn(&figures[1]), "one just dropped is still popping up");
+    assert!(figures[2].instance.color[3] < figures[1].instance.color[3] || baby_blink(BABY_LIFE - 0.3) == 1.0, "and one at its end fades");
 }

@@ -154,3 +154,13 @@ fn the_cues_a_fight_makes_are_the_ones_that_are_synthesised() {
     }
     assert!(fx.cues.contains(&Cue::Thud) && fx.cues.contains(&Cue::Death));
 }
+
+#[test]
+fn the_title_screen_has_calm_music_and_the_defeat_screen_its_low_drone() {
+    let title = layer_targets(&TITLE_MOOD);
+    assert!(title[0] > 0.3 && title[1] > 0.3 && title[3] == 0.0 && title[4] == 0.0, "the pad and the bass, no drums or drone: {title:?}");
+    let defeat = layer_targets(&DEFEAT_MOOD);
+    assert!(defeat[0] > 0.3 && defeat[4] > 0.5 && defeat[3] == 0.0, "{defeat:?}");
+    //(the music is not lost under the army's fire: the pad alone is well over the rattle of a volley)
+    assert!(MUSIC_GAIN * title[0] >= Cue::Volley.volume() * 3.0);
+}
