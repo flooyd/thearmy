@@ -264,7 +264,12 @@ const FLAG_ROUTED: u16 = 4;
 const FLAG_RALLIED: u16 = 8;
 const FLAG_PROVOKED: u16 = 16;
 const FLAG_BLEW_UP: u16 = 32;
-const FLAG_ALL: u16 = 63;
+const FLAG_CHILLED: u16 = 64;
+const FLAG_BURNING: u16 = 128;
+const FLAG_SHOCKED: u16 = 256;
+const FLAG_POISONED: u16 = 512;
+const FLAG_SLOWED: u16 = 1024;
+const FLAG_ALL: u16 = 2047;
 
 const MODE_ROAM: u8 = 0;
 const MODE_WINDUP: u8 = 1;
@@ -277,7 +282,14 @@ const MODE_LURK: u8 = 6;
 impl EnemyDyn {
     pub(crate) fn of(enemy: &Enemy) -> EnemyDyn {
         let mut flags = 0;
-        for (on, flag) in [(enemy.chasing, FLAG_CHASING), (enemy.frozen > 0.0, FLAG_FROZEN), (enemy.routed(), FLAG_ROUTED), (enemy.rallied, FLAG_RALLIED), (enemy.provoked > 0.0, FLAG_PROVOKED), (enemy.blew_up, FLAG_BLEW_UP)] {
+        for (on, flag) in [(enemy.chasing, FLAG_CHASING), (enemy.status.frozen > 0.0, FLAG_FROZEN), (enemy.routed(), FLAG_ROUTED), (enemy.rallied, FLAG_RALLIED), (enemy.provoked > 0.0, FLAG_PROVOKED),
+            (enemy.blew_up, FLAG_BLEW_UP),
+            (enemy.status.chill >= CHILL_FULL * CHILL_SEEN && enemy.status.frozen <= 0.0, FLAG_CHILLED),
+            (enemy.status.burning > 0.0, FLAG_BURNING),
+            (enemy.status.shocked > 0.0, FLAG_SHOCKED),
+            (enemy.status.poison > 0.0, FLAG_POISONED),
+            (enemy.status.slow < SLOW_SEEN, FLAG_SLOWED),
+        ] {
             if on {
                 flags |= flag;
             }
@@ -309,7 +321,7 @@ impl EnemyDyn {
         out.u16(self.y);
         out.u16(self.health);
         out.u16(self.shield);
-        out.u8(self.flags as u8);
+        out.u16(self.flags);
         out.u8(self.flash);
         out.u8(self.mode);
         if matches!(self.mode, MODE_WINDUP | MODE_DASH) {
@@ -322,7 +334,7 @@ impl EnemyDyn {
 
     pub(crate) fn read(input: &mut Reader) -> Option<EnemyDyn> {
         let (x, y, health, shield) = (input.u16()?, input.u16()?, input.u16()?, input.u16()?);
-        let flags = input.u8()? as u16;
+        let flags = input.u16()?;
         let (flash, mode) = (input.u8()?, input.u8()?);
         if flags & !FLAG_ALL != 0 || mode > MODE_LURK {
             return None;
@@ -338,11 +350,17 @@ impl EnemyDyn {
         enemy.health = word_share(self.health) * enemy.max_health;
         enemy.shield = word_share(self.shield) * enemy.max_shield;
         enemy.chasing = self.flags & FLAG_CHASING != 0;
-        enemy.frozen = if self.flags & FLAG_FROZEN != 0 { 1.0 } else { 0.0 };
+        enemy.status.frozen = if self.flags & FLAG_FROZEN != 0 { 1.0 } else { 0.0 };
         enemy.rout = if self.flags & FLAG_ROUTED != 0 { 1.0 } else { 0.0 };
         enemy.rallied = self.flags & FLAG_RALLIED != 0;
         enemy.provoked = if self.flags & FLAG_PROVOKED != 0 { RETALIATE_SECONDS } else { 0.0 };
         enemy.blew_up = self.flags & FLAG_BLEW_UP != 0;
+        //(what is being done to it, as far as there is anything to see of it)
+        enemy.status.chill = if self.flags & FLAG_FROZEN != 0 { CHILL_FULL } else if self.flags & FLAG_CHILLED != 0 { CHILL_FULL * 0.5 } else { 0.0 };
+        enemy.status.burning = if self.flags & FLAG_BURNING != 0 { 1.0 } else { 0.0 };
+        enemy.status.shocked = if self.flags & FLAG_SHOCKED != 0 { 1.0 } else { 0.0 };
+        enemy.status.poison = if self.flags & FLAG_POISONED != 0 { 1.0 } else { 0.0 };
+        enemy.status.slow = if self.flags & FLAG_SLOWED != 0 { TAR_SLOW } else { 1.0 };
         enemy.flash = byte_seconds(self.flash);
         let dir = byte_angle(self.toward);
         let left = byte_seconds(self.left);

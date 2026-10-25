@@ -1,7 +1,9 @@
 //! a way to look at the game without playing it, to check how it looks in the real game (the champions' pictures, the bolts): with ARMY_SHOWCASE set, the title
 //! screen is skipped and a run starts with every kind of champion in the army at the top level, and a crowd of enemies ahead of it; with ARMY_SHOT set to a file,
 //! the screen is saved to it as a PNG once ARMY_SHOT_SECONDS (4 unless set) have gone by in the run, and the game closes. the game never sets either. set
-//! THE_ARMY_HOME as well, to a folder of its own, so that nothing of the player's (their settings, their saves) is touched
+//! THE_ARMY_HOME as well, to a folder of its own, so that nothing of the player's (their settings, their saves) is touched. with ARMY_SHOWCASE=statuses there are
+//! no champions, and the crowd is near and starts with what can be done to an enemy (frozen, chilled, burning, shocked, poisoned), to see the marks and a
+//! shatter's pieces
 //!
 //!     THE_ARMY_HOME=<folder> ARMY_SHOWCASE=1 ARMY_SHOT=<shot.png> mygame
 
@@ -18,12 +20,13 @@ pub(crate) fn showcase_asked() -> bool {
 pub(crate) fn showcase_run() -> Snapshot {
     let mut run = new_run();
     let at = run.player;
+    let statuses = std::env::var("ARMY_SHOWCASE").is_ok_and(|asked| asked == "statuses");
     run.zoom = SHOWCASE_ZOOM;
     for i in 0..SHOWCASE_ARMY {
         let spot = at + Vec2::from_angle(i as f32 * 2.399_963) * (40.0 + (i as f32).sqrt() * 14.0);
         run.units.push(Unit::new(spot.x, spot.y, UNIT_MAX_SPEED));
     }
-    for kind in 0..CHAMPIONS.len() {
+    for kind in (0..CHAMPIONS.len()).filter(|_| !statuses) {
         let spot = at + Vec2::from_angle(kind as f32 * TAU / CHAMPIONS.len() as f32) * 260.0;
         let mut champion = champion_unit(kind, spot);
         champion.level = CHAMPION_MAX_LEVEL;
@@ -32,8 +35,18 @@ pub(crate) fn showcase_run() -> Snapshot {
         run.units.push(champion);
     }
     for i in 0..SHOWCASE_ENEMIES {
-        let spot = at + Vec2::new((i % 10) as f32 * 90.0 - 405.0, -900.0 - (i / 10) as f32 * 90.0);
-        run.enemies.push(Enemy::new(spot, kind_named(if i % 3 == 0 { "Brute" } else { "Grunt" }), 2.0));
+        let spot = at + Vec2::new((i % 10) as f32 * 90.0 - 405.0, if statuses { -330.0 } else { -900.0 } - (i / 10) as f32 * 90.0);
+        let mut enemy = Enemy::new(spot, kind_named(if i % 3 == 0 { "Brute" } else { "Grunt" }), 2.0);
+        if statuses {
+            match i % 5 {
+                0 => freeze(&mut enemy, 30.0),
+                1 => chill(&mut enemy, CHILL_FULL * 0.9, 0.0),
+                2 => ignite(&mut enemy, 30.0, 1.0),
+                3 => shock(&mut enemy, 30.0),
+                _ => poison(&mut enemy, POISON_MOST),
+            }
+        }
+        run.enemies.push(enemy);
     }
     run
 }

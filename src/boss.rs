@@ -318,8 +318,7 @@ impl Enemy {
             steer_in: rand::gen_range(0.0, STEERING_INTERVAL),
             stuck: 0.0,
             pressing: None,
-            slow: 1.0,
-            frozen: 0.0,
+            status: Statuses::default(),
             provoked: 0.0,
             grudge: Vec2::ZERO,
             rout: 0.0,
@@ -384,6 +383,8 @@ pub(crate) fn enter_phase(enemy: &mut Enemy, state: &mut BossState, phase: usize
     fx.hazards.push(blast(enemy.position, enemy.size * 0.5 + 260.0, PHASE_SHIFT_SECONDS, 1.0, 0.4, army, state.tier, enemy.color, Cue::Slam).vs_walls(enemy.scale).circle(BossCircle::Shift));
     fx.announce(format!("{}: {}", def.name, next.name.to_uppercase()), enemy.color);
     fx.add_shake(0.6);
+    //(it cracks: pieces of it fly)
+    fx.shatter(enemy.position, enemy.size * 0.5, enemy.color, enemy.id ^ 0x9E37_79B9, false);
     fx.cue(Cue::PhaseShift);
 }
 
@@ -560,6 +561,7 @@ pub(crate) fn boss_act_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt: f32, s
             enemy.speed *= 1.3;
             fx.announce(format!("{}: LAST STAND!", def.name), RED);
             fx.add_shake(0.5);
+            fx.shatter(enemy.position, enemy.size * 0.6, enemy.color, enemy.id ^ 0x85EB_CA6B, false);
             fx.cue(Cue::PhaseShift);
         }
         //the lord of a citadel waits in it for someone to come. if it is hurt before then it still changes as it should, as it

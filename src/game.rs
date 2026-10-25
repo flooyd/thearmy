@@ -591,6 +591,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         let watch: Vec<Vec2> = players.list.iter().map(|other| other.position).collect();
         draw_enemies(enemies, &players.list[me].squads, get_time() as f32, enemy_boost, &camera, &watch, settings.simple_shapes);
         draw_shards(&feedback.shards, drawn);
+        draw_fragments(&feedback.fragments, drawn, drawn_zoom);
         draw_hazards(hazards, get_time() as f32);
         draw_pulls(pulls, get_time() as f32);
         draw_chests(&hordes.chests, drawn, get_time() as f32);

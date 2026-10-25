@@ -32,7 +32,7 @@ are the fonts.
   further the bigger the army grows, about the width of the screen at 10,000 units.
 - **Build.** Earn wall points by destroying enemies, then spend them on walls, gates, towers you can man, spikes and tar.
   Enemies path around what you build, and walls decide where a fight happens.
-- **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter into shards), Volley Drill, Chain Shot, Tracer Rounds and many more stack across the run.
+- **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter in a burst of frost), Volley Drill, Chain Shot, Tracer Rounds and many more stack across the run.
 - **Combos.** Chain kills for a MASSACRE, then a RAMPAGE, and watch the numbers climb.
 
 The game is built for a lot of units: 15,000 by default (the settings take it anywhere from 5,000 to 50,000), drawn as instanced ships (small darts that point the way they are going, drawn in the shader, with plain

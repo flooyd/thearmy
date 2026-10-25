@@ -347,12 +347,12 @@ fn an_enemy_that_dies_is_gone_and_one_that_changes_is_changed() {
     let died = host.sim.enemies.remove(1).id;
     host.sim.enemies[2].health *= 0.5;
     host.sim.enemies[2].max_health *= 3.0;
-    host.sim.enemies[3].frozen = 2.0;
+    host.sim.enemies[3].status.frozen = 2.0;
     watcher.hear(&host.tick(0));
     assert!(watcher.sim.enemies.iter().all(|enemy| enemy.id != died));
     assert_eq!(watcher.sim.enemies.len(), 4);
     assert_mirrors(&host, 0, &watcher);
-    assert!(watcher.sim.enemies[3].frozen > 0.0);
+    assert!(watcher.sim.enemies[3].status.frozen > 0.0);
     //a new one comes
     let mut late = kind_at("Grunt", me + Vec2::new(700.0, -300.0));
     late.aggro = 0.0;

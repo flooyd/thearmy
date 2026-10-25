@@ -67,6 +67,7 @@ mod showcase;
 mod sim;
 mod sites;
 mod sound;
+mod status;
 mod spawning;
 mod squads;
 mod sync;

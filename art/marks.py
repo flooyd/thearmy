@@ -103,3 +103,38 @@ def _(a):
     a.line([(0, -20), (-22, -4), (-24, 18)], 6.4, 'b', mirror=True)
     a.circ(0, -40, 15, 'b')
     a.circ(5, -42, 2.6, 'k', mirror=True, o='')
+
+
+@sym('mark_chilled', 'Chilled', 'chill building on it: frost creeping in from the corners and a thin cold rim', 100, '#bfedff', turns=False)
+def _(a):
+    a.alpha(0.6, lambda: a.ring(0, 0, 54, 3, 'l', edge=0))
+    corner(a, lambda: a.poly([(-60, -60), (-34, -56), (-44, -46), (-56, -34)], 'w', o='ot'))
+    corner(a, lambda: a.line([(-48, -48), (-36, -40)], 2.2, 'l', edge=0))
+
+
+@sym('mark_burning', 'Burning', 'alight: flames licking up round its edges and embers going up', 100, '#ff8c1a', turns=False)
+def _(a):
+    a.pulse(lambda: a.glow(0, 0, 62, '#ff8c1a', 0.6), 0.4, 0.4)
+    a.rep(8, lambda: a.poly([(-8, -46), (-2, -70), (2, -58), (8, -46)], 'b', o='ot'), start=10)
+    a.rep(8, lambda: a.poly([(-4, -46), (0, -60), (4, -46)], 'ey', o=''), start=10)
+    a.spin(lambda: a.circ(30, -60, 3, 'ey', o=''), 1.5)
+    a.spin(lambda: a.circ(-42, -52, 2.4, 'eo', o=''), 1.1, back=True)
+
+
+@sym('mark_shocked', 'Shocked', 'charged: sparks crawling over it', 100, '#d9a6ff', turns=False)
+def _(a):
+    a.pulse(lambda: a.glow(0, 0, 56, '#d9a6ff', 0.5), 0.25, 0.2)
+    a.spin(lambda: a.rep(3, lambda: a.line([(-6, -56), (6, -48), (-4, -40), (8, -32)], 3, 'w', edge=1.2)), 0.8)
+
+
+@sym('mark_poisoned', 'Poisoned', 'poisoned: green bubbles rising off it', 100, '#8dff6a', turns=False)
+def _(a):
+    a.pulse(lambda: a.glow(0, 0, 52, '#8dff6a', 0.45), 1.0, 0.4)
+    for x, y, r in ((-30, -52, 6), (20, -60, 4.5), (42, -30, 5), (-50, -12, 4)):
+        a.pulse(lambda x=x, y=y, r=r: a.circ(x, y, r, 'b', o='ot'), 0.9, 0.2)
+
+@sym('mark_slowed', 'Slowed', 'held back by tar or an aura: sluggish ripples spreading slowly round its feet', 100, '#9fb3d9', turns=False)
+def _(a):
+    a.pulse(lambda: a.alpha(0.85, lambda: a.ring(0, 0, 50, 4, 'w', edge=0)), 2.4, 0.3)
+    a.pulse(lambda: a.alpha(0.6, lambda: a.ring(0, 0, 62, 3, 'w', edge=0)), 3.1, 0.2)
+    a.rep(3, lambda: a.line([(-10, 66), (0, 72), (10, 66)], 2.4, 'l', edge=0))

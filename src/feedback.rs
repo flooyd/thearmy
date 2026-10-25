@@ -9,13 +9,14 @@ pub(crate) struct Feedback {
     pub(crate) particles: Vec<Particle>,
     pub(crate) ground: Vec<Mark>,     //scorch marks and what is left of enemies, which fade
     pub(crate) shards: Vec<Shard>,    //pieces of the enemies that have just been destroyed
+    pub(crate) fragments: Vec<Fragment>, //pieces of the enemies that shattered
     pub(crate) combo: Combo,
     pub(crate) runners: Vec<Runner>,  //how each player's figure is striding, in the order of the players
 }
 
 impl Feedback {
     pub(crate) fn new() -> Feedback {
-        Feedback { fx: Effects::default(), particles: Vec::new(), ground: Vec::new(), shards: Vec::new(), combo: Combo::default(), runners: Vec::new() }
+        Feedback { fx: Effects::default(), particles: Vec::new(), ground: Vec::new(), shards: Vec::new(), fragments: Vec::new(), combo: Combo::default(), runners: Vec::new() }
     }
 
     //take in what happened in the world. `me` is the player at this machine and `at` is where they are: the babies they have taken show over
@@ -41,6 +42,7 @@ impl Feedback {
                     }
                 }
                 Event::Destroyed(count) => destroyed += count as usize,
+                Event::Shatter { at, size, color, seed, frost } => throw_fragments(&mut self.fragments, at, size, color, seed, frost),
                 Event::Volley(_) => {} //(its bolts are the world's: the host's flies them, a guest's makes them from it, see `launch_told`)
             }
         }
@@ -67,6 +69,7 @@ impl Feedback {
         update_marks(&mut self.ground, &mut self.fx.marks, dt);
         throw_shards(&mut self.shards, &mut self.fx.shards);
         update_shards(&mut self.shards, dt);
+        update_fragments(&mut self.fragments, dt);
         self.combo.update(dt);
     }
 }

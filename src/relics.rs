@@ -56,7 +56,7 @@ pub(crate) enum Relic {
     Martyr,       //a unit that dies in an enemy hurts it
     GlassCannon,  //units hit much harder and take more damage
     Overclock,    //the player and the army are much faster, and heal slower
-    Freezing,     //enemies being fought freeze now and then, and a frozen one that is destroyed shatters into new, smaller enemies
+    Freezing,     //enemies being fought freeze now and then, and a frozen one that is destroyed shatters, hurting and chilling the ones near it
     Tailwind,     //the speed an army's size gives can go higher than it could
     VolleyDrill,  //the front of the army fires more often
     ChainShot,    //the army's bolts go through one more enemy
@@ -135,7 +135,7 @@ impl Relic {
             Relic::Martyr => "a unit that dies inside an enemy blows up for 40 damage",
             Relic::GlassCannon => "units hit 60% harder but take 40% more damage",
             Relic::Overclock => "you and the army are 35% faster, but heal at half the rate",
-            Relic::Freezing => "20% a second to freeze enemies. A frozen one destroyed shatters into new enemies",
+            Relic::Freezing => "20% a second to freeze enemies. Frozen ones that die shatter, hurting those near",
             Relic::Tailwind => "the speed a big army gets can go 0.5x higher than the limit",
             Relic::VolleyDrill => "the front of the army fires 30% more often",
             Relic::ChainShot => "the army's bolts go through one more enemy",

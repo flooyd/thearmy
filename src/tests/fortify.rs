@@ -430,11 +430,11 @@ fn spikes_hurt_the_enemy_standing_on_them_and_wear_out_and_tar_slows_it() {
     let mut fx = Effects::default();
     terrain_effects(&mut enemies, &walls, 1.0, &mut fx);
     assert!((enemies[0].health - (1000.0 - 1000.0 * SPIKE_DAMAGE_SHARE)).abs() < 0.01, "{}", enemies[0].health);
-    assert_eq!(enemies[0].slow, 1.0);
+    assert_eq!(enemies[0].status.slow, 1.0);
     assert_eq!(enemies[1].health, 1000.0);
-    assert_eq!(enemies[1].slow, TAR_SLOW);
+    assert_eq!(enemies[1].status.slow, TAR_SLOW);
     assert_eq!(enemies[2].health, 1000.0, "a lair's spikes are not the player's");
-    assert_eq!(enemies[3].slow, 1.0);
+    assert_eq!(enemies[3].status.slow, 1.0);
     let boss_took = boss_health - enemies[4].health;
     assert!((boss_took - boss_health * SPIKE_DAMAGE_SHARE * SPIKE_BOSS_FACTOR).abs() < 1.0, "{boss_took}");
     //two enemies on it wear it down twice as fast, and it goes after enough of that
@@ -443,7 +443,7 @@ fn spikes_hurt_the_enemy_standing_on_them_and_wear_out_and_tar_slows_it() {
     //walking off the tar gives the speed back
     enemies[1].position = on(5);
     terrain_effects(&mut enemies, &walls, 1.0, &mut fx);
-    assert_eq!(enemies[1].slow, 1.0);
+    assert_eq!(enemies[1].status.slow, 1.0);
 }
 
 #[test]

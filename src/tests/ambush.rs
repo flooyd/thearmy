@@ -204,7 +204,7 @@ fn bosses_nests_frozen_enemies_and_healers_are_not_provoked() {
     nest.health = 1.0e6;
     nest.max_health = 1.0e6;
     let mut frozen = rooted("Grunt", MIDDLE, 1.0e6);
-    frozen.frozen = 1.0;
+    frozen.status.frozen = 1.0;
     for mut enemy in [boss, nest, frozen] {
         let mut units = units_inside(&enemy, 6);
         let mut fx = Effects::default();

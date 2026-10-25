@@ -88,7 +88,7 @@ fn a_rallied_enemy_hits_harder_and_runs_faster_and_a_dash_gets_both() {
     assert!((rallied.pace() / plain.pace() - RALLY_SPEED).abs() < 1.0e-5);
     //tar and a rally together
     let mut stuck = rallied.clone();
-    stuck.slow = TAR_SLOW;
+    stuck.status.slow = TAR_SLOW;
     assert!((stuck.pace() - TAR_SLOW * RALLY_SPEED).abs() < 1.0e-5);
     //running at a player a long way off, it covers more ground in the same time
     let player = CENTRE + Vec2::new(4000.0, 0.0);

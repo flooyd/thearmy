@@ -59,7 +59,7 @@ pub(crate) fn patrol_enemies_among(enemies: &mut [Enemy], prey: &[Prey], dt: f32
             }
         }
         //a frozen one is held where it is
-        if enemy.frozen > 0.0 {
+        if enemy.status.frozen > 0.0 {
             continue;
         }
         //a nest stays where it is, and so does an ambusher until it springs
@@ -261,7 +261,7 @@ pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt:
                 enemy.shield = (enemy.shield + enemy.max_shield * SHIELD_REGEN_RATE * dt).min(enemy.max_shield);
             }
         }
-        if enemy.frozen > 0.0 || enemy.routed() {
+        if enemy.status.frozen > 0.0 || enemy.routed() {
             continue;
         }
         match enemy.behavior {

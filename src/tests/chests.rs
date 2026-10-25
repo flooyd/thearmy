@@ -270,7 +270,7 @@ fn only_enemies_that_are_awake_and_a_danger_contest_a_chest() {
     let foe = foe_near(&chest, 50.0);
     assert!(contested_by(chest.at, &[foe.clone()]));
     let mut frozen = foe.clone();
-    frozen.frozen = 3.0;
+    frozen.status.frozen = 3.0;
     let mut routed = foe.clone();
     routed.break_and_run();
     let mut hiding = kind_at("Ambusher", chest.at + Vec2::new(50.0, 0.0));

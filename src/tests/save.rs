@@ -586,9 +586,9 @@ fn the_relics_on_offer_from_a_chest_are_kept_with_where_they_came_from() {
 #[test]
 fn a_freeze_is_not_kept_in_a_save() {
     let mut world = busy_world();
-    world.enemies[0].frozen = 2.0;
+    world.enemies[0].status.frozen = 2.0;
     let loaded = Snapshot::from_text(&world.to_text()).unwrap();
-    assert_eq!(loaded.enemies[0].frozen, 0.0);
+    assert_eq!(loaded.enemies[0].status.frozen, 0.0);
     assert_eq!(loaded.enemies[0].id, world.enemies[0].id, "and it is the same enemy otherwise");
 }
 

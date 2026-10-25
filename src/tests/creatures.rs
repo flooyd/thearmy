@@ -4,7 +4,7 @@
 use super::*;
 use crate::creature_art::{ARTS, HELPERS};
 
-const MARKS: [&str; 7] = ["Swift", "Armored", "Volatile", "Frenzied", "Captain", "Frozen", "Shield"];
+const MARKS: [&str; 12] = ["Slowed", "Swift", "Armored", "Volatile", "Frenzied", "Captain", "Frozen", "Shield", "Chilled", "Burning", "Shocked", "Poisoned"];
 
 #[test]
 fn a_creature_is_exactly_what_the_shader_reads_for_each_one() {
@@ -40,7 +40,7 @@ fn the_marks_the_game_puts_on_an_enemy_all_have_a_drawing() {
     let mut enemy = Enemy::new(Vec2::new(500.0, 500.0), kind_named("Grunt"), 1.0);
     enemy.modifier = Modifier::Captain;
     enemy.armor = 0.5;
-    enemy.frozen = 1.0;
+    enemy.status.frozen = 1.0;
     enemy.shield = 10.0;
     enemy.max_shield = 20.0;
     let marks = marks_of(&enemy);
@@ -242,10 +242,10 @@ fn an_enemy_faces_what_it_is_going_for() {
     enemy.rout = 5.0;
     assert_eq!(wanted_direction(&enemy, &players), None);
     enemy.rout = 0.0;
-    enemy.frozen = 2.0;
+    enemy.status.frozen = 2.0;
     assert_eq!(wanted_direction(&enemy, &players), None);
     //a charger faces the way it will dash, and then the way it dashes, whoever is near
-    enemy.frozen = 0.0;
+    enemy.status.frozen = 0.0;
     enemy.chasing = false;
     enemy.mode = Mode::Windup { dir: Vec2::new(0.0, 1.0), left: 0.5 };
     assert_eq!(wanted_direction(&enemy, &players), Some(Vec2::new(0.0, 1.0)));

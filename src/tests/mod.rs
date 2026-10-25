@@ -55,6 +55,7 @@ mod settings;
 mod shooters;
 mod shortcuts;
 mod sound;
+mod status;
 mod squads;
 mod team;
 mod titlescene;

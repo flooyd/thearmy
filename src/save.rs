@@ -514,8 +514,8 @@ stored_fields!(
     Enemy {
         id, name, position, size, color, max_health, health, babies, speed, route, heading_for, attack, aggro, chasing, range, volley, shot_in,
         hurt, killed, popup_in, behavior, modifier, scale, owner, armor, shield, max_shield, shield_idle, mode, timer, flash, blew_up, boss,
-        site, steer, steer_in, stuck, pressing, slow
-    } ; frozen: 0.0, provoked: 0.0, grudge: Vec2::ZERO, rout: 0.0, rallied: false, credit: 0, struck: 0.0 //(a freeze lasts a moment, and so do a grudge and a rout, and the rally is worked out again at once, and whose army hurt it is a matter of the next frame, so they are not kept)
+        site, steer, steer_in, stuck, pressing, status
+    } ; provoked: 0.0, grudge: Vec2::ZERO, rout: 0.0, rallied: false, credit: 0, struck: 0.0 //(a freeze lasts a moment, and so do a grudge and a rout, and the rally is worked out again at once, and whose army hurt it is a matter of the next frame, so they are not kept)
 );
 
 //the walls are kept in order of their squares, so the same walls make the same file
@@ -532,6 +532,17 @@ impl Stored for Walls {
     fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
         let walls: Vec<Wall> = r.get()?;
         Ok(walls.into_iter().map(|wall| ((wall.col, wall.row), wall)).collect())
+    }
+}
+
+//of what is being done to an enemy only how much of its speed the ground leaves it is kept, as it always was: the rest lasts moments
+impl Stored for Statuses {
+    fn store(&self, w: &mut SaveWriter) {
+        self.slow.store(w);
+    }
+
+    fn restore(r: &mut SaveReader) -> Result<Self, SaveError> {
+        Ok(Statuses { slow: r.get()?, ..Statuses::default() })
     }
 }
 

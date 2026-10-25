@@ -520,10 +520,21 @@ pub(crate) fn boss_share(enemy: &Enemy) -> f32 {
 
 //hurt an enemy with a power of a player's champion, and keep count so a number floats up from it. the player has the credit for it
 pub(crate) fn strike(enemy: &mut Enemy, damage: f32, owner: u8) {
+    //a shocked one takes the next hit the harder, and the shock is spent
+    let damage = if enemy.status.shocked > 0.0 {
+        enemy.status.shocked = 0.0;
+        damage * SHOCK_BONUS
+    } else {
+        damage
+    };
     let dealt = enemy.take_damage(damage);
     enemy.hurt += dealt;
     enemy.credit = owner;
     enemy.struck = HIT_FLASH;
+    //a frozen one is brittle: a big enough hit breaks it, and it shatters (see resolve_deaths_among)
+    if enemy.status.frozen > 0.0 && dealt >= SHATTER_HIT * enemy.max_health {
+        enemy.health = 0.0;
+    }
 }
 
 pub(crate) fn in_reach(enemy: &Enemy, from: Vec2, reach: f32) -> bool {
@@ -743,6 +754,10 @@ pub(crate) fn champion_acts<R: Relics + ?Sized>(units: &mut [Unit], enemies: &mu
                             fx.burst(enemies[i].position, kind.color, 10, 220.0);
                             from = enemies[i].position;
                         }
+                        //what it went through is left shocked: the next power to hit it does more
+                        for &i in &chain {
+                            shock(&mut enemies[i], SHOCK_SECONDS);
+                        }
                         //and from the middle levels a ring of sparks goes out with each bolt
                         let ring = SPARK_RING[step];
                         if ring > 0 {
@@ -776,15 +791,17 @@ pub(crate) fn champion_acts<R: Relics + ?Sized>(units: &mut [Unit], enemies: &mu
             }
             Power::Frost { radius, slow, every, freeze } => {
                 timer -= dt;
-                if timer <= 0.0 {
+                let pulse = timer <= 0.0;
+                if pulse {
                     timer = every;
                     fx.ring(at, radius, kind.color);
                     fx.cue_at(Cue::Frost, at);
                 }
-                let freezing = timer > every - freeze;
+                //its aura slows and chills what is in it, and its pulse chills it all at once, which freezes (for `freeze` seconds) what was chilled
+                //enough; a boss is only slowed (see status.rs)
                 for enemy in enemies.iter_mut().filter(|enemy| in_reach(enemy, at, radius)) {
-                    let keeps = if freezing { if enemy.boss.is_some() { FROZEN_BOSS_SLOW } else { FROZEN_SLOW } } else { slow };
-                    enemy.slow = enemy.slow.min(keeps);
+                    enemy.status.slow = enemy.status.slow.min(slow);
+                    chill(enemy, FROST_CHILL * dt + if pulse { FROST_PULSE_CHILL } else { 0.0 }, freeze);
                 }
             }
             Power::Muster { every, count } => {

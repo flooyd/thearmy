@@ -261,3 +261,130 @@ pub(crate) fn draw_shards(shards: &[Shard], view: Rect) {
         draw_rectangle_ex(shard.position.x, shard.position.y, size, size * 0.6, DrawRectangleParams { offset: Vec2::splat(0.5), rotation: shard.angle, color });
     }
 }
+
+// ---------- the pieces of a shatter ----------
+
+//what is to be thrown from an enemy that shattered (or a boss that burst, or cracked): the same pieces on every machine, from the seed
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ShatterBurst {
+    pub(crate) at: Vec2,
+    pub(crate) size: f32,
+    pub(crate) color: Color,
+    pub(crate) seed: u32,
+    pub(crate) frost: bool, //it was frozen, and its pieces are ice
+}
+
+//a piece of a shattered enemy: a cell of a pattern cut over its square, flying out from where it was, turning, slowing and fading
+pub(crate) struct Fragment {
+    pub(crate) position: Vec2,
+    pub(crate) velocity: Vec2,
+    pub(crate) angle: f32,
+    pub(crate) spin: f32, //radians a second
+    pub(crate) age: f32,
+    pub(crate) life: f32,
+    pub(crate) corners: Vec<Vec2>, //round its own middle
+    pub(crate) color: Color,
+    pub(crate) glint: bool, //a piece of ice that catches the light now and then
+}
+
+//a polygon cut by a line, keeping what is on the side away from `normal` (where (p - at) . normal is not more than 0)
+fn cut(polygon: &[Vec2], at: Vec2, normal: Vec2) -> Vec<Vec2> {
+    let mut kept = Vec::with_capacity(polygon.len() + 1);
+    for k in 0..polygon.len() {
+        let (a, b) = (polygon[k], polygon[(k + 1) % polygon.len()]);
+        let (da, db) = ((a - at).dot(normal), (b - at).dot(normal));
+        if da <= 0.0 {
+            kept.push(a);
+        }
+        if (da <= 0.0) != (db <= 0.0) {
+            kept.push(a + (b - a) * (da / (da - db)));
+        }
+    }
+    kept
+}
+
+//the cells a square `size` across breaks into: a Voronoi pattern over it, a cell for each of size / FRAGMENT_SIZE points (FEWEST to MOST_FRAGMENTS) put down from
+//the seed, each as where its middle is and its corners round that. the same for the same seed on every machine
+pub(crate) fn shatter_cells(size: f32, seed: u32) -> Vec<(Vec2, Vec<Vec2>)> {
+    if size <= 0.0 {
+        return Vec::new();
+    }
+    let count = ((size / FRAGMENT_SIZE) as usize).clamp(FEWEST_FRAGMENTS, MOST_FRAGMENTS);
+    let half = size / 2.0;
+    let sites: Vec<Vec2> = (0..count).map(|i| Vec2::new(hash_noise(seed, 2 * i as u32) - 0.5, hash_noise(seed, 2 * i as u32 + 1) - 0.5) * size).collect();
+    sites
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &site)| {
+            let mut cell = vec![Vec2::new(-half, -half), Vec2::new(half, -half), Vec2::new(half, half), Vec2::new(-half, half)];
+            for (j, &other) in sites.iter().enumerate() {
+                if i != j && other != site {
+                    cell = cut(&cell, (site + other) / 2.0, other - site);
+                }
+            }
+            if cell.len() < 3 {
+                return None;
+            }
+            let middle = cell.iter().copied().sum::<Vec2>() / cell.len() as f32;
+            Some((middle, cell.into_iter().map(|corner| corner - middle).collect()))
+        })
+        .collect()
+}
+
+//the pieces of a shattered enemy thrown out from where it was, as many as there is room for under MAX_FRAGMENTS: a frozen one's ice-white, glinting
+pub(crate) fn throw_fragments(fragments: &mut Vec<Fragment>, at: Vec2, size: f32, color: Color, seed: u32, frost: bool) {
+    let tint = if frost { lerp_color(color, ICE, 0.5) } else { color };
+    let force = 0.7 + (size / 200.0).min(1.2);
+    for (k, (middle, corners)) in shatter_cells(size, seed).into_iter().enumerate() {
+        if fragments.len() >= MAX_FRAGMENTS {
+            return;
+        }
+        let noise = |salt: u32| hash_noise(seed ^ 0x5BD1_E995, k as u32 * 8 + salt);
+        let out = middle.try_normalize().unwrap_or_else(|| Vec2::from_angle(noise(0) * std::f32::consts::TAU));
+        fragments.push(Fragment {
+            position: at + middle,
+            velocity: (out * (180.0 + 320.0 * noise(1)) + Vec2::from_angle(noise(2) * std::f32::consts::TAU) * 60.0) * force,
+            angle: 0.0,
+            spin: (noise(3) - 0.5) * 14.0,
+            age: 0.0,
+            life: FRAGMENT_LIFE * (0.75 + 0.5 * noise(4)),
+            corners,
+            color: tint,
+            glint: frost && noise(5) < 0.35,
+        });
+    }
+}
+
+pub(crate) fn update_fragments(fragments: &mut Vec<Fragment>, dt: f32) {
+    let slow_down = (-FRAGMENT_DRAG * dt).exp();
+    fragments.retain_mut(|piece| {
+        piece.age += dt;
+        piece.position += piece.velocity * dt;
+        piece.velocity *= slow_down;
+        piece.angle += piece.spin * dt;
+        piece.age < piece.life
+    });
+}
+
+//the pieces in view: each its polygon in its colour with a black edge, turning and fading at the end of its flight, and the ice ones glinting. `zoom` keeps
+//the edge a pixel and a half wide
+pub(crate) fn draw_fragments(fragments: &[Fragment], view: Rect, zoom: f32) {
+    let pixel = 1.0 / zoom.max(0.01);
+    for piece in fragments.iter().filter(|piece| view.contains(piece.position)) {
+        let alpha = ((1.0 - piece.age / piece.life) * 2.0).clamp(0.0, 1.0);
+        let (sin, cos) = piece.angle.sin_cos();
+        let points: Vec<Vec2> = piece.corners.iter().map(|corner| piece.position + Vec2::new(corner.x * cos - corner.y * sin, corner.x * sin + corner.y * cos)).collect();
+        let fill = Color::new(piece.color.r, piece.color.g, piece.color.b, alpha);
+        let edge = Color::new(0.02, 0.03, 0.05, alpha);
+        for k in 1..points.len() - 1 {
+            draw_triangle(points[0], points[k], points[k + 1], fill);
+        }
+        for k in 0..points.len() {
+            let (a, b) = (points[k], points[(k + 1) % points.len()]);
+            draw_line(a.x, a.y, b.x, b.y, 1.5 * pixel, edge);
+        }
+        if piece.glint && (piece.age * 9.0 + piece.angle).sin() > 0.75 {
+            draw_poly(piece.position.x, piece.position.y, 4, 2.6 * pixel, 45.0, Color::new(1.0, 1.0, 1.0, alpha));
+        }
+    }
+}

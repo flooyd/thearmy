@@ -484,38 +484,30 @@ fn an_earthshaker_slams_everything_round_it_but_only_when_there_is_something_the
 }
 
 #[test]
-fn frost_slows_the_enemies_near_it_and_now_and_then_freezes_them() {
+fn frost_slows_and_chills_the_enemies_near_it_and_its_pulse_freezes_the_chilled_ones() {
     let mut units = vec![champion_at("Frostweaver", MIDDLE)];
     units[0].power = 5.0;
     let near = dummy(Vec2::new(MIDDLE.x + 300.0, MIDDLE.y));
     let far = dummy(Vec2::new(MIDDLE.x + 1500.0, MIDDLE.y));
-    let mut boss = Enemy::boss(&BOSSES[0], 100, 0, Vec2::new(MIDDLE.x, MIDDLE.y + 300.0));
-    boss.slow = 1.0;
+    let boss = Enemy::boss(&BOSSES[0], 100, 0, Vec2::new(MIDDLE.x, MIDDLE.y + 300.0));
     let mut enemies = vec![near, far, boss];
     act_once(&mut units, &mut enemies);
-    assert!((enemies[0].slow - 0.55).abs() < 1e-3);
-    assert_eq!(enemies[1].slow, 1.0);
+    assert!((enemies[0].status.slow - 0.55).abs() < 1e-3);
+    assert_eq!(enemies[1].status.slow, 1.0);
+    assert!(enemies[0].status.chill > 0.0 && enemies[1].status.chill == 0.0);
     //it is the terrain that sets the slow each frame, and the slow only takes from what is there, so it doesn't stack with tar
-    enemies[0].slow = TAR_SLOW;
+    enemies[0].status.slow = TAR_SLOW;
     act_once(&mut units, &mut enemies);
-    assert_eq!(enemies[0].slow, TAR_SLOW.min(0.55));
-    //the pulse
+    assert_eq!(enemies[0].status.slow, TAR_SLOW.min(0.55));
+    //a second in its aura and then the pulse: the one near freezes, and the boss is only slowed
+    act_for(&mut units, &mut enemies, &mut Vec::new(), 1.0, &mut Effects::default());
     units[0].power = 0.0;
-    enemies[0].slow = 1.0;
-    enemies[2].slow = 1.0;
     let fx = act_once(&mut units, &mut enemies);
     assert!(fx.cues.contains(&Cue::Frost));
-    assert_eq!(enemies[0].slow, FROZEN_SLOW);
-    assert_eq!(enemies[2].slow, FROZEN_BOSS_SLOW, "a boss is not frozen solid");
-    assert_eq!(enemies[1].slow, 1.0);
-    //and it thaws
-    for _ in 0..(1.6 * 60.0) as usize {
-        for enemy in &mut enemies {
-            enemy.slow = 1.0;
-        }
-        act_once(&mut units, &mut enemies);
-    }
-    assert!((enemies[0].slow - 0.55).abs() < 1e-3, "{}", enemies[0].slow);
+    assert!(enemies[0].status.frozen > 0.0, "{}", enemies[0].status.chill);
+    assert_eq!(enemies[2].status.frozen, 0.0, "a boss is not frozen solid");
+    assert!(speed_kept(&enemies[2]) < 1.0);
+    assert_eq!(enemies[1].status.chill, 0.0);
 }
 
 #[test]
@@ -607,7 +599,7 @@ fn every_kind_of_champion_can_act_for_a_minute_among_enemies_without_trouble() {
     for _ in 0..60 * 60 {
         apply_champions(&mut units, 1.0 / 60.0);
         for enemy in &mut enemies {
-            enemy.slow = 1.0;
+            enemy.status.slow = 1.0;
         }
         champion_acts(&mut units, &mut enemies, &mut babies, &Upgrades::default(), 1.0 / 60.0, &mut fx);
         for (volley, hurt) in std::mem::take(&mut fx.volleys) {
@@ -623,7 +615,7 @@ fn every_kind_of_champion_can_act_for_a_minute_among_enemies_without_trouble() {
         fx.marks.clear();
         fx.popups.clear();
     }
-    assert!(enemies.iter().all(|enemy| enemy.health.is_finite() && enemy.slow.is_finite()));
+    assert!(enemies.iter().all(|enemy| enemy.health.is_finite() && enemy.status.slow.is_finite()));
     assert!(enemies.iter().filter(|enemy| damage_taken(enemy) > 0.0).count() >= 30, "the powers should have reached most of them");
     assert!(units.iter().all(|unit| unit.power.is_finite() && unit.health.is_finite()));
     assert!(!babies.is_empty());

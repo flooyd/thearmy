@@ -362,6 +362,8 @@ fn blast(bolt: &Bolt, enemies: &mut [Enemy], fx: Option<&mut Effects>) {
     for enemy in enemies.iter_mut().filter(|enemy| in_reach(enemy, at, bolt.splash)) {
         let damage = bolt.hurt.each * boss_share(enemy);
         strike(enemy, damage, bolt.hurt.owner);
+        //and sets it alight
+        ignite(enemy, BURN_SECONDS, bolt.hurt.each * BURN_SHARE / BURN_SECONDS);
         let away = (enemy.position - at).try_normalize().unwrap_or(Vec2::X);
         knock(enemy, away * KNOCKBACK * BoltKind::Shell.weight());
     }

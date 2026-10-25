@@ -141,6 +141,7 @@ pub(crate) enum Cue {
     Hit,       //a bolt hit an enemy
     Crit,      //a champion's bolt hit hard
     Volley,    //the front of the army fired
+    Shatter,   //a frozen enemy broke
 }
 
 //what a player's army has earned in a frame from the enemies it destroyed, which the game hands out to that player
@@ -177,6 +178,7 @@ pub(crate) struct Effects {
     pub(crate) shards: Vec<ShardBurst>,      //debris to be thrown, which main takes
     pub(crate) cue_spots: Vec<Option<Vec2>>, //where each of the cues was, if it was anywhere, in the same order
     pub(crate) recruits: Vec<(Vec2, Odds, usize)>,  //champions won this frame, where, and by which player, for the game to hand out
+    pub(crate) shatters: Vec<ShatterBurst>, //the enemies that shattered or burst this frame, whose pieces are to be thrown
     pub(crate) hit_stop: f32, //seconds a world of one is to stand still for a champion's crit (see HIT_STOP)
     pub(crate) volleys: Vec<(Volley, Hurt)>, //the champions' volleys of the frame and what their bolts do: the world puts them in flight, and the watchers are told of them
     pub(crate) rebirths: Vec<(Vec2, u8, u8, u8, u8)>, //champions (their kind, plus one, their level and evolutions, and whose they are) that rose from the dead this frame and where, for their blaze

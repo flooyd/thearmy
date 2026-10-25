@@ -254,6 +254,12 @@ pub(crate) fn synthesize(cue: Cue) -> Vec<f32> {
             add_tone(&mut buffer, 0.0, 0.05, 1900.0, 900.0, Square, 0.25, 42.0);
             add_tone(&mut buffer, 0.0, 0.06, 4500.0, 1500.0, Noise, 0.35, 38.0);
         }
+        //glass breaking: a high crash of hiss and two bright, ringing notes falling a little
+        Cue::Shatter => {
+            add_tone(&mut buffer, 0.0, 0.25, 8000.0, 2500.0, Noise, 0.7, 14.0);
+            add_tone(&mut buffer, 0.0, 0.35, 3100.0, 2700.0, Sine, 0.5, 8.0);
+            add_tone(&mut buffer, 0.03, 0.3, 4400.0, 3900.0, Sine, 0.35, 9.0);
+        }
         //the same blip as a pop, a step higher each time up a scale
         Cue::Pop2 | Cue::Pop3 | Cue::Pop4 | Cue::Pop5 | Cue::Pop6 => {
             let ratio = 2f32.powf(POP_SEMITONES[POPS.iter().position(|&pop| pop == cue).unwrap_or(0)] / 12.0);
@@ -291,7 +297,7 @@ pub(crate) fn wav_bytes(samples: &[f32]) -> Vec<u8> {
     wav
 }
 
-pub(crate) const ALL_CUES: [Cue; 37] = [
+pub(crate) const ALL_CUES: [Cue; 38] = [
     Cue::Pop,
     Cue::Thud,
     Cue::Dispatch,
@@ -329,6 +335,7 @@ pub(crate) const ALL_CUES: [Cue; 37] = [
     Cue::Hit,
     Cue::Crit,
     Cue::Volley,
+    Cue::Shatter,
 ];
 
 impl Cue {
@@ -368,6 +375,7 @@ impl Cue {
             Cue::Hit => 0.22,
             Cue::Crit => 0.5,
             Cue::Volley => 0.16,
+            Cue::Shatter => 0.6,
         }
     }
 
@@ -407,6 +415,7 @@ impl Cue {
             Cue::Hit => 0.05,
             Cue::Crit => 0.12,
             Cue::Volley => 0.07,
+            Cue::Shatter => 0.06,
         }
     }
 }

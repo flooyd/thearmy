@@ -16,6 +16,7 @@ pub(crate) enum Event {
     Shake(f32),                                                //the camera shakes
     Punch(f32),                                                //the camera jumps in
     PickedUp { player: u8, count: u32 },                       //babies grew into units of a player's army
+    Shatter { at: Vec2, size: f32, color: Color, seed: u32, frost: bool }, //an enemy breaking into the pieces of its shape (see throw_fragments)
     Volley(Volley), //a champion's volley, which every machine makes the same bolts from (see `launch_volley`)
     Destroyed(u32),                                            //enemies were destroyed, which is what a kill streak is made of
 }
@@ -34,6 +35,7 @@ const PUNCH: u8 = 10;
 const PICKED_UP: u8 = 11;
 const DESTROYED: u8 = 12;
 const VOLLEY: u8 = 13;
+const SHATTER: u8 = 14;
 
 //the most events one message holds, so a message that says it holds more is not believed
 pub(crate) const MAX_EVENTS_A_MESSAGE: usize = 1024;
@@ -45,6 +47,7 @@ impl Event {
             Event::Popup { at, .. } | Event::Burst { at, .. } | Event::Ring { at, .. } | Event::Mark { at, .. } | Event::Debris { at, .. } => Some(*at),
             Event::Beam { from, .. } => Some(*from),
             Event::Volley(volley) => Some(volley.from),
+            Event::Shatter { at, .. } => Some(*at),
             Event::Cue { at, .. } => *at,
             Event::Announce { .. } | Event::Shake(_) | Event::Punch(_) | Event::PickedUp { .. } | Event::Destroyed(_) => None,
         }
@@ -142,6 +145,14 @@ impl Event {
                 out.u8(volley.champion);
                 out.u32(volley.seed);
             }
+            Event::Shatter { at, size, color, seed, frost } => {
+                out.u8(SHATTER);
+                out.vec2(*at);
+                out.f32(*size);
+                out.color(*color);
+                out.u32(*seed);
+                out.flag(*frost);
+            }
         }
     }
 
@@ -196,6 +207,13 @@ impl Event {
                 }
                 Event::Volley(volley)
             }
+            SHATTER => {
+                let (at, size, color, seed, frost) = (input.vec2()?, input.f32()?, input.color()?, input.u32()?, input.flag()?);
+                if !(size > 0.0 && size <= MAX_SHATTER_SIZE) {
+                    return None;
+                }
+                Event::Shatter { at, size, color, seed, frost }
+            }
             _ => return None,
         })
     }
@@ -227,6 +245,11 @@ pub(crate) fn read_events(bytes: &[u8]) -> Option<Vec<Event>> {
 }
 
 impl Effects {
+    //an enemy that shattered (or a boss that burst, or cracked): its pieces are thrown on every machine from the seed (see throw_fragments)
+    pub(crate) fn shatter(&mut self, at: Vec2, size: f32, color: Color, seed: u32, frost: bool) {
+        self.shatters.push(ShatterBurst { at, size, color, seed, frost });
+    }
+
     //what this frame made that is for the eyes and ears, as events, and none of it left here: the numbers, puffs, rings, beams, marks, debris,
     //sounds and messages, how much the camera is to shake or jump, and how many babies each player's army took. what the world itself still
     //has to do with (the hazards that were started, the walls that were hit, who earned what) is left for it
@@ -249,6 +272,9 @@ impl Effects {
         }
         for shards in self.shards.drain(..) {
             events.push(Event::Debris { at: shards.position, color: shards.color, size: shards.size });
+        }
+        for burst in self.shatters.drain(..) {
+            events.push(Event::Shatter { at: burst.at, size: burst.size, color: burst.color, seed: burst.seed, frost: burst.frost });
         }
         for (volley, _) in self.volleys.drain(..) {
             events.push(Event::Volley(volley));

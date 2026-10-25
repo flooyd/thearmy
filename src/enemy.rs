@@ -225,8 +225,7 @@ pub(crate) struct Enemy {
     pub(crate) steer_in: f32,
     pub(crate) stuck: f32,         //seconds it has been held up by a wall
     pub(crate) pressing: Option<(i32, i32)>, //the wall it is pushing against and chewing at
-    pub(crate) slow: f32,          //the share of its speed it keeps, tar takes some away
-    pub(crate) frozen: f32,        //seconds it is held solid for, by a Freezing relic: it can't move, attack or shoot, and shatters if it is destroyed
+    pub(crate) status: Statuses,   //what is being done to it: chill, a freeze, burning, a shock, poison, and the share of its speed the ground leaves it (see status.rs)
     pub(crate) provoked: f32,      //seconds it is still fighting back at the units that hurt it, not kept in a save
     pub(crate) grudge: Vec2,       //where those units were, which it goes to and fights them at
     pub(crate) rout: f32,          //seconds it is still running from the army, after its captain fell: it does nothing else. not kept in a save
@@ -293,8 +292,7 @@ impl Enemy {
             steer_in: rand::gen_range(0.0, STEERING_INTERVAL),
             stuck: 0.0,
             pressing: None,
-            slow: 1.0,
-            frozen: 0.0,
+            status: Statuses::default(),
             provoked: 0.0,
             grudge: Vec2::ZERO,
             rout: 0.0,
@@ -460,7 +458,7 @@ impl Enemy {
     //whether it can be provoked: the ones that move and have a mind of their own, not a boss (it is after the army anyway), a nest
     //or something that is held frozen or lying in wait
     pub(crate) fn can_be_provoked(&self) -> bool {
-        self.boss.is_none() && self.behavior != Behavior::Nest && !self.lurking() && self.frozen <= 0.0
+        self.boss.is_none() && self.behavior != Behavior::Nest && !self.lurking() && self.status.frozen <= 0.0
     }
 
     //whether a Freezing relic can hold it: not a boss, and not a nest that never moves
@@ -470,12 +468,12 @@ impl Enemy {
 
     //whether it breaks into shards when it is destroyed: it is frozen, and was not itself made by another enemy or broken off one
     pub(crate) fn shatters(&self) -> bool {
-        self.frozen > 0.0 && self.can_freeze() && !self.is_minion() && self.name != "Shard"
+        self.status.frozen > 0.0 && self.can_freeze() && !self.is_minion() && self.name != "Shard"
     }
 
     //damage per second to the units it touches: a dash hits much harder, a rallied one hits harder, and a frozen or routed one does none
     pub(crate) fn attack_now(&self) -> f32 {
-        if self.frozen > 0.0 || self.routed() {
+        if self.status.frozen > 0.0 || self.routed() {
             return 0.0;
         }
         let attack = if self.rallied { self.attack * RALLY_ATTACK } else { self.attack };
@@ -485,9 +483,9 @@ impl Enemy {
         }
     }
 
-    //how much of its speed it is going at: tar slows it, and a captain's rally quickens it
+    //how much of its speed it is going at: tar, an aura and chill slow it, and a captain's rally quickens it
     pub(crate) fn pace(&self) -> f32 {
-        self.slow * if self.rallied { RALLY_SPEED } else { 1.0 }
+        speed_kept(self) * if self.rallied { RALLY_SPEED } else { 1.0 }
     }
 
     //whether it is running from the army, its captain having fallen
@@ -506,7 +504,7 @@ impl Enemy {
 
     //whether it is awake and a danger to be near, which is what keeps a chest from being held: not one that is hiding, held solid or running away
     pub(crate) fn contests(&self) -> bool {
-        self.health > 0.0 && !self.lurking() && self.frozen <= 0.0 && !self.routed()
+        self.health > 0.0 && !self.lurking() && self.status.frozen <= 0.0 && !self.routed()
     }
 
     //show the damage it has taken and the units it has killed since it last did as numbers floating up from it
@@ -686,7 +684,7 @@ pub(crate) fn draw_enemies_plain(enemies: &[Enemy], squads: &Squads, time: f32, 
         if matches!(enemy.mode, Mode::Fuse { .. }) && (time * 24.0).sin() > 0.0 {
             color = WHITE;
         }
-        if enemy.frozen > 0.0 {
+        if enemy.status.frozen > 0.0 {
             color = Color::new(color.r * 0.3 + ICE.r * 0.7, color.g * 0.3 + ICE.g * 0.7, color.b * 0.3 + ICE.b * 0.7, 1.0);
         }
         if enemy.boss.as_ref().is_some_and(|boss| boss.shifting > 0.0) && (time * 30.0).sin() > 0.0 {
@@ -705,7 +703,7 @@ pub(crate) fn draw_enemies_plain(enemies: &[Enemy], squads: &Squads, time: f32, 
             color = lighten(color, 0.55);
         }
         draw_rectangle(x, y, enemy.size, enemy.size, color);
-        if enemy.frozen > 0.0 {
+        if enemy.status.frozen > 0.0 {
             //frosted over: a white edge and a glint across it
             let width = (enemy.size * 0.06).clamp(3.0, 16.0);
             draw_rectangle_lines(x, y, enemy.size, enemy.size, width, WHITE);
@@ -838,7 +836,7 @@ pub(crate) fn wanted_direction(enemy: &Enemy, watch: &[Vec2]) -> Option<Vec2> {
     if let Mode::Windup { dir, .. } | Mode::Dash { dir, .. } = enemy.mode {
         return Some(dir);
     }
-    if enemy.frozen > 0.0 || enemy.routed() {
+    if enemy.status.frozen > 0.0 || enemy.routed() {
         return None;
     }
     let to_player = watch.iter().map(|&player| player - enemy.position).min_by(|a, b| a.length_squared().total_cmp(&b.length_squared()))?;
@@ -871,8 +869,22 @@ pub(crate) fn marks_of(enemy: &Enemy) -> Vec<(&'static str, Color)> {
     if enemy.armor > 0.0 && enemy.boss.is_none() && enemy.modifier != Modifier::Armored {
         marks.push((Modifier::Armored.label(), Modifier::Armored.color()));
     }
-    if enemy.frozen > 0.0 {
+    if enemy.status.frozen > 0.0 {
         marks.push(("Frozen", ICE));
+    } else if enemy.status.chill >= CHILL_FULL * CHILL_SEEN {
+        marks.push(("Chilled", Color::new(ICE.r, ICE.g, ICE.b, (enemy.status.chill / CHILL_FULL).clamp(0.3, 1.0))));
+    }
+    if enemy.status.slow < SLOW_SEEN && enemy.status.frozen <= 0.0 {
+        marks.push(("Slowed", Color::new(0.6, 0.7, 0.85, 1.0)));
+    }
+    if enemy.status.burning > 0.0 {
+        marks.push(("Burning", Color::new(1.0, 0.55, 0.1, 1.0)));
+    }
+    if enemy.status.shocked > 0.0 {
+        marks.push(("Shocked", Color::new(0.85, 0.65, 1.0, 1.0)));
+    }
+    if enemy.status.poison > 0.0 {
+        marks.push(("Poisoned", Color::new(0.55, 1.0, 0.4, 1.0)));
     }
     if enemy.shield > 0.0 {
         let share = (enemy.shield / enemy.max_shield.max(1.0)).clamp(0.0, 1.0);
@@ -949,7 +961,7 @@ pub(crate) fn draw_enemy_art(enemies: &[Enemy], squads: &Squads, time: f32, spee
         if matches!(enemy.mode, Mode::Fuse { .. }) && (time * 24.0).sin() > 0.0 {
             color = WHITE;
         }
-        if enemy.frozen > 0.0 {
+        if enemy.status.frozen > 0.0 {
             color = Color::new(color.r * 0.3 + ICE.r * 0.7, color.g * 0.3 + ICE.g * 0.7, color.b * 0.3 + ICE.b * 0.7, 1.0);
         }
         if enemy.boss.as_ref().is_some_and(|boss| boss.shifting > 0.0) && (time * 30.0).sin() > 0.0 {

@@ -9,6 +9,8 @@ use crate::prelude::*;
 //the units are everyone's: each does as much as its own player's relics make it, takes as much as their relics let through, and
 //the player whose units did the most to an enemy has the credit for it
 pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [Unit], babies: &mut Vec<Baby>, dt: f32, relics: &R, fx: &mut Effects) -> usize {
+    //what is being done to the enemies (chill, freezes, burning, poison) runs first, once a frame
+    tick_statuses(enemies, dt);
     let grid = UnitGrid::new(units);
     //what each player's relics make of a unit's touch, worked out once as the power in it is not cheap
     let hits: [f32; MAX_PLAYERS] = std::array::from_fn(|owner| relics.of(owner as u8).hit());
@@ -59,9 +61,8 @@ pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [U
             }
         }
         //a Freezing relic: an enemy being fought now and then freezes solid
-        enemy.frozen = (enemy.frozen - dt).max(0.0);
-        if leading.freeze > 0.0 && enemy.frozen <= 0.0 && enemy.can_freeze() && !touching.is_empty() && rand::gen_range(0.0, 1.0) < leading.freeze_chance(dt) {
-            enemy.frozen = FREEZE_SECONDS;
+        if leading.freeze > 0.0 && enemy.status.frozen <= 0.0 && enemy.can_freeze() && !touching.is_empty() && rand::gen_range(0.0, 1.0) < leading.freeze_chance(dt) {
+            freeze(enemy, FREEZE_SECONDS);
             fx.burst(enemy.position, ICE, 8, 160.0);
             fx.cue_at(Cue::Frost, enemy.position);
         }
@@ -132,6 +133,7 @@ pub(crate) fn resolve_deaths_among<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>,
     let mut gone: Vec<u32> = Vec::new();
     let mut born: Vec<Enemy> = Vec::new();
     let mut captains: Vec<(Vec2, f32, Color)> = Vec::new(); //where the captains that fell were, how far their rally reached, and their colour
+    let mut shattered: Vec<(Vec2, f32, f32, u8, u32)> = Vec::new(); //where the ones that shattered were, their size, their most health, who has the credit, and which
     enemies.retain_mut(|enemy| {
         if enemy.health > 0.0 {
             return true;
@@ -158,11 +160,18 @@ pub(crate) fn resolve_deaths_among<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>,
         spoils.xp += kill_xp(enemy);
         spoils.heal_all += upgrades.bloodlust * if enemy.boss.is_some() { 10.0 } else { 1.0 };
         let boss = enemy.boss.is_some();
+        let shattering = enemy.shatters();
         fx.add_shake(if boss { 1.0 } else { (enemy.size / 600.0).clamp(0.06, 0.7) });
         fx.burst(enemy.position, enemy.color, (enemy.size / 4.0).clamp(14.0, if boss { 400.0 } else { 160.0 }) as usize, 320.0);
         fx.burst(enemy.position, GREEN, enemy.babies.min(40), 200.0);
-        fx.debris(enemy.position, enemy.color, enemy.size);
-        fx.mark(enemy.position, (enemy.size * 0.7).clamp(22.0, 300.0), enemy.color, MarkKind::Splat);
+        //(one that shatters breaks into the pieces of its shape instead of chips, and leaves no splat; a boss bursts into its pieces as well)
+        if !shattering {
+            fx.debris(enemy.position, enemy.color, enemy.size);
+            fx.mark(enemy.position, (enemy.size * 0.7).clamp(22.0, 300.0), enemy.color, MarkKind::Splat);
+        }
+        if boss {
+            fx.shatter(enemy.position, enemy.size, enemy.color, enemy.id, false);
+        }
         fx.cue_at(Cue::Thud, enemy.position);
         if enemy.modifier != Modifier::None && rand::gen_range(0.0, 1.0) < CHAMPION_ELITE_CHANCE {
             fx.recruits.push((enemy.position, Odds::Elite, owner_index(enemy.credit)));
@@ -174,12 +183,16 @@ pub(crate) fn resolve_deaths_among<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>,
         if enemy.behavior == Behavior::Splitter {
             break_off(enemy, kind_named("Splitling"), 3, army, &mut born);
         }
-        //a frozen one is brittle: it breaks into as many shards as it has size for, which are new enemies
-        if enemy.shatters() {
+        //a frozen one is brittle: it shatters in a burst of frost that hurts and chills the enemies near it (once they are all gone through, below),
+        //and its pieces fly
+        if shattering {
             fx.burst(enemy.position, ICE, 28, 380.0);
-            fx.cue_at(Cue::Frost, enemy.position);
-            let pieces = ((enemy.size / SHATTER_PIECE_SIZE).round() as usize).clamp(SHATTER_MIN_PIECES, SHATTER_MAX_PIECES);
-            break_off(enemy, kind_named("Shard"), pieces, army, &mut born);
+            fx.shatter(enemy.position, enemy.size, enemy.color, enemy.id, true);
+            fx.cue_at(Cue::Shatter, enemy.position);
+            if enemy.size >= SHATTER_STOP_SIZE {
+                fx.hit_stop = fx.hit_stop.max(HIT_STOP);
+            }
+            shattered.push((enemy.position, enemy.size, enemy.max_health, enemy.credit, enemy.id));
         }
         if enemy.modifier == Modifier::Volatile {
             fx.hazards.push(Hazard::new(enemy.position, enemy.size * 0.9 + 90.0, 0.4, UNIT_HEALTH, victims_of(army, 0.015), enemy.color, Cue::Explosion));
@@ -197,6 +210,15 @@ pub(crate) fn resolve_deaths_among<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>,
         });
     }
     enemies.extend(born);
+    //the bursts of the ones that shattered, each hitting every enemy near it once: one it breaks that was frozen too shatters in its turn
+    for (at, size, most, credit, id) in shattered.into_iter().take(SHATTERS_A_FRAME) {
+        let reach = size / 2.0 + SHATTER_REACH;
+        for other in enemies.iter_mut().filter(|other| other.id != id && other.health > 0.0 && !other.lurking() && other.position.distance(at) <= reach + other.size / 2.0) {
+            let damage = SHATTER_DAMAGE * most * boss_share(other);
+            strike(other, damage, credit);
+            chill(other, SHATTER_CHILL, FREEZE_SECONDS);
+        }
+    }
     //the crowd a captain was rallying breaks when it falls
     for (at, reach, color) in captains {
         let routed = rout_followers(enemies, at, reach);
@@ -281,7 +303,7 @@ impl Shot {
 //the units in its way, grenades that go off where they land, or orbs that home in on the army
 pub(crate) fn shoot_enemies(enemies: &mut [Enemy], units: &[Unit], shots: &mut Vec<Shot>, dt: f32, fx: &mut Effects) {
     let army = units.len();
-    for enemy in enemies.iter_mut().filter(|enemy| enemy.behavior == Behavior::Shooter && enemy.range > 0.0 && enemy.frozen <= 0.0 && !enemy.routed()) {
+    for enemy in enemies.iter_mut().filter(|enemy| enemy.behavior == Behavior::Shooter && enemy.range > 0.0 && enemy.status.frozen <= 0.0 && !enemy.routed()) {
         enemy.shot_in -= dt;
         if enemy.shot_in > 0.0 {
             continue;

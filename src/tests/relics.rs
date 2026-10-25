@@ -416,13 +416,13 @@ fn an_enemy_being_fought_freezes_now_and_then_and_one_left_alone_does_not() {
         let mut units = units_inside(&enemy, 5);
         let mut enemies = vec![enemy];
         fight(&mut enemies, &mut units, &mut Vec::new(), 1.0, &up, &mut Effects::default());
-        if enemies[0].frozen > 0.0 {
+        if enemies[0].status.frozen > 0.0 {
             fought += 1;
-            assert_eq!(enemies[0].frozen, FREEZE_SECONDS);
+            assert_eq!(enemies[0].status.frozen, FREEZE_SECONDS);
         }
         let mut lonely = vec![still_enemy(MIDDLE, 1.0e6)];
         fight(&mut lonely, &mut [], &mut Vec::new(), 1.0, &up, &mut Effects::default());
-        alone += (lonely[0].frozen > 0.0) as usize;
+        alone += (lonely[0].status.frozen > 0.0) as usize;
     }
     //four relics make it four chances in five a second
     assert!(fought > 130 && fought < 195, "{fought} of 200 froze");
@@ -434,7 +434,7 @@ fn an_enemy_being_fought_freezes_now_and_then_and_one_left_alone_does_not() {
     for _ in 0..50 {
         fight(&mut enemies, &mut units, &mut Vec::new(), 1.0, &Upgrades::default(), &mut Effects::default());
     }
-    assert_eq!(enemies[0].frozen, 0.0);
+    assert_eq!(enemies[0].status.frozen, 0.0);
 }
 
 #[test]
@@ -442,7 +442,7 @@ fn a_frozen_enemy_cannot_attack_move_or_shoot_and_thaws_after_a_while() {
     let up = Upgrades::default();
     //it does no damage to the units inside it
     let mut enemy = striker(MIDDLE, 100.0);
-    enemy.frozen = FREEZE_SECONDS;
+    enemy.status.frozen = FREEZE_SECONDS;
     assert_eq!(enemy.attack_now(), 0.0);
     let mut units = units_inside(&enemy, 5);
     let mut enemies = vec![enemy];
@@ -452,7 +452,7 @@ fn a_frozen_enemy_cannot_attack_move_or_shoot_and_thaws_after_a_while() {
     for _ in 0..(FREEZE_SECONDS * 10.0) as usize {
         fight(&mut enemies, &mut units, &mut Vec::new(), 0.1, &up, &mut Effects::default());
     }
-    assert_eq!(enemies[0].frozen, 0.0);
+    assert_eq!(enemies[0].status.frozen, 0.0);
     assert!(enemies[0].attack_now() > 0.0);
     let mut units = units_inside(&enemies[0], 5);
     fight(&mut enemies, &mut units, &mut Vec::new(), 0.5, &up, &mut Effects::default());
@@ -470,7 +470,7 @@ fn a_frozen_enemy_cannot_attack_move_or_shoot_and_thaws_after_a_while() {
     patrol_free(&mut free, player, 1.0, 1.0, &mut Effects::default());
     assert!(free[0].position.distance(MIDDLE) > 10.0, "a thawed one walks");
     let mut held = vec![walker()];
-    held[0].frozen = FREEZE_SECONDS;
+    held[0].status.frozen = FREEZE_SECONDS;
     patrol_free(&mut held, player, 1.0, 1.0, &mut Effects::default());
     assert_eq!(held[0].position, MIDDLE);
     //and does not shoot
@@ -480,10 +480,10 @@ fn a_frozen_enemy_cannot_attack_move_or_shoot_and_thaws_after_a_while() {
     let target = [unit_on(MIDDLE + Vec2::new(200.0, 0.0))];
     let mut shots = Vec::new();
     let mut shooters = vec![shooter];
-    shooters[0].frozen = FREEZE_SECONDS;
+    shooters[0].status.frozen = FREEZE_SECONDS;
     shoot_enemies(&mut shooters, &target, &mut shots, 0.1, &mut Effects::default());
     assert!(shots.is_empty());
-    shooters[0].frozen = 0.0;
+    shooters[0].status.frozen = 0.0;
     shoot_enemies(&mut shooters, &target, &mut shots, 0.1, &mut Effects::default());
     assert!(!shots.is_empty(), "a thawed one does");
 }
@@ -502,98 +502,44 @@ fn a_boss_and_a_nest_cannot_be_frozen() {
         for _ in 0..20 {
             fight(&mut enemies, &mut units, &mut Vec::new(), 1.0, &up, &mut Effects::default());
         }
-        assert_eq!(enemies[0].frozen, 0.0, "{}", enemies[0].name);
-        enemies[0].frozen = 1.0;
+        assert_eq!(enemies[0].status.frozen, 0.0, "{}", enemies[0].name);
+        enemies[0].status.frozen = 1.0;
         assert!(!enemies[0].shatters(), "{} does not shatter", enemies[0].name);
     }
 }
 
 #[test]
-fn a_frozen_enemy_that_is_destroyed_shatters_into_shards_that_are_new_enemies() {
-    let up = Upgrades::default();
-    for name in ["Grunt", "Scout", "Brute", "Titan", "Colossus"] {
-        let mut enemy = kind_at(name, MIDDLE);
-        enemy.frozen = 1.0;
-        enemy.health = 0.0;
-        let size = enemy.size;
-        let mut enemies = vec![enemy];
-        let mut babies = Vec::new();
-        let destroyed = resolve_deaths(&mut enemies, &mut babies, 100, &up, &mut Effects::default());
-        assert_eq!(destroyed, 1, "{name} counts as destroyed");
-        let pieces = ((size / SHATTER_PIECE_SIZE).round() as usize).clamp(SHATTER_MIN_PIECES, SHATTER_MAX_PIECES);
-        assert_eq!(enemies.len(), pieces, "{name} of {size} px");
-        assert!(SHATTER_MIN_PIECES <= enemies.len() && enemies.len() <= SHATTER_MAX_PIECES);
-        for shard in &enemies {
-            assert_eq!(shard.name, "Shard");
-            assert!(!shard.is_minion(), "a shard is an enemy of its own, that counts when it is destroyed");
-            assert!(shard.health > 0.0 && shard.frozen == 0.0);
-            assert!(shard.position.distance(MIDDLE) <= size, "they break off where it was");
-        }
-    }
-    //a bigger enemy breaks into more
-    let pieces = |name: &str| {
-        let mut enemy = kind_at(name, MIDDLE);
-        enemy.size = kind_named(name).size;
-        enemy.frozen = 1.0;
-        enemy.health = 0.0;
-        let mut enemies = vec![enemy];
-        resolve_deaths(&mut enemies, &mut Vec::new(), 100, &up, &mut Effects::default());
-        enemies.len()
-    };
-    assert!(pieces("Scout") < pieces("Titan"));
-    //one that was not frozen leaves nothing
-    let mut enemy = kind_at("Grunt", MIDDLE);
-    enemy.health = 0.0;
-    let mut enemies = vec![enemy];
-    resolve_deaths(&mut enemies, &mut Vec::new(), 100, &up, &mut Effects::default());
-    assert!(enemies.is_empty());
-}
-
-#[test]
-fn shards_do_not_shatter_again_and_neither_do_the_enemies_other_enemies_made() {
-    let up = Upgrades::default();
-    let mut shard = kind_at("Shard", MIDDLE);
-    shard.frozen = 1.0;
-    shard.health = 0.0;
+fn the_enemies_other_enemies_made_do_not_shatter() {
     let mut imp = Enemy::minion(MIDDLE, kind_named("Imp"), 1.0, 99);
-    imp.frozen = 1.0;
-    imp.health = 0.0;
-    for enemy in [shard, imp] {
-        let mut enemies = vec![enemy];
-        resolve_deaths(&mut enemies, &mut Vec::new(), 100, &up, &mut Effects::default());
-        assert!(enemies.is_empty());
-    }
+    freeze(&mut imp, FREEZE_SECONDS);
+    assert!(imp.status.frozen > 0.0 && !imp.shatters());
 }
 
 #[test]
-fn the_shards_of_a_horde_enemy_are_still_part_of_the_horde() {
+fn a_frozen_horde_enemy_shatters_and_leaves_no_new_enemies() {
     let mut enemy = kind_at("Brute", MIDDLE);
     join_horde(&mut enemy);
-    enemy.frozen = 1.0;
+    enemy.status.frozen = 1.0;
     enemy.health = 0.0;
     let mut enemies = vec![enemy];
-    resolve_deaths(&mut enemies, &mut Vec::new(), 100, &Upgrades::default(), &mut Effects::default());
-    assert!(!enemies.is_empty() && enemies.iter().all(in_a_horde));
+    let mut fx = Effects::default();
+    resolve_deaths(&mut enemies, &mut Vec::new(), 100, &Upgrades::default(), &mut fx);
+    assert!(enemies.is_empty());
+    assert_eq!(fx.shatters.len(), 1);
 }
 
 #[test]
 fn the_army_destroys_a_frozen_enemy_and_it_shatters_in_the_middle_of_the_fight() {
     let mut enemy = kind_at("Grunt", MIDDLE);
-    enemy.frozen = FREEZE_SECONDS;
+    enemy.status.frozen = FREEZE_SECONDS;
     enemy.health = 1.0;
     let mut units = units_inside(&enemy, 20);
     let mut enemies = vec![enemy];
     let mut babies = Vec::new();
-    let destroyed = fight(&mut enemies, &mut units, &mut babies, 0.5, &Upgrades::default(), &mut Effects::default());
-    assert_eq!(destroyed, 1);
-    assert!(enemies.len() >= SHATTER_MIN_PIECES && enemies.iter().all(|shard| shard.name == "Shard"));
-    //and a shard the army destroys is worth babies like anything else, and leaves nothing
     let mut fx = Effects::default();
-    let mut shard = enemies.remove(0);
-    shard.health = 0.0;
-    shard.babies = 3;
-    let mut shards = vec![shard];
-    let mut babies = Vec::new();
-    assert_eq!(resolve_deaths(&mut shards, &mut babies, 100, &Upgrades::default(), &mut fx), 1);
-    assert!(shards.is_empty() && babies.len() == 3 && fx.spoils[0].points > 0.0);
+    let destroyed = fight(&mut enemies, &mut units, &mut babies, 0.5, &Upgrades::default(), &mut fx);
+    assert_eq!(destroyed, 1);
+    assert!(enemies.is_empty(), "it leaves no shards behind");
+    assert!(fx.shatters.len() == 1 && fx.shatters[0].frost);
+    assert!(fx.cues.contains(&Cue::Shatter));
 }

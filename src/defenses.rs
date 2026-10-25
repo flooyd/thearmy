@@ -85,13 +85,13 @@ pub(crate) fn fire_towers(walls: &mut Walls, enemies: &mut [Enemy], upgrades: &U
 //slows them (`slow` is the share of their speed they keep)
 pub(crate) fn terrain_effects(enemies: &mut [Enemy], walls: &Walls, dt: f32, fx: &mut Effects) {
     for enemy in enemies.iter_mut() {
-        enemy.slow = 1.0;
+        enemy.status.slow = 1.0;
         let tile = tile_of(enemy.position.x, enemy.position.y);
         let Some(wall) = walls.get(&tile).filter(|wall| wall.side == Side::Friendly) else {
             continue;
         };
         match wall.kind {
-            WallKind::Tar => enemy.slow = TAR_SLOW,
+            WallKind::Tar => enemy.status.slow = TAR_SLOW,
             WallKind::Spikes => {
                 let share = SPIKE_DAMAGE_SHARE * if enemy.boss.is_some() { SPIKE_BOSS_FACTOR } else { 1.0 };
                 let dealt = enemy.take_damage(enemy.max_health * share * dt);
