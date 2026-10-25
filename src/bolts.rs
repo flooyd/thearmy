@@ -145,6 +145,11 @@ pub(crate) fn volley_seed() -> u32 {
 
 //the colour of a champion's bolts, its own
 //(the vanguard's tracers, which no champion fired, are a hot white-gold)
+//whether a bolt is a frostweaver's, whose bolts chill what they hit
+pub(crate) fn is_ice(champion: u8) -> bool {
+    (champion as usize).checked_sub(1).and_then(|kind| CHAMPIONS.get(kind)).is_some_and(|kind| matches!(kind.power, Power::Frost { .. }))
+}
+
 fn bolt_color(champion: u8) -> Color {
     (champion as usize).checked_sub(1).and_then(|kind| CHAMPIONS.get(kind)).map_or(Color::new(1.0, 0.88, 0.5, 1.0), |kind| kind.color)
 }
@@ -454,6 +459,10 @@ pub(crate) fn fly_bolts(bolts: &mut Vec<Bolt>, enemies: &mut [Enemy], dt: f32, m
                 let enemy = &mut enemies[i];
                 let damage = bolt.hurt.each * boss_share(enemy) * if crit { BOLT_CRIT } else { 1.0 };
                 strike(enemy, damage, bolt.hurt.owner);
+                //a frostweaver's bolts are ice, and chill what they hit
+                if is_ice(bolt.champion) {
+                    chill(enemy, ICE_BOLT_CHILL, FREEZE_SECONDS);
+                }
                 knock(enemy, bolt.velocity.normalize_or_zero() * KNOCKBACK * bolt.kind.weight());
                 let color = bolt_color(bolt.champion);
                 if puffs < BOLT_PUFFS {

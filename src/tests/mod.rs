@@ -59,6 +59,7 @@ mod status;
 mod telegraphs;
 mod signatures;
 mod learning;
+mod elements;
 mod squads;
 mod team;
 mod titlescene;

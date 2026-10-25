@@ -37,8 +37,8 @@ are the fonts.
 - **Break hordes.** Hordes (Swarm Tide, Iron Column, Wildfire, Stampede, Titan March and more) are announced on screen and
   an arrow shows where they come from. Break one and it drops a bronze, silver or gold chest: wall points, recruits, a
   champion and, from gold, a choice of relic.
-- **Collect champions.** Fourteen special units won as loot, each drawn as itself: Juggernaut, Medic, Pyromancer, Stormcaller,
-  Phoenix, Frostweaver and eight more, each with a power of its own that is a share of what the whole army does. Kills and a second
+- **Collect champions.** Eighteen special units won as loot, each drawn as itself: Juggernaut, Medic, Pyromancer, Stormcaller,
+  Phoenix, Frostweaver, the elemental Emberlord, Chronomancer, Venomancer and Gravitron, and eight more, each with a power of its own that is a share of what the whole army does. Kills and a second
   of a kind raise its level, up to 10; the shooters fire longer bursts, rings and spirals as they rise, and at level 10 you choose its
   final form, once. The roster on the right shows each one's power coming round; click a row to find it in the world.
 - **The front fires.** The front 60% of the army shoots ahead of it, the way it is going, at anything in front of it (never

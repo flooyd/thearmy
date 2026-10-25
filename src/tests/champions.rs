@@ -62,8 +62,8 @@ fn act_once_with(units: &mut Vec<Unit>, enemies: &mut Vec<Enemy>, upgrades: &Upg
 // ---------- the roster ----------
 
 #[test]
-fn there_are_fourteen_kinds_of_champion_and_no_two_are_alike() {
-    assert_eq!(CHAMPIONS.len(), 14);
+fn there_are_eighteen_kinds_of_champion_and_no_two_are_alike() {
+    assert_eq!(CHAMPIONS.len(), 18);
     for (i, a) in CHAMPIONS.iter().enumerate() {
         assert!(!a.name.is_empty() && !a.blurb.is_empty() && a.tag.chars().count() == 2, "{}", a.name);
         assert!((3..=8).contains(&a.sides), "{} has {} sides", a.name, a.sides);

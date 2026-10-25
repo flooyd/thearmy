@@ -232,3 +232,51 @@ def _(a):
     a.poly([(0, -44), (4, -33), (-4, -33)], 'eo', o='ot')
     a.poly([(0, -30), (6, -42), (2, -26)], 'er', mirror='pair', o='')
     a.circ(4, -28, 1.8, 'k', mirror=True, o='')
+
+
+@sym('ch_emberlord', 'Champion Emberlord', 'a horned lord of fire with a molten heart, flames on its shoulders', 70, '#ff591a')
+def _(a):
+    a.pulse(lambda: a.glow(0, 0, 48, '#ff801a', 0.5), 0.7, 0.4)
+    a.poly([(0, -30), (22, -22), (34, 2), (28, 30), (0, 40)], 'b', mirror='axis')
+    a.poly([(0, -22), (14, -16), (20, 6), (0, 14)], 'd', mirror='axis', o='')
+    a.circ(0, 4, 11, 'eo', o='ot')
+    a.pulse(lambda: a.circ(0, 4, 6, 'ey', o=''), 0.4, 0.3)
+    a.poly([(8, -32), (16, -54), (18, -34)], 'bone', mirror='pair')
+    a.circ(0, -34, 13, 'd')
+    a.circ(5, -36, 2.6, 'ey', mirror=True, o='')
+    a.rep(2, lambda: a.place(30, -14, lambda: a.pulse(lambda: a.poly([(-7, 0), (0, -22), (7, 0)], 'eo', o='ot'), 0.5, 0.4)), start=0, step=180)
+
+
+@sym('ch_chronomancer', 'Champion Chronomancer', 'a robed sage under a great clock face whose hands turn', 67, '#f2d973')
+def _(a):
+    a.alpha(0.5, lambda: a.ring(0, 0, 46, 3, 'l', edge=0))
+    a.rep(12, lambda: a.line([(0, -46), (0, -40)], 2.4, 'l', edge=0))
+    a.poly([(0, -20), (20, -10), (26, 30), (0, 38)], 'b', mirror='axis')
+    a.circ(0, -24, 12, 'd')
+    a.circ(0, -4, 16, 'w', o='ot')
+    a.spin(lambda: a.line([(0, -4), (0, -16)], 2.6, 'k', edge=0), 6.0)
+    a.spin(lambda: a.line([(0, -4), (9, -4)], 2.2, 'k', edge=0), 60.0)
+    a.circ(0, -4, 2.4, 'g', o='')
+    a.circ(5, -26, 2.2, 'ey', mirror=True, o='')
+
+
+@sym('ch_venomancer', 'Champion Venomancer', 'a hooded plague-brewer with a bubbling green flask', 64, '#73e640')
+def _(a):
+    a.pulse(lambda: a.glow(0, 0, 44, '#8dff6a', 0.4), 1.2, 0.3)
+    a.poly([(0, -24), (20, -14), (26, 32), (0, 38)], 'b', mirror='axis')
+    a.poly([(0, -44), (16, -34), (16, -14), (0, -10)], 'x', mirror='axis')
+    a.circ(6, -26, 2.6, 'eg', mirror=True, o='')
+    a.circ(0, 12, 11, 'eg', o='ot')
+    a.poly([(-4, -2), (4, -2), (4, 4), (-4, 4)], 'md', o='ot')
+    for x, y, r in ((-6, -10, 3), (4, -16, 2.4), (-1, -22, 2)):
+        a.pulse(lambda x=x, y=y, r=r: a.circ(x, y, r, 'eg', o='ot'), 0.8, 0.1)
+
+
+@sym('ch_gravitron', 'Champion Gravitron', 'a dark core with rings of force turning round it', 74, '#8c73f2')
+def _(a):
+    a.pulse(lambda: a.glow(0, 0, 50, '#8c73f2', 0.45), 1.0, 0.4)
+    a.spin(lambda: a.ell(0, 0, 44, 16, 'l', rot=20, o='ot'), 3.0)
+    a.spin(lambda: a.ell(0, 0, 44, 16, 'l', rot=-40, o='ot'), 4.5, back=True)
+    a.circ(0, 0, 24, 'b')
+    a.circ(0, 0, 15, 'x', o='')
+    a.pulse(lambda: a.circ(0, 0, 7, 'ep', o=''), 0.6, 0.2)

@@ -64,7 +64,7 @@ pub(crate) fn shock(enemy: &mut Enemy, seconds: f32) {
     enemy.status.shocked = enemy.status.shocked.max(seconds);
 }
 
-//stacks of poison on an enemy, up to POISON_MOST. (only the showcase poisons yet: it is ready for the Venomancer, plan item 3.3)
+//stacks of poison on an enemy, up to POISON_MOST (a venomancer's cloud)
 pub(crate) fn poison(enemy: &mut Enemy, stacks: f32) {
     enemy.status.poison = (enemy.status.poison + stacks.max(0.0)).min(POISON_MOST);
 }

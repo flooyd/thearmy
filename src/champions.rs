@@ -26,13 +26,17 @@ pub(crate) enum Power {
     Rebirth { recharge: f32, radius: f32, burst: f32 }, //when it dies it rises again in a blaze that does `burst` seconds' worth of the army's touch to every enemy near, and can't again for a while
     Scout { speed: f32, pickup: f32 },    //the army moves this many times faster and picks babies up from this many times further
     Quartermaster { points: f32, bounty: f32 }, //wall points a second, and enemies drop this many times the babies
+    Ember { every: f32, range: f32, radius: f32, weight: f32 }, //sets the thickest crowd in range alight, each burning for what a fireball of this weight would do, and the fire spreads
+    Time { radius: f32, slow: f32 },      //enemies near it keep this share of their speed, as though time ran slow round it
+    Venom { every: f32, range: f32, radius: f32, stacks: f32 }, //a cloud of poison on the thickest crowd in range: this many stacks on each, which hurt big enemies most
+    Gravity { every: f32, range: f32, radius: f32, pull: f32 }, //drags the enemies round the thickest crowd in range together, each up to `pull` pixels
 }
 
 impl Power {
     //how far its aura reaches, for the ones that have one
     pub(crate) fn aura(&self) -> Option<f32> {
         match *self {
-            Power::Banner { radius, .. } | Power::Bulwark { radius, .. } | Power::Mend { radius, .. } | Power::Frost { radius, .. } => Some(radius),
+            Power::Banner { radius, .. } | Power::Bulwark { radius, .. } | Power::Mend { radius, .. } | Power::Frost { radius, .. } | Power::Time { radius, .. } => Some(radius),
             _ => None,
         }
     }
@@ -67,6 +71,10 @@ impl Power {
             Power::Rebirth { recharge, radius, burst } => Power::Rebirth { recharge: recharge / ((1.0 + 0.15 * steps) * growth.pace), radius: radius * further, burst: burst * more },
             Power::Scout { speed, pickup } => Power::Scout { speed: 1.0 + (speed - 1.0) * more, pickup: 1.0 + (pickup - 1.0) * more },
             Power::Quartermaster { points, bounty } => Power::Quartermaster { points: points * more, bounty: 1.0 + (bounty - 1.0) * more },
+            Power::Ember { every, range, radius, weight } => Power::Ember { every: every / quicker, range: range * further, radius: radius * further, weight: weight * more * quicker },
+            Power::Time { radius, slow } => Power::Time { radius: radius * further, slow: (slow / chill).max(TIME_MIN_SLOW) },
+            Power::Venom { every, range, radius, stacks } => Power::Venom { every: every / quicker, range: range * further, radius: radius * further, stacks: stacks * more },
+            Power::Gravity { every, range, radius, pull } => Power::Gravity { every: every / quicker, range: range * further, radius: radius * further, pull: pull * more },
         }
     }
 
@@ -75,6 +83,7 @@ impl Power {
     fn first_wait(&self) -> f32 {
         match *self {
             Power::Fireball { every, .. } | Power::Snipe { every, .. } | Power::Lightning { every, .. } | Power::Quake { every, .. } | Power::Muster { every, .. } => every * 0.5,
+            Power::Ember { every, .. } | Power::Venom { every, .. } | Power::Gravity { every, .. } => every * 0.5,
             Power::Frost { every, .. } => every * 0.6,
             _ => 0.0,
         }
@@ -96,7 +105,7 @@ pub(crate) struct Champion {
     pub(crate) power: Power,
 }
 
-pub(crate) static CHAMPIONS: [Champion; 14] = [
+pub(crate) static CHAMPIONS: [Champion; 18] = [
     Champion { name: "Juggernaut", tag: "Ju", blurb: "fights as 14 units and takes a fifth of the damage", color: Color::new(0.82, 0.6, 0.35, 1.0), grade: Rarity::Common, sides: 4, turn: 45.0, size: 3.0, might: 14.0, ward: 0.22, power: Power::Brute },
     Champion { name: "Berserker", tag: "Bk", blurb: "fights as 10 units, and as up to 30 the more it is hurt", color: Color::new(0.9, 0.14, 0.2, 1.0), grade: Rarity::Common, sides: 3, turn: -90.0, size: 2.4, might: 10.0, ward: 0.5, power: Power::Rage { extra: 2.0 } },
     Champion { name: "Bulwark", tag: "Bw", blurb: "the units near it take a quarter less damage", color: Color::new(0.45, 0.6, 0.92, 1.0), grade: Rarity::Common, sides: 6, turn: 0.0, size: 2.6, might: 3.0, ward: 0.3, power: Power::Bulwark { radius: 420.0, ward: 0.75 } },
@@ -107,10 +116,15 @@ pub(crate) static CHAMPIONS: [Champion; 14] = [
     Champion { name: "Pathfinder", tag: "Pf", blurb: "the army moves 12% faster and picks babies up from 35% further", color: Color::new(0.2, 0.85, 0.8, 1.0), grade: Rarity::Uncommon, sides: 5, turn: 0.0, size: 2.0, might: 1.0, ward: 0.7, power: Power::Scout { speed: 1.12, pickup: 1.35 } },
     Champion { name: "Quartermaster", tag: "Qm", blurb: "earns 1.5 wall points a second, and enemies drop 25% more babies", color: Color::new(0.8, 0.72, 0.5, 1.0), grade: Rarity::Uncommon, sides: 6, turn: 30.0, size: 2.1, might: 1.0, ward: 0.7, power: Power::Quartermaster { points: 1.5, bounty: 1.25 } },
     Champion { name: "Warlord", tag: "Wl", blurb: "the units round its banner hit 35% harder", color: Color::new(0.85, 0.35, 0.95, 1.0), grade: Rarity::Uncommon, sides: 5, turn: 90.0, size: 2.5, might: 6.0, ward: 0.4, power: Power::Banner { radius: 520.0, might: 1.35 } },
-    Champion { name: "Frostweaver", tag: "Fw", blurb: "slows enemies near it by 45%, and every 10 seconds freezes them for 1.5", color: Color::new(0.6, 0.86, 1.0, 1.0), grade: Rarity::Rare, sides: 6, turn: 0.0, size: 2.1, might: 1.0, ward: 0.7, power: Power::Frost { radius: 540.0, slow: 0.55, every: 10.0, freeze: 1.5 } },
+    Champion { name: "Frostweaver", tag: "Fw", blurb: "slows and chills enemies near it, and every 10 seconds throws ice bolts and freezes the chilled", color: Color::new(0.6, 0.86, 1.0, 1.0), grade: Rarity::Rare, sides: 6, turn: 0.0, size: 2.1, might: 1.0, ward: 0.7, power: Power::Frost { radius: 540.0, slow: 0.55, every: 10.0, freeze: 1.5 } },
     Champion { name: "Stormcaller", tag: "St", blurb: "a bolt of lightning every 3 seconds that jumps through 6 enemies", color: Color::new(0.62, 0.5, 1.0, 1.0), grade: Rarity::Rare, sides: 4, turn: 45.0, size: 2.2, might: 2.0, ward: 0.6, power: Power::Lightning { every: 3.0, range: 750.0, jumps: 6, weight: 0.06 } },
     Champion { name: "Earthshaker", tag: "Es", blurb: "slams the ground every 6 seconds, crushing everything round it", color: Color::new(0.72, 0.34, 0.2, 1.0), grade: Rarity::Rare, sides: 8, turn: 0.0, size: 2.8, might: 8.0, ward: 0.35, power: Power::Quake { every: 6.5, radius: 300.0, weight: 0.08 } },
     Champion { name: "Phoenix", tag: "Ph", blurb: "rises from its ashes when it dies, burning every enemy near it. once every 90 seconds", color: Color::new(1.0, 0.82, 0.25, 1.0), grade: Rarity::Rare, sides: 3, turn: -90.0, size: 2.4, might: 5.0, ward: 0.5, power: Power::Rebirth { recharge: 90.0, radius: 340.0, burst: 4.0 } },
+    //the elemental ones (step 13 of the upgrade plan)
+    Champion { name: "Emberlord", tag: "Em", blurb: "sets the thickest crowd alight every 5 seconds, and the fire spreads", color: Color::new(1.0, 0.35, 0.1, 1.0), grade: Rarity::Uncommon, sides: 3, turn: 90.0, size: 2.2, might: 3.0, ward: 0.6, power: Power::Ember { every: 5.0, range: 900.0, radius: 200.0, weight: 0.07 } },
+    Champion { name: "Chronomancer", tag: "Ch", blurb: "enemies near it move at a third of their speed", color: Color::new(0.95, 0.85, 0.45, 1.0), grade: Rarity::Rare, sides: 8, turn: 22.5, size: 2.1, might: 1.0, ward: 0.7, power: Power::Time { radius: 460.0, slow: 0.35 } },
+    Champion { name: "Venomancer", tag: "Vn", blurb: "a cloud of poison every 4 seconds, cruellest to big enemies", color: Color::new(0.45, 0.9, 0.25, 1.0), grade: Rarity::Uncommon, sides: 5, turn: -90.0, size: 2.0, might: 1.5, ward: 0.7, power: Power::Venom { every: 4.0, range: 900.0, radius: 190.0, stacks: 6.0 } },
+    Champion { name: "Gravitron", tag: "Gv", blurb: "drags the enemies round a crowd together every 6 seconds", color: Color::new(0.55, 0.45, 0.95, 1.0), grade: Rarity::Uncommon, sides: 6, turn: 30.0, size: 2.3, might: 2.0, ward: 0.6, power: Power::Gravity { every: 6.0, range: 1000.0, radius: 380.0, pull: 260.0 } },
 ];
 
 impl Champion {
@@ -183,7 +197,7 @@ const fn evolution(name: &'static str, changes: &'static [Change]) -> Evolution 
 //the evolutions of each kind of champion, in the order of CHAMPIONS (with its name, to be sure of that): for each of EVOLUTION_LEVELS, two to
 //choose between. there is the one, at the top level, as the owner wants it a choice made once rather than one every few levels, so each way is
 //a big step. the first of a pair is mostly more of its power, the second mostly its pace, its reach or its own toughness
-pub(crate) static EVOLUTIONS: [(&str, [[Evolution; 2]; EVOLUTION_LEVELS.len()]); 14] = [
+pub(crate) static EVOLUTIONS: [(&str, [[Evolution; 2]; EVOLUTION_LEVELS.len()]); 18] = [
     ("Juggernaut", [[evolution("Unstoppable", &[Change::Might(1.6)]), evolution("Immovable", &[Change::Health(1.8)])]]),
     ("Berserker", [[evolution("Rampage", &[Change::Strength(1.45), Change::Might(1.25)]), evolution("Undying Rage", &[Change::Health(1.6), Change::Ward(0.8)])]]),
     ("Bulwark", [[evolution("Aegis", &[Change::Strength(1.6)]), evolution("Fortress", &[Change::Reach(1.35), Change::Health(1.4)])]]),
@@ -198,6 +212,10 @@ pub(crate) static EVOLUTIONS: [(&str, [[Evolution; 2]; EVOLUTION_LEVELS.len()]);
     ("Stormcaller", [[evolution("Thunderlord", &[Change::Strength(1.6)]), evolution("Tempest", &[Change::Jumps(6), Change::Reach(1.2)])]]),
     ("Earthshaker", [[evolution("Cataclysm", &[Change::Strength(1.5), Change::Reach(1.15)]), evolution("Seismic Pulse", &[Change::Pace(1.5)])]]),
     ("Phoenix", [[evolution("Supernova", &[Change::Strength(1.5), Change::Reach(1.2)]), evolution("Undying", &[Change::Pace(1.6)])]]),
+    ("Emberlord", [[evolution("Napalm", &[Change::Strength(1.5), Change::Reach(1.15)]), evolution("Meteor", &[Change::Pace(1.5)])]]),
+    ("Chronomancer", [[evolution("Stasis", &[Change::Strength(1.5)]), evolution("Time Bubble", &[Change::Reach(1.4)])]]),
+    ("Venomancer", [[evolution("Plague", &[Change::Strength(1.6)]), evolution("Miasma", &[Change::Reach(1.3), Change::Pace(1.2)])]]),
+    ("Gravitron", [[evolution("Event Horizon", &[Change::Strength(1.4), Change::Reach(1.25)]), evolution("Collapse", &[Change::Pace(1.5)])]]),
 ];
 
 //the two ways of each level of evolution for a kind of champion (its place in CHAMPIONS)
@@ -796,6 +814,11 @@ pub(crate) fn champion_acts<R: Relics + ?Sized>(units: &mut [Unit], enemies: &mu
                     timer = every;
                     fx.ring(at, radius, kind.color);
                     fx.cue_at(Cue::Frost, at);
+                    //and throws out a ring of ice bolts, which chill what they hit (see `fly_bolts`)
+                    let step = level_step(unit.level);
+                    let count = ICE_BOLTS + 2 * step as u8;
+                    let each = army_touch(army, upgrades) * ICE_BOLT_WEIGHT * every / count as f32;
+                    fx.volleys.push((spark_volley(at, Vec2::X, count, step, unit.champion), Hurt { each, ember: 0.0, owner }));
                 }
                 //its aura slows and chills what is in it, and its pulse chills it all at once, which freezes (for `freeze` seconds) what was chilled
                 //enough; a boss is only slowed (see status.rs)
@@ -819,6 +842,74 @@ pub(crate) fn champion_acts<R: Relics + ?Sized>(units: &mut [Unit], enemies: &mu
                 }
             }
             Power::Rebirth { .. } => timer = (timer - dt).max(0.0),
+            Power::Ember { every, range, radius, weight } => {
+                timer -= dt;
+                if timer <= 0.0 {
+                    timer = match fireball_target(enemies, at, range, radius) {
+                        Some(target) => {
+                            //the crowd there is set alight: each burns for what a fireball would do, over EMBER_BURN_SECONDS, and the fire spreads to what
+                            //it touches (see status.rs)
+                            let burn = army_touch(army, upgrades) * weight * every / EMBER_BURN_SECONDS;
+                            for enemy in enemies.iter_mut().filter(|enemy| in_reach(enemy, target, radius)) {
+                                ignite(enemy, EMBER_BURN_SECONDS, burn);
+                                enemy.credit = owner;
+                            }
+                            fx.ring(target, radius, kind.color);
+                            fx.burst(target, kind.color, 40, 320.0);
+                            fx.mark(target, radius * 0.7, kind.color, MarkKind::Scorch);
+                            fx.cue_at(Cue::Explosion, target);
+                            every
+                        }
+                        None => 0.25,
+                    };
+                }
+            }
+            Power::Venom { every, range, radius, stacks } => {
+                timer -= dt;
+                if timer <= 0.0 {
+                    timer = match fireball_target(enemies, at, range, radius) {
+                        Some(target) => {
+                            for enemy in enemies.iter_mut().filter(|enemy| in_reach(enemy, target, radius)) {
+                                poison(enemy, stacks);
+                                enemy.credit = owner;
+                            }
+                            fx.ring(target, radius, kind.color);
+                            fx.burst(target, kind.color, 30, 200.0);
+                            fx.cue_at(Cue::Summon, target);
+                            every
+                        }
+                        None => 0.25,
+                    };
+                }
+            }
+            Power::Gravity { every, range, radius, pull } => {
+                timer -= dt;
+                if timer <= 0.0 {
+                    timer = match fireball_target(enemies, at, range, radius) {
+                        Some(target) => {
+                            //(a boss is too heavy to be moved, and one lying in wait is left where it is)
+                            for enemy in enemies.iter_mut().filter(|enemy| enemy.boss.is_none() && !enemy.lurking() && in_reach(enemy, target, radius)) {
+                                let to = target - enemy.position;
+                                let far = to.length();
+                                if far > 1.0 {
+                                    enemy.position += to / far * (far * GRAVITY_GATHER).min(pull);
+                                }
+                            }
+                            fx.ring(target, radius, kind.color);
+                            fx.burst(target, kind.color, 30, 260.0);
+                            fx.cue_at(Cue::Pull, target);
+                            every
+                        }
+                        None => 0.25,
+                    };
+                }
+            }
+            Power::Time { radius, slow } => {
+                for enemy in enemies.iter_mut().filter(|enemy| in_reach(enemy, at, radius)) {
+                    let least = if enemy.boss.is_some() { TIME_BOSS_SLOW } else { slow };
+                    enemy.status.slow = enemy.status.slow.min(least);
+                }
+            }
             Power::Brute | Power::Rage { .. } | Power::Banner { .. } | Power::Bulwark { .. } | Power::Mend { .. } | Power::Scout { .. } | Power::Quartermaster { .. } => {}
         }
         unit.power = timer;
@@ -1287,6 +1378,10 @@ pub(crate) fn change_text(power: &Power, change: Change) -> String {
                 Power::Rebirth { .. } => format!("its blaze does {p:.0}% more damage"),
                 Power::Scout { .. } => format!("what it adds to speed and pickup is {p:.0}% more"),
                 Power::Quartermaster { .. } => format!("{p:.0}% more wall points and babies"),
+                Power::Ember { .. } => format!("its fires burn {p:.0}% hotter"),
+                Power::Time { .. } => format!("it slows enemies more, by {p:.0}%"),
+                Power::Venom { .. } => format!("its poison is {p:.0}% stronger"),
+                Power::Gravity { .. } => format!("it drags enemies {p:.0}% further"),
             }
         }
         Change::Pace(times) => match power {
@@ -1297,7 +1392,7 @@ pub(crate) fn change_text(power: &Power, change: Change) -> String {
             _ => format!("its power goes off {:.0}% more often", more(times)),
         },
         Change::Reach(times) => match power {
-            Power::Fireball { .. } => format!("it throws {0:.0}% further, with a {0:.0}% wider blast", more(times)),
+            Power::Fireball { .. } | Power::Ember { .. } | Power::Venom { .. } | Power::Gravity { .. } => format!("it throws {0:.0}% further, with a {0:.0}% wider blast", more(times)),
             Power::Quake { .. } | Power::Rebirth { .. } => format!("its blast is {:.0}% wider", more(times)),
             _ if power.aura().is_some() => format!("its aura reaches {:.0}% further", more(times)),
             _ => format!("it reaches {:.0}% further", more(times)),
@@ -1373,6 +1468,7 @@ pub(crate) struct Cycle {
 pub(crate) fn power_cycle(unit: &Unit) -> Option<Cycle> {
     let period = match unit.champion_power()? {
         Power::Fireball { every, .. } | Power::Snipe { every, .. } | Power::Lightning { every, .. } | Power::Frost { every, .. } | Power::Quake { every, .. } | Power::Muster { every, .. } => every,
+        Power::Ember { every, .. } | Power::Venom { every, .. } | Power::Gravity { every, .. } => every,
         Power::Rebirth { recharge, .. } => recharge,
         _ => return None,
     };
@@ -1398,6 +1494,10 @@ pub(crate) fn power_numbers(power: &Power) -> Option<String> {
         Power::Rebirth { recharge, radius, burst } => format!("rises in a blaze worth {burst:.1}s of the army's damage, {radius:.0} wide, once every {recharge:.0}s"),
         Power::Scout { speed, pickup } => format!("the army is {:.0}% faster and picks babies up from {:.0}% further", (speed - 1.0) * 100.0, (pickup - 1.0) * 100.0),
         Power::Quartermaster { points, bounty } => format!("{points:.1} wall points a second, and enemies drop {:.0}% more babies", (bounty - 1.0) * 100.0),
+        Power::Ember { every, range, radius, weight } => format!("sets a crowd {radius:.0} wide alight every {every:.1}s, {:.0}% of the army's damage as fire, reach {range:.0}", share(weight)),
+        Power::Time { radius, slow } => format!("enemies within {radius:.0} keep {:.0}% of their speed", slow * 100.0),
+        Power::Venom { every, range, radius, stacks } => format!("{stacks:.0} stacks of poison on a crowd {radius:.0} wide every {every:.1}s, reach {range:.0}"),
+        Power::Gravity { every, range, radius, pull } => format!("drags a crowd {radius:.0} wide together, each up to {pull:.0}, every {every:.1}s, reach {range:.0}"),
     })
 }
 
