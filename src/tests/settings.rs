@@ -3,7 +3,7 @@
 use super::*;
 
 fn changed() -> Settings {
-    Settings { master: 0.35, effects: 0.8, music: 0.0, shake: 0.5, fullscreen: false, colourblind: true, difficulty: Difficulty::Hard, hints: false, formation: Formation::Wedge, unit_shape: UnitShape::Circles, army_limit: 32000, player_name: "Ann Marie".to_owned(), host_port: 50000, multiplayer_role: Role::Local }
+    Settings { master: 0.35, effects: 0.8, music: 0.0, shake: 0.5, fullscreen: false, colourblind: true, difficulty: Difficulty::Hard, hints: false, formation: Formation::Wedge, unit_shape: UnitShape::Circles, simple_shapes: true, army_limit: 32000, player_name: "Ann Marie".to_owned(), host_port: 50000, multiplayer_role: Role::Local }
 }
 
 #[test]

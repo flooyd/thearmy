@@ -5,6 +5,7 @@
 //! - `units`, `squads`: the army and sending parts of it at enemies
 //! - `enemy`, `enemy_ai`, `spawning`: the enemies; `boss`, `relics`: bosses and their rewards
 //! - `combat`: damage, shots and hazards; `effects`, `sound`: the feedback; `discs`: thousands of circles drawn in one go
+//! - `creatures`: the enemies, bosses and their marks drawn as the creatures they are, with `creature_art` (generated from the drawings in art/ by art/shader.py)
 //! - `champions`: special units won as loot, each with a power of its own
 //! - `parallel`: sharing the army's work out over the processor's cores
 //! - `minimap`, `hud`, `screens`, `ui`: what is drawn on top of the world, and the fonts and panels it is drawn with
@@ -24,6 +25,8 @@ mod boss;
 mod building;
 mod champions;
 mod chests;
+mod creature_art;
+mod creatures;
 mod discs;
 mod combat;
 mod config;
@@ -38,7 +41,7 @@ mod formation;
 mod game;
 mod handshake;
 mod hordes;
-mod hud;
+mod homescreens;mod hud;
 mod icon;
 mod input;
 mod lobby;
@@ -118,6 +121,10 @@ async fn main() {
     prevent_quit();
     load_fonts();
     settings.apply();
+    //the programs the graphics card draws the enemies with are made now, behind an empty window, and not in the middle of a game
+    clear_background(BLACK);
+    next_frame().await;
+    warm_up();
     //a game being hosted (so that others can join it) is kept for as long as runs follow one another, and closed when the title screen is back
     let (mut link, mut start) = show_splash(&saves, &mut settings, None).await.into_parts();
     let mut sounds = Sounds::load(1.0).await;

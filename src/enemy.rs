@@ -1,6 +1,7 @@
 //! enemy kinds and the Enemy itself: stats, modifiers, modes and drawing
 
 use crate::prelude::*;
+use std::cell::RefCell;
 
 //the chance that a new enemy is an elite: none for a small army, more the bigger it gets
 pub(crate) fn elite_chance(army: usize) -> f32 {
@@ -656,11 +657,12 @@ pub(crate) fn lighten(color: Color, amount: f32) -> Color {
     Color::new(color.r + (1.0 - color.r) * amount, color.g + (1.0 - color.g) * amount, color.b + (1.0 - color.b) * amount, color.a)
 }
 
-//enemies are drawn as squares in their colour with a bar over them once they are hurt, thicker on a big one. one that a
+//the plain way to draw enemies, for the ones who would rather not have the pictures (the setting Simple shapes): squares in their colour with a bar over them once
+//they are hurt, thicker on a big one. one that a
 //squad has been sent at has a pulsing outline. what sets one apart is drawn on it: a charger's lane while it winds up, a
 //shield, armor, an elite's mark, a bomber's fuse and blast, the ring of a healer's pulse or a summoner's call, and a boss's
 //aura and eyes. `time` is in seconds, and `speed_multiplier` is the army's, which the length of a dash depends on
-pub(crate) fn draw_enemies(enemies: &[Enemy], squads: &Squads, time: f32, speed_multiplier: f32) {
+pub(crate) fn draw_enemies_plain(enemies: &[Enemy], squads: &Squads, time: f32, speed_multiplier: f32) {
     for enemy in enemies {
         let half = enemy.size / 2.0;
         let (x, y) = (enemy.position.x - half, enemy.position.y - half);
@@ -810,6 +812,237 @@ pub(crate) fn draw_enemies(enemies: &[Enemy], squads: &Squads, time: f32, speed_
         if enemy.health < enemy.max_health || enemy.shield > 0.0 {
             let bar_height = (enemy.size * 0.1).clamp(6.0, 40.0);
             let bar_y = enemy.position.y - half - bar_height * 2.0;
+            draw_rectangle(x, bar_y, enemy.size, bar_height, Color::new(0.0, 0.0, 0.0, 0.7));
+            draw_rectangle(x, bar_y, enemy.size * (enemy.health / enemy.max_health).clamp(0.0, 1.0), bar_height, pickup_color());
+            if enemy.shield > 0.0 {
+                draw_rectangle(x, bar_y - bar_height * 0.5, enemy.size * (enemy.shield / enemy.max_health).min(1.0), bar_height * 0.4, Color::new(0.4, 0.85, 1.0, 1.0));
+            }
+        }
+    }
+}
+
+//the rings that show what an enemy is up to go round the hitbox, this many half-sides of it from its middle (a bit past the corners)
+const CUE_RING: f32 = 1.45;
+
+//which way each enemy is facing, kept from frame to frame: it is only drawn, so it is worked out here, the same in a game of one and in one that is joined
+thread_local! {
+    static HEADINGS: RefCell<HashMap<u32, Heading>> = RefCell::new(HashMap::new());
+}
+
+//the way an enemy has to face, if it has to face anywhere: a charger faces the way it dashes, a boss, an enemy that is running at the army and one that shoots
+//from where it can reach face the nearest player, and the rest face the way they are going
+pub(crate) fn wanted_direction(enemy: &Enemy, watch: &[Vec2]) -> Option<Vec2> {
+    if let Mode::Windup { dir, .. } | Mode::Dash { dir, .. } = enemy.mode {
+        return Some(dir);
+    }
+    if enemy.frozen > 0.0 || enemy.routed() {
+        return None;
+    }
+    let to_player = watch.iter().map(|&player| player - enemy.position).min_by(|a, b| a.length_squared().total_cmp(&b.length_squared()))?;
+    let engaged = enemy.boss.is_some() || enemy.chasing || (enemy.range > 0.0 && to_player.length() < enemy.range + enemy.size);
+    engaged.then_some(to_player)
+}
+
+//how fast an enemy turns, in radians a second: a big one slowly, a charger fast when it is showing where it is going
+pub(crate) fn turn_rate(enemy: &Enemy) -> f32 {
+    if matches!(enemy.mode, Mode::Windup { .. }) {
+        14.0
+    } else if enemy.boss.is_some() {
+        FLANK_TURN
+    } else {
+        (9.0 - enemy.size / 40.0).clamp(3.0, 9.0)
+    }
+}
+
+//the way an enemy first seen is facing, before it has gone anywhere: the way it has to face, or towards where it is walking
+pub(crate) fn first_look(enemy: &Enemy, watch: &[Vec2]) -> Option<Vec2> {
+    wanted_direction(enemy, watch).or_else(|| enemy.route.get(enemy.heading_for).map(|&point| point - enemy.position))
+}
+
+//what is laid over an enemy to show what has been done to it, as the shapes to draw and the colour of each: an elite's mark, armor, ice and a shield
+pub(crate) fn marks_of(enemy: &Enemy) -> Vec<(&'static str, Color)> {
+    let mut marks = Vec::new();
+    if enemy.modifier != Modifier::None {
+        marks.push((enemy.modifier.label(), enemy.modifier.color()));
+    }
+    if enemy.armor > 0.0 && enemy.boss.is_none() && enemy.modifier != Modifier::Armored {
+        marks.push((Modifier::Armored.label(), Modifier::Armored.color()));
+    }
+    if enemy.frozen > 0.0 {
+        marks.push(("Frozen", ICE));
+    }
+    if enemy.shield > 0.0 {
+        let share = (enemy.shield / enemy.max_shield.max(1.0)).clamp(0.0, 1.0);
+        marks.push(("Shield", Color::new(0.4, 0.85, 1.0, 0.35 + 0.65 * share)));
+    }
+    marks
+}
+
+//the enemies, drawn as the creatures they are (see creatures.rs), turned to face the nearest of `watch`, the places the players are, when they are going for one.
+//with `simple` they are the plain squares instead
+pub(crate) fn draw_enemies(enemies: &[Enemy], squads: &Squads, time: f32, speed_multiplier: f32, camera: &Camera2D, watch: &[Vec2], simple: bool) {
+    if simple {
+        draw_enemies_plain(enemies, squads, time, speed_multiplier);
+        return;
+    }
+    let dt = get_frame_time().min(0.1);
+    HEADINGS.with_borrow_mut(|headings| {
+        //(the ones that are not here any more are left behind)
+        let mut kept = HashMap::with_capacity(enemies.len());
+        draw_enemy_art(enemies, squads, time, speed_multiplier, camera, &mut |enemy| {
+            if let Some(state) = enemy.boss.as_ref().filter(|state| state.def.flank) {
+                //(an armoured front is where the boss is facing, which the game keeps)
+                return state.facing;
+            }
+            let mut heading = headings.remove(&enemy.id).unwrap_or_else(|| Heading::new(enemy.position, enemy.id, first_look(enemy, watch)));
+            let facing = heading.turn(enemy.position, wanted_direction(enemy, watch), turn_rate(enemy), dt);
+            kept.insert(enemy.id, heading);
+            facing
+        });
+        *headings = kept;
+    });
+}
+
+//the same with the way each one faces worked out by `facing`. what is under an enemy (a charger's lane, a captain's reach) is drawn first, then the enemies, with
+//what sets one apart laid over each, and then what is over them: the rings round the ones that are going for the army or have been sent at, a boss's aura, a
+//healer's pulse, a bomber's fuse and a bar over the ones that are hurt. `time` is in seconds, and `speed_multiplier` is the army's, which the length of a dash
+//depends on
+pub(crate) fn draw_enemy_art(enemies: &[Enemy], squads: &Squads, time: f32, speed_multiplier: f32, camera: &Camera2D, facing: &mut dyn FnMut(&Enemy) -> Vec2) {
+    let view = camera_view(camera);
+    //(the picture of an enemy reaches well past its hitbox, and its rings past that)
+    let near = |enemy: &Enemy| {
+        let reach = enemy.size * 1.5;
+        view.overlaps(&Rect::new(enemy.position.x - reach, enemy.position.y - reach, reach * 2.0, reach * 2.0))
+    };
+    let mut creatures = Vec::with_capacity(enemies.len());
+    for enemy in enemies {
+        let half = enemy.size / 2.0;
+        if enemy.lurking() {
+            //nothing to see but a patch of disturbed ground, for whoever looks
+            let pulse = 0.65 + 0.35 * (time * 2.0 + enemy.position.x * 0.013).sin();
+            draw_circle(enemy.position.x, enemy.position.y, half * 1.3, Color::new(0.04, 0.02, 0.07, AMBUSH_TELL * pulse));
+            draw_circle_lines(enemy.position.x, enemy.position.y, half * 1.3, 2.0, Color::new(0.55, 0.4, 0.7, AMBUSH_TELL * 0.8 * pulse));
+            continue;
+        }
+        let way = facing(enemy);
+        if let Mode::Windup { dir, left } = enemy.mode {
+            let urgency = (1.0 - left / CHARGE_WINDUP).clamp(0.0, 1.0);
+            let end = enemy.position + dir * CHARGE_SPEED * speed_multiplier * CHARGE_TIME;
+            draw_line(enemy.position.x, enemy.position.y, end.x, end.y, enemy.size, Color::new(1.0, 0.2, 0.15, 0.10 + 0.22 * urgency));
+            draw_line(enemy.position.x, enemy.position.y, end.x, end.y, 4.0, Color::new(1.0, 0.45, 0.3, 0.7));
+        }
+        //a captain's rally reaches this far, drawn under it so the crowd can be seen to be inside it
+        if enemy.is_captain() {
+            let reach = RALLY_TILES * TILE_SIZE + half;
+            let pulse = 0.5 + 0.5 * (time * 2.5).sin();
+            let gold = enemy.modifier.color();
+            draw_circle(enemy.position.x, enemy.position.y, reach, Color::new(gold.r, gold.g, gold.b, 0.03 + 0.02 * pulse));
+            draw_circle_lines(enemy.position.x, enemy.position.y, reach, 3.0, Color::new(gold.r, gold.g, gold.b, 0.18 + 0.14 * pulse));
+        }
+        if !near(enemy) {
+            continue;
+        }
+        let mut color = lighten(enemy.color, (1.0 - enemy.flash / 0.15) * 0.6);
+        if matches!(enemy.mode, Mode::Fuse { .. }) && (time * 24.0).sin() > 0.0 {
+            color = WHITE;
+        }
+        if enemy.frozen > 0.0 {
+            color = Color::new(color.r * 0.3 + ICE.r * 0.7, color.g * 0.3 + ICE.g * 0.7, color.b * 0.3 + ICE.b * 0.7, 1.0);
+        }
+        if enemy.boss.as_ref().is_some_and(|boss| boss.shifting > 0.0) && (time * 30.0).sin() > 0.0 {
+            color = lighten(color, 0.7);
+        }
+        //running from the army: washed out
+        if enemy.routed() {
+            color = lighten(color, 0.55);
+        }
+        if let Some(shape) = shape_named(enemy.name) {
+            let last_stand = enemy.boss.as_ref().is_some_and(|boss| boss.last_stand);
+            creatures.push(Creature::new(shape, enemy.position, enemy.size, way, color).seeded(enemy.id).hurt(last_stand));
+        }
+        for (name, tint) in marks_of(enemy) {
+            if let Some(shape) = shape_named(name) {
+                creatures.push(Creature::new(shape, enemy.position, enemy.size, way, tint).seeded(enemy.id));
+            }
+        }
+    }
+    draw_creatures(&creatures, camera);
+    for enemy in enemies.iter().filter(|enemy| !enemy.lurking() && near(enemy)) {
+        let half = enemy.size / 2.0;
+        let at = enemy.position;
+        let ring = (half * CUE_RING).max(half + 2.0);
+        let width = (enemy.size * 0.03).clamp(2.0, 12.0);
+        if enemy.routed() {
+            //running away: a white ring in place of the red one
+            draw_circle_lines(at.x, at.y, ring, width, WHITE);
+        } else if enemy.chasing && enemy.boss.is_none() {
+            //running at the player: a red ring, thinner than the squad's
+            draw_circle_lines(at.x, at.y, ring, width, RED);
+        }
+        if enemy.rallied {
+            //rallied by a captain: a gold ring inside the red one
+            let gold = Modifier::Captain.color();
+            draw_circle_lines(at.x, at.y, ring - width * 1.6, width * 0.8, Color::new(gold.r, gold.g, gold.b, 0.95));
+        }
+        if enemy.provoked > 0.0 && !enemy.chasing && enemy.boss.is_none() {
+            //fighting back at the units that hurt it: an orange ring, and the shorter it has left the fainter
+            let fade = (enemy.provoked / RETALIATE_SECONDS).clamp(0.2, 1.0);
+            draw_circle_lines(at.x, at.y, ring, width, Color::new(1.0, 0.62, 0.15, 0.9 * fade));
+        }
+        match enemy.behavior {
+            Behavior::Healer if enemy.flash < 0.6 => {
+                let age = enemy.flash / 0.6;
+                draw_circle_lines(at.x, at.y, HEAL_RANGE * age, 4.0, Color::new(0.4, 1.0, 0.5, 0.6 * (1.0 - age)));
+            }
+            Behavior::Summoner if enemy.flash < 0.5 => {
+                let age = enemy.flash / 0.5;
+                draw_circle_lines(at.x, at.y, half + 20.0 + 160.0 * age, 4.0, Color::new(0.7, 0.4, 1.0, 0.7 * (1.0 - age)));
+            }
+            Behavior::Bomber if matches!(enemy.mode, Mode::Fuse { .. }) => {
+                let pulse = 0.5 + 0.5 * (time * 24.0).sin();
+                draw_circle_lines(at.x, at.y, BLAST_RADIUS * blast_scale(enemy.scale) + half, 3.0, danger_color(0.4 + 0.5 * pulse));
+            }
+            _ => {}
+        }
+        //how far out the outermost ring is, which the squad's goes outside
+        let mut outer = ring + width * 0.5;
+        if let Some(state) = &enemy.boss {
+            let pulse = 0.5 + 0.5 * (time * if state.last_stand { 10.0 } else { 3.0 }).sin();
+            let aura_width = (enemy.size * 0.02).clamp(6.0, 30.0);
+            let aura = if state.last_stand { RED } else { enemy.color };
+            outer = ring + aura_width * 0.5;
+            draw_circle_lines(at.x, at.y, ring, aura_width, Color::new(aura.r, aura.g, aura.b, 0.3 + 0.35 * pulse));
+            //a ring round it that fills in the colour of the circle it will put down next, and flashes when that is close
+            if let Some(next) = state.next_circle() {
+                let tint = next.circle.color();
+                let radius = enemy.size * 0.5 * std::f32::consts::SQRT_2 + aura_width * 3.0 + 14.0;
+                let thickness = (enemy.size * 0.025).clamp(4.0, 20.0);
+                let soon = if next.seconds <= 1.5 { 0.5 + 0.5 * (time * 14.0).sin() } else { 0.0 };
+                draw_circle_lines(at.x, at.y, radius, thickness * 0.5, Color::new(tint.r, tint.g, tint.b, 0.2));
+                draw_sweep(at, radius, -std::f32::consts::FRAC_PI_2, std::f32::consts::TAU * next.share, thickness, Color::new(tint.r, tint.g, tint.b, 0.75 + 0.25 * soon));
+                outer = outer.max(radius + thickness * 0.5);
+            }
+            //an armoured front is a bright arc on the side it is facing
+            if state.def.flank {
+                let radius = enemy.size * 0.62;
+                let arc_width = (enemy.size * 0.04).clamp(5.0, 20.0);
+                let steps = 16;
+                let point = |k: i32| at + state.facing.rotate(Vec2::from_angle(-FLANK_ARC + 2.0 * FLANK_ARC * k as f32 / steps as f32)) * radius;
+                for k in 0..steps {
+                    let (from, to) = (point(k), point(k + 1));
+                    draw_line(from.x, from.y, to.x, to.y, arc_width, Color::new(0.75, 0.9, 1.0, 0.9));
+                }
+            }
+        }
+        if squads.contains_key(&enemy.id) {
+            let pulse = 0.5 + 0.5 * (get_time() as f32 * 8.0).sin();
+            let squad_width = (enemy.size * 0.06).clamp(4.0, 24.0);
+            let outline = Color::new(SQUAD_COLOR.r, SQUAD_COLOR.g, SQUAD_COLOR.b, 0.5 + 0.5 * pulse);
+            draw_circle_lines(at.x, at.y, outer + squad_width * 0.5 + 2.0, squad_width, outline);
+        }
+        if enemy.health < enemy.max_health || enemy.shield > 0.0 {
+            let bar_height = (enemy.size * 0.1).clamp(6.0, 40.0);
+            let (x, bar_y) = (at.x - half, at.y - half * PICTURE - bar_height * 2.0);
             draw_rectangle(x, bar_y, enemy.size, bar_height, Color::new(0.0, 0.0, 0.0, 0.7));
             draw_rectangle(x, bar_y, enemy.size * (enemy.health / enemy.max_health).clamp(0.0, 1.0), bar_height, pickup_color());
             if enemy.shield > 0.0 {

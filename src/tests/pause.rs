@@ -28,7 +28,7 @@ fn every_row_is_on_a_page_and_says_what_it_is() {
     let settings = Settings::default();
     let all = [
         Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit, Act::Back, Act::Master, Act::Effects, Act::Music, Act::Shake,
-        Act::Fullscreen, Act::Colours, Act::UnitShape, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit,
+        Act::Fullscreen, Act::Colours, Act::UnitShape, Act::SimpleShapes, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit,
     ];
     for act in all {
         assert!([Page::Main, Page::Settings, Page::Controls].iter().any(|&page| page_rows(page).contains(&act)), "{act:?} is on no page");
@@ -351,4 +351,52 @@ fn the_reset_button_puts_the_army_limit_back_to_the_usual_one() {
     assert_eq!(settings, Settings::default());
     //left and right on it do nothing
     assert_eq!(press(&mut menu, &mut settings, key(|i| i.right = true)), PauseEvent::Nothing);
+}
+
+#[test]
+fn the_menu_of_the_title_screen_has_the_settings_the_controls_and_the_way_out_and_nothing_of_a_game() {
+    let settings = Settings::default();
+    let rows = page_rows_in(Page::Main, MenuMode::Title);
+    assert_eq!(rows, &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::Quit]);
+    for act in [Act::Save, Act::Load, Act::Title] {
+        assert!(!rows.contains(&act), "{act:?} is no use before there is a game");
+    }
+    assert_eq!(describe_in(Act::Resume, &settings, MenuMode::Title).0, "Back", "it goes back to the title screen, not to a game");
+    assert_eq!(describe_in(Act::Quit, &settings, MenuMode::Title).0, "Quit game");
+    assert!(!explain_in(Act::Resume, &settings, MenuMode::Title).is_empty() && !explain_in(Act::Quit, &settings, MenuMode::Title).is_empty());
+    //(the other pages are the same as in a game)
+    assert_eq!(page_rows_in(Page::Settings, MenuMode::Title), page_rows(Page::Settings));
+}
+
+#[test]
+fn on_the_title_screen_the_menu_goes_back_to_it_opens_the_settings_and_quits() {
+    let mut settings = Settings::default();
+    let new_menu = || {
+        let mut menu = Pause::new(None, Vec2::ZERO);
+        menu.mode = MenuMode::Title;
+        menu
+    };
+    let row = |act: Act| page_rows_in(Page::Main, MenuMode::Title).iter().position(|&other| other == act).unwrap();
+    //(Escape in it closes it, as it does in a game)
+    assert_eq!(press(&mut new_menu(), &mut settings, key(|i| i.back = true)), PauseEvent::Resume);
+    for (act, expected) in [(Act::Resume, PauseEvent::Resume), (Act::Quit, PauseEvent::Quit)] {
+        let mut menu = new_menu();
+        menu.selected = row(act);
+        assert_eq!(press(&mut menu, &mut settings, key(|i| i.enter = true)), expected, "{act:?}");
+    }
+    let mut menu = new_menu();
+    menu.selected = row(Act::OpenSettings);
+    assert_eq!(press(&mut menu, &mut settings, key(|i| i.enter = true)), PauseEvent::Nothing);
+    assert_eq!(menu.page, Page::Settings);
+    assert_eq!(press(&mut menu, &mut settings, key(|i| i.back = true)), PauseEvent::Nothing);
+    assert_eq!(menu.page, Page::Main, "back to the first page and not out of the menu");
+    //(and it fits where the game's menu does)
+    for (w, h) in [(800.0, 600.0), (1280.0, 720.0), (2880.0, 1800.0)] {
+        let frame = layout(Page::Main, rows_len(), Vec2::new(w, h));
+        assert!(frame.panel.right() <= w && frame.panel.bottom() <= h && frame.rows.len() == 4);
+    }
+
+    fn rows_len() -> usize {
+        page_rows_in(Page::Main, MenuMode::Title).len()
+    }
 }

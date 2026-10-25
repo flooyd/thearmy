@@ -2,14 +2,26 @@
 
 use crate::prelude::*;
 
-const BACKDROP: Color = Color::new(0.015, 0.025, 0.05, 1.0); //behind the splash and defeat screens: a very dark blue
-
-//a faint grid of the accent colour that drifts, so a screen with nothing moving on it still isn't flat
+//behind the defeat screen and the others: a very dark blue, with a faint grid of the accent colour that drifts, so a screen with nothing moving on it still isn't flat
 pub(crate) fn draw_backdrop(time: f32) {
-    clear_background(BACKDROP);
+    draw_backdrop_in(time, &HOMESCREENS[0].theme);
+}
+
+//the same in the colours of a look of the title screen: from the colour at the top to the one at the bottom, in bands
+pub(crate) fn draw_backdrop_in(time: f32, theme: &Theme) {
+    let (w, h) = (screen_width(), screen_height());
+    if theme.top == theme.bottom {
+        clear_background(theme.top);
+    } else {
+        const BANDS: usize = 48;
+        for k in 0..BANDS {
+            let (from, to) = (k as f32 / BANDS as f32, (k + 1) as f32 / BANDS as f32);
+            draw_rectangle(0.0, from * h, w, (to - from) * h + 1.0, lerp_color(theme.top, theme.bottom, (from + to) / 2.0));
+        }
+    }
     let spacing = 56.0;
     let drift = (time * 6.0) % spacing;
-    let line = Color::new(CYAN.r, CYAN.g, CYAN.b, 0.045);
+    let line = theme.grid;
     let mut x = -drift;
     while x < screen_width() {
         draw_line(x, 0.0, x, screen_height(), 1.0, line);
@@ -24,13 +36,22 @@ pub(crate) fn draw_backdrop(time: f32) {
 
 //a heading in the header font with a glow of the accent colour behind it, centred on x
 pub(crate) fn draw_glowing_heading(text: &str, x: f32, y: f32, size: f32, color: Color, alpha: f32) {
+    let theme = &HOMESCREENS[0].theme;
+    draw_heading_in(text, x, y, size, color, theme.glow, theme.shadow, alpha);
+}
+
+//the same with the colours of its glow and its shadow given (the shadow is what a dark title has behind it so it can be read over anything, and a light one has a pale
+//haze instead)
+pub(crate) fn draw_heading_in(text: &str, x: f32, y: f32, size: f32, color: Color, glow: Color, shadow: Color, alpha: f32) {
     let width = text_width(text, size, Face::Header);
-    let glow = Color::new(CYAN.r, CYAN.g, CYAN.b, 0.22 * alpha);
+    let glow = Color::new(glow.r, glow.g, glow.b, glow.a * alpha);
     let reach = (size / 28.0).max(2.0);
     for (dx, dy) in [(-reach, 0.0), (reach, 0.0), (0.0, -reach), (0.0, reach)] {
         draw_label(text, x - width / 2.0 + dx, y + dy, size, glow, Face::Header);
     }
-    draw_label_shadowed(text, x - width / 2.0, y, size, Color::new(color.r, color.g, color.b, alpha), Face::Header);
+    let offset = (size / 16.0).max(1.0).round();
+    draw_label(text, x - width / 2.0 + offset, y + offset, size, Color::new(shadow.r, shadow.g, shadow.b, shadow.a * alpha), Face::Header);
+    draw_label(text, x - width / 2.0, y, size, Color::new(color.r, color.g, color.b, alpha), Face::Header);
 }
 
 //rows of a label on the left and its value on the right, in a panel centred on x. returns how tall the panel was
@@ -54,65 +75,74 @@ fn draw_stats(rows: &[(&str, String)], x: f32, top: f32, row_height: f32, alpha:
 
 //the title and, under it, the prompt, which fades in and out so it is clear the game is waiting. time is how many seconds
 //the screen has been up. with a save to go on from the prompt says so, and what is in it. `problem` is shown if the last
-//attempt to load one went wrong. the scene of the army, its enemies and the Sovereign is drawn behind it, with the units as `shape`
-pub(crate) fn draw_splash(time: f32, saved: Option<&SaveInfo>, problem: Option<&str>, best: u64, mouse: Vec2, scene: &mut TitleScene, shape: UnitShape) {
-    draw_backdrop(time);
-    scene.draw(time, mouse, shape);
-    let center_x = screen_width() / 2.0;
+//attempt to load one went wrong. the scene of the army, its enemies and a boss is drawn behind it, with the units as `shape` and the enemies as plain squares
+//if `simple`. the colours, and where the words stand, are those of the look the scene is in
+pub(crate) fn draw_splash(time: f32, saved: Option<&SaveInfo>, problem: Option<&str>, best: u64, mouse: Vec2, scene: &mut TitleScene, shape: UnitShape, simple: bool) {
+    let (home, screen) = (scene.home(), Vec2::new(screen_width(), screen_height()));
+    let (theme, words) = (&home.theme, &home.words);
+    draw_backdrop_in(time, theme);
+    scene.draw(time, mouse, shape, simple);
+    let (center_x, width, h, ts) = (words.center(screen, design_scale(screen)), words.width(screen), screen.y, words.size);
     let title = "THE ARMY";
-    let title_size = fit_size(title, (screen_height() * 0.2).round(), screen_width() * 0.9, Face::Header);
+    let title_size = fit_size(title, (h * 0.2 * ts).round(), width, Face::Header);
     let rise = (time / 0.8).clamp(0.0, 1.0);
-    draw_glowing_heading(title, center_x, screen_height() * 0.46, title_size, WHITE, rise);
+    let title_y = h * words.title_y;
+    draw_heading_in(title, center_x, title_y, title_size, theme.heading, theme.glow, theme.shadow, rise);
     //the line under it draws itself out from the middle
     let half = text_width(title, title_size, Face::Header) * 0.5 * rise.powi(2);
-    let line_y = screen_height() * 0.46 + title_size * 0.22;
-    draw_line(center_x - half, line_y, center_x + half, line_y, 4.0, CYAN);
+    let line_y = title_y + title_size * 0.22;
+    draw_line(center_x - half, line_y, center_x + half, line_y, 4.0, theme.accent);
 
     let tagline = "grow the army   free the villages   fell the Sovereign";
-    let tagline_size = fit_size(tagline, (screen_height() * 0.034).round(), screen_width() * 0.9, Face::Body);
-    draw_label_centered(tagline, center_x, screen_height() * 0.46 + title_size * 0.75, tagline_size, MUTED, Face::Body);
+    let tagline_size = fit_size(tagline, (h * 0.034 * ts).round(), width, Face::Body);
+    draw_label_centered(tagline, center_x, title_y + title_size * 0.75, tagline_size, theme.muted, Face::Body);
     if best > 0 {
         let line = format!("BEST RUN  {}", grouped(best as usize));
-        draw_label_centered(&line, center_x, screen_height() * 0.46 + title_size * 0.75 + tagline_size * 1.9, (tagline_size * 0.95).round(), TROPHY, Face::Bold);
+        draw_label_centered(&line, center_x, title_y + title_size * 0.75 + tagline_size * 1.9, (tagline_size * 0.95).round(), theme.trophy, Face::Bold);
     }
 
-    let prompt_size = (screen_height() * 0.04).round();
+    let prompt_size = (h * 0.04 * ts).round();
     let fade = 0.6 + 0.4 * (time * 3.0).sin();
-    let pulse = Color::new(CYAN.r, CYAN.g, CYAN.b, fade);
+    let pulse = Color::new(theme.accent.r, theme.accent.g, theme.accent.b, fade);
+    let first = h * words.prompts_y;
+    let step = |share: f32| first + h * share * ts;
     match saved {
         None => {
-            draw_label_centered("PRESS ANY KEY TO CONTINUE", center_x, screen_height() * 0.8, prompt_size, pulse, Face::Bold);
-            draw_label_centered("OR M FOR MULTIPLAYER", center_x, screen_height() * 0.87, (prompt_size * 0.7).round(), MUTED, Face::Bold);
+            draw_label_centered("PRESS ANY KEY TO CONTINUE", center_x, step(0.04), prompt_size, pulse, Face::Bold);
+            draw_label_centered("OR M FOR MULTIPLAYER", center_x, step(0.11), (prompt_size * 0.7).round(), theme.muted, Face::Bold);
         }
         Some(info) => {
-            draw_label_centered("PRESS ENTER TO CONTINUE", center_x, screen_height() * 0.76, prompt_size, pulse, Face::Bold);
+            draw_label_centered("PRESS ENTER TO CONTINUE", center_x, first, prompt_size, pulse, Face::Bold);
             let detail = format!("army of {}   {} played   bosses slain {}", grouped(info.army), clock(info.seconds), info.bosses);
-            let detail_size = fit_size(&detail, (screen_height() * 0.034).round(), screen_width() * 0.9, Face::Body);
-            draw_label_centered(&detail, center_x, screen_height() * 0.82, detail_size, INK, Face::Body);
-            draw_label_centered("PRESS N FOR A NEW RUN     M FOR MULTIPLAYER", center_x, screen_height() * 0.89, (prompt_size * 0.7).round(), MUTED, Face::Bold);
+            let detail_size = fit_size(&detail, (h * 0.034 * ts).round(), width, Face::Body);
+            draw_label_centered(&detail, center_x, step(0.06), detail_size, theme.ink, Face::Body);
+            draw_label_centered("PRESS N FOR A NEW RUN     M FOR MULTIPLAYER", center_x, step(0.13), (prompt_size * 0.7).round(), theme.muted, Face::Bold);
         }
     }
     if let Some(problem) = problem {
-        draw_label_centered(problem, center_x, screen_height() * 0.95, (screen_height() * 0.03).round(), ALERT, Face::Body);
+        draw_label_centered(problem, screen.x / 2.0, h * 0.95, (h * 0.03).round(), theme.alert, Face::Body);
     }
-    draw_quit_button(mouse);
+    draw_menu_button(mouse, theme);
 }
 
-//the button on the title screen that closes the game, in the bottom left corner
-fn quit_button() -> Rect {
-    let size = (screen_height() * 0.034).round().max(15.0);
-    let width = text_width("QUIT GAME", size, Face::Bold) + text_width("Esc", size * 0.8, Face::Bold) + 52.0;
-    Rect::new(24.0, screen_height() - size * 2.4 - 24.0, width, size * 2.4)
+//the button on the title screen that opens the menu, in the bottom left corner
+fn menu_button() -> Rect {
+    menu_button_of(Vec2::new(screen_width(), screen_height()))
 }
 
-fn draw_quit_button(mouse: Vec2) {
-    let rect = quit_button();
+fn draw_menu_button(mouse: Vec2, theme: &Theme) {
+    let rect = menu_button();
     let size = (screen_height() * 0.034).round().max(15.0);
     let hot = rect.contains(mouse);
-    draw_rectangle(rect.x, rect.y, rect.w, rect.h, if hot { Color::new(ALERT.r, ALERT.g, ALERT.b, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.04) });
-    draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 1.5, if hot { ALERT } else { Color::new(MUTED.r, MUTED.g, MUTED.b, 0.6) });
+    let (back, edge, text) = if theme.light {
+        (Color::new(1.0, 1.0, 1.0, if hot { 0.7 } else { 0.4 }), if hot { theme.accent } else { theme.muted }, if hot { theme.ink } else { theme.muted })
+    } else {
+        (if hot { Color::new(theme.accent.r, theme.accent.g, theme.accent.b, 0.22) } else { Color::new(1.0, 1.0, 1.0, 0.04) }, if hot { theme.accent } else { Color::new(theme.muted.r, theme.muted.g, theme.muted.b, 0.6) }, if hot { theme.ink } else { theme.muted })
+    };
+    draw_rectangle(rect.x, rect.y, rect.w, rect.h, back);
+    draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 1.5, edge);
     let baseline = rect.y + rect.h / 2.0 + size * 0.35;
-    draw_label("QUIT GAME", rect.x + 18.0, baseline, size, if hot { INK } else { MUTED }, Face::Bold);
+    draw_label("MENU", rect.x + 18.0, baseline, size, text, Face::Bold);
     draw_key("Esc", rect.right() - text_width("Esc", size * 0.8, Face::Bold) - 24.0, baseline, size * 0.8);
 }
 
@@ -142,23 +172,58 @@ impl Start {
     }
 }
 
-//show the title screen until a key is pressed. when there is a save to go on from, Enter picks it up and N starts afresh. M is the multiplayer screens
+//show the title screen until a key is pressed. when there is a save to go on from, Enter picks it up and N starts afresh. M is the multiplayer screens. Escape (or
+//the button) opens the menu, with the settings and the way out, and Tab goes to the next of the looks the screen has (which is not said anywhere on it)
 pub(crate) async fn show_splash(saves: &Saves, settings: &mut Settings, notice: Option<String>) -> Start {
     let mut saved = saves.newest();
     let mut problem: Option<String> = notice;
     let best = saves.load_high_scores().best();
     let mut time = 0.0;
-    let mut scene = TitleScene::new();
+    let mut scene = TitleScene::new(random_homescreen());
+    let mut menu: Option<Pause> = None;
     loop {
         quit_if_asked();
         let mouse = Vec2::from(mouse_position());
-        draw_splash(time, saved.as_ref().map(|(_, info)| info), problem.as_deref(), best, mouse, &mut scene, settings.unit_shape);
-        //(Escape or the button closes the game, from here as from anywhere else)
-        if is_key_pressed(KeyCode::Escape) || (is_mouse_button_pressed(MouseButton::Left) && quit_button().contains(mouse)) {
-            std::process::exit(0);
+        draw_splash(time, saved.as_ref().map(|(_, info)| info), problem.as_deref(), best, mouse, &mut scene, settings.unit_shape, settings.simple_shapes);
+        let key = get_last_key_pressed();
+        //the menu is over the picture, and takes the keys
+        if let Some(open) = menu.as_mut() {
+            open.draw(settings, miniquad::date::now(), None);            let input = MenuInput::read(&mut open.last_mouse);
+            let was_fullscreen = settings.fullscreen;
+            match open.update(settings, &input, Vec2::new(screen_width(), screen_height()), get_frame_time()) {
+                PauseEvent::Resume => menu = None,
+                PauseEvent::Quit => {
+                    saves.save_settings(settings);
+                    std::process::exit(0);
+                }
+                PauseEvent::Changed => {
+                    settings.apply();
+                    if settings.fullscreen != was_fullscreen {
+                        miniquad::window::set_fullscreen(settings.fullscreen);
+                    }
+                    saves.save_settings(settings);
+                }
+                _ => {}
+            }
+            scene.update(get_frame_time());
+            time += get_frame_time();
+            next_frame().await;
+            continue;
         }
-        if let Some(key) = get_last_key_pressed() {
+        if is_key_pressed(KeyCode::Escape) || (is_mouse_button_pressed(MouseButton::Left) && menu_button().contains(mouse)) {
+            let mut opened = Pause::new(None, mouse);
+            opened.mode = MenuMode::Title;
+            menu = Some(opened);
+            next_frame().await;
+            continue;
+        }
+        //(Tab is the next look, and starts nothing)
+        if key == Some(KeyCode::Tab) {
+            scene = TitleScene::new(next_homescreen(scene.index()));
+            time = 0.0;
+        } else if let Some(key) = key {
             match (&saved, key) {
+                (_, KeyCode::Escape) => {}
                 (_, KeyCode::M) => {
                     problem = None;
                     match show_multiplayer(settings, saves).await {

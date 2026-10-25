@@ -3,13 +3,15 @@
 use crate::prelude::*;
 
 //whose game the menu is in: a player's own, one that others have joined (which is not saved, and which going from ends for all of them), or one that
-//the player has joined (which they can leave, and which goes on without them)
+//the player has joined (which they can leave, and which goes on without them). there is also the menu of the title screen, where there is no game: only the
+//settings, the controls and the way out
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(crate) enum MenuMode {
     #[default]
     Solo,
     Hosting,
     Guest,
+    Title,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -37,6 +39,7 @@ pub(crate) enum Act {
     Fullscreen,
     Colours,
     UnitShape,
+    SimpleShapes,
     Hints,
     Difficulty,
     Formation,
@@ -75,10 +78,11 @@ pub(crate) fn page_rows(page: Page) -> &'static [Act] {
 //(a game that others are in is saved by its host, and there is no going back to an earlier save in it)
 pub(crate) fn page_rows_in(page: Page, mode: MenuMode) -> &'static [Act] {
     match page {
+        Page::Main if mode == MenuMode::Title => &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::Quit],
         Page::Main if mode == MenuMode::Hosting => &[Act::Resume, Act::Save, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
         Page::Main if mode == MenuMode::Guest => &[Act::Resume, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
         Page::Main => &[Act::Resume, Act::Save, Act::Load, Act::OpenSettings, Act::OpenControls, Act::Title, Act::Quit],
-        Page::Settings => &[Act::Master, Act::Effects, Act::Music, Act::Shake, Act::Fullscreen, Act::Colours, Act::UnitShape, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit, Act::Back],
+        Page::Settings => &[Act::Master, Act::Effects, Act::Music, Act::Shake, Act::Fullscreen, Act::Colours, Act::UnitShape, Act::SimpleShapes, Act::Hints, Act::Difficulty, Act::Formation, Act::ArmyLimit, Act::ResetArmyLimit, Act::Back],
         Page::Controls => &[Act::Back],
     }
 }
@@ -94,6 +98,8 @@ pub(crate) fn describe_in(act: Act, settings: &Settings, mode: MenuMode) -> (&'s
         Act::Title if mode == MenuMode::Hosting => ("Save and end the game for everyone", Look::Button),
         Act::Quit if mode == MenuMode::Hosting => ("Save, end the game for everyone and quit", Look::Button),
         Act::Save if mode == MenuMode::Hosting => ("Save the game", Look::Button),
+        Act::Resume if mode == MenuMode::Title => ("Back", Look::Button),
+        Act::Quit if mode == MenuMode::Title => ("Quit game", Look::Button),
         Act::Title if mode == MenuMode::Guest => ("Leave the game", Look::Button),
         Act::Quit if mode == MenuMode::Guest => ("Leave the game and quit", Look::Button),
         Act::Resume => ("Resume", Look::Button),
@@ -111,6 +117,7 @@ pub(crate) fn describe_in(act: Act, settings: &Settings, mode: MenuMode) -> (&'s
         Act::Fullscreen => ("Fullscreen", Look::Toggle(settings.fullscreen)),
         Act::Colours => ("Colour-blind colours", Look::Toggle(settings.colourblind)),
         Act::UnitShape => ("Unit shape", Look::Choice(settings.unit_shape.name().to_owned())),
+        Act::SimpleShapes => ("Simple shapes", Look::Toggle(settings.simple_shapes)),
         Act::Hints => ("Hints", Look::Toggle(settings.hints)),
         Act::Difficulty => ("Enemy difficulty", Look::Choice(settings.difficulty.name().to_owned())),
         Act::Formation => ("Army formation", Look::Choice(settings.formation.name().to_owned())),
@@ -122,6 +129,8 @@ pub(crate) fn describe_in(act: Act, settings: &Settings, mode: MenuMode) -> (&'s
 //a line that says more about the row the player is on
 pub(crate) fn explain_in(act: Act, settings: &Settings, mode: MenuMode) -> &'static str {
     match act {
+        Act::Resume if mode == MenuMode::Title => "back to the title screen",
+        Act::Quit if mode == MenuMode::Title => "close the game: a run that was kept is still there next time",
         Act::Title | Act::Quit if mode == MenuMode::Hosting => "saved for the party to carry on from, and everyone in it is sent back to their title screen",
         Act::Save if mode == MenuMode::Hosting => "everyone's army is kept, and the players rejoin it by their names: F5 does the same",
         Act::Title | Act::Quit if mode == MenuMode::Guest => "the game goes on without you, and you can join it again",
@@ -133,6 +142,7 @@ pub(crate) fn explain_in(act: Act, settings: &Settings, mode: MenuMode) -> &'sta
         Act::Fullscreen => "F11 does the same. the game always starts full screen",
         Act::Colours => "blue and orange where the game uses green and red",
         Act::UnitShape => settings.unit_shape.blurb(),
+        Act::SimpleShapes => "enemies and bosses drawn as plain squares, as they were before they had pictures",
         Act::Hints => "tips at the start of a run",
         Act::Difficulty => settings.difficulty.blurb(),
         Act::Formation => settings.formation.blurb(),
@@ -155,6 +165,7 @@ pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32, online: b
         Act::ArmyLimit => settings.army_limit = (settings.army_limit as i64 + ARMY_LIMIT_STEP as i64 * direction.signum() as i64).clamp(MIN_ARMY_LIMIT as i64, MAX_ARMY_LIMIT as i64) as usize,
         Act::Fullscreen => settings.fullscreen = !settings.fullscreen,
         Act::Colours => settings.colourblind = !settings.colourblind,
+        Act::SimpleShapes => settings.simple_shapes = !settings.simple_shapes,
         Act::Hints => settings.hints = !settings.hints,
         Act::UnitShape => {
             let at = UNIT_SHAPES.iter().position(|&shape| shape == settings.unit_shape).unwrap_or(0) as i32;
@@ -215,14 +226,14 @@ pub(crate) struct MenuLayout {
 //with a page that would not otherwise fit. the rows are never less than MIN_ROW_HEIGHT, which is as small as a row is still easy to click
 const HEADER: f32 = 78.0;
 const FOOTER: f32 = 56.0;
-const TIGHT_HEADER: f32 = 62.0;
-const TIGHT_FOOTER: f32 = 44.0;
-const MIN_ROW_HEIGHT: f32 = 28.0;
+const TIGHT_HEADER: f32 = 56.0;
+const TIGHT_FOOTER: f32 = 40.0;
+const MIN_ROW_HEIGHT: f32 = 26.0;
 
 pub(crate) fn layout(page: Page, count: usize, screen: Vec2) -> MenuLayout {
     let width = (screen.x * 0.92).min(560.0);
     let extra = if page == Page::Controls { CONTROLS.len().div_ceil(2) as f32 * 28.0 + 20.0 } else { 0.0 };
-    //rows are as tall as the screen has room for, down to 28 px: a page with a lot of them on a small screen has them squeezed
+    //rows are as tall as the screen has room for, down to 26 px (and a page that is squeezed has only 2 px between them): a page with a lot of them on a small screen has them squeezed
     let tight = (screen.y - 16.0 - HEADER - extra - FOOTER) / (count as f32) < MIN_ROW_HEIGHT;
     let (header, footer) = if tight { (TIGHT_HEADER, TIGHT_FOOTER) } else { (HEADER, FOOTER) };
     let room = (screen.y - 16.0 - header - extra - footer) / count as f32;
@@ -230,7 +241,8 @@ pub(crate) fn layout(page: Page, count: usize, screen: Vec2) -> MenuLayout {
     let height = header + extra + row_height * count as f32 + footer;
     let panel = Rect::new((screen.x - width) / 2.0, ((screen.y - height) / 2.0).max(8.0), width, height);
     let first = panel.y + header - 4.0 + extra;
-    let rows = (0..count).map(|i| Rect::new(panel.x + 16.0, first + row_height * i as f32, width - 32.0, row_height - 4.0)).collect();
+    let gap = if tight { 2.0 } else { 4.0 };
+    let rows = (0..count).map(|i| Rect::new(panel.x + 16.0, first + row_height * i as f32, width - 32.0, row_height - gap)).collect();
     MenuLayout { panel, rows, row_height, tight }
 }
 
@@ -454,7 +466,7 @@ impl Pause {
             draw_label_centered(hosting, p.x + p.w / 2.0, p.y - 12.0, fit_size(hosting, 17.0, p.w, Face::Bold), CYAN, Face::Bold);
         }
         //(the game goes on while a menu is open in a game of others, which is said where it can be seen)
-        if self.mode != MenuMode::Solo {
+        if matches!(self.mode, MenuMode::Hosting | MenuMode::Guest) {
             draw_label_centered("THE GAME GOES ON", p.x + p.w / 2.0, p.y + if frame.tight { 14.0 } else { 17.0 }, if frame.tight { 12.0 } else { 13.0 }, TROPHY, Face::Bold);
         }
         let title = match self.page {

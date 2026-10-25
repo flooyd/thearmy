@@ -557,7 +557,8 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         draw_discs(Layer::Marks, &mark_discs(&feedback.ground, drawn), &camera);
         draw_sites(sites, view, get_time() as f32);
         draw_discs(Layer::Puffs, &particle_discs(&feedback.particles), &camera);
-        draw_enemies(enemies, &players.list[me].squads, get_time() as f32, enemy_boost);
+        let watch: Vec<Vec2> = players.list.iter().map(|other| other.position).collect();
+        draw_enemies(enemies, &players.list[me].squads, get_time() as f32, enemy_boost, &camera, &watch, settings.simple_shapes);
         draw_shards(&feedback.shards, drawn);
         draw_hazards(hazards, get_time() as f32);
         draw_pulls(pulls, get_time() as f32);

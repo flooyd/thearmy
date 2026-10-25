@@ -12,6 +12,7 @@ mod champions;
 mod chests;
 mod bosses;
 mod circles;
+mod creatures;
 mod crowds;
 mod danger;
 mod directory;
