@@ -153,7 +153,8 @@ impl Table {
                     }
                 }
             };
-            inputs.push(input);
+            //(whatever shape they ask for, there is no Free in a game of others: it is the host that has the cost of it)
+            inputs.push(PlayerInput { formation: input.formation.in_game(true), ..input });
         }
         inputs
     }

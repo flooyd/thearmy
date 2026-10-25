@@ -133,6 +133,8 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             }
         }
     }
+    //(a game that is hosted or joined has fewer shapes to choose from, see `Formation::choices`)
+    let online = guest.is_some() || matches!(&*link, Link::Host(_));
     let mut empty_for = [0.0f32; MAX_PLAYERS]; //how long each player has had no army, in a world with others in it
     //the player at this keyboard
     let mut me = guest.as_ref().map_or(0, |guest| guest.me());
@@ -269,6 +271,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         }
         if let Some(menu) = pause.as_mut() {
             menu.mode = if guest.is_some() { MenuMode::Guest } else if multi { MenuMode::Hosting } else { MenuMode::Solo };
+            menu.online = online;
         }
         if let Some(menu) = pause.as_mut().filter(|_| paused) {
             let input = MenuInput::read(&mut menu.last_mouse);
@@ -385,15 +388,16 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             _ => (at, zoom),
         };
         if acting && is_key_pressed(KeyCode::F) {
-            settings.formation = settings.formation.next();
+            settings.formation = settings.formation.next(online);
             saves.save_settings(settings);
             feedback.fx.cue(Cue::Pop);
             feedback.fx.popup(at, RADIUS * 3.0, 0.0, format!("{} FORMATION", settings.formation.name().to_uppercase()), CYAN);
         }
+        let formation = settings.formation.in_game(online);
         let input = if acting {
-            controls.read(&ControlView { position: look_at, zoom: look_zoom, screen, formation: settings.formation, map: &map, enemies: &sim.enemies })
+            controls.read(&ControlView { position: look_at, zoom: look_zoom, screen, formation, map: &map, enemies: &sim.enemies })
         } else {
-            PlayerInput::idle(settings.formation, screen)
+            PlayerInput::idle(formation, screen)
         };
         //(choosing a relic is all they can do until they have)
         let relic = if sim.players.list[me].choice.is_some() { read_relic_act(screen) } else { None };
@@ -598,7 +602,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         draw_vignette(in_peril, beat);
         let my_units = &units[ranges[me].clone()];
         draw_roster(my_units, if pause.is_some() { Vec2::splat(-1000.0) } else { Vec2::from(mouse_position()) });
-        draw_hud(player.x, player.y, frame_time, my_army, run, boost, pickup_range, sounds.muted, sounds.music.on, settings.formation, director, sites, players.list[me].upgrades.unit_cap(), hordes.status(enemies), &players.list[me].upgrades.damage_text(), score, best);
+        draw_hud(player.x, player.y, frame_time, my_army, run, boost, pickup_range, sounds.muted, sounds.music.on, formation, director, sites, players.list[me].upgrades.unit_cap(), hordes.status(enemies), &players.list[me].upgrades.damage_text(), score, best);
         if settings.hints && !paused && run.seconds < HINT_SECONDS {
             draw_hints(run.seconds);
         }

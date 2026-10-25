@@ -128,7 +128,7 @@ pub(crate) struct Settings {
 
 impl Default for Settings {
     fn default() -> Settings {
-        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Free, unit_shape: UnitShape::Ships, army_limit: DEFAULT_ARMY_LIMIT, player_name: String::new(), host_port: DEFAULT_PORT, multiplayer_role: Role::Host }
+        Settings { master: 1.0, effects: 1.0, music: 1.0, shake: 1.0, fullscreen: true, colourblind: false, difficulty: Difficulty::Normal, hints: true, formation: Formation::Ring, unit_shape: UnitShape::Ships, army_limit: DEFAULT_ARMY_LIMIT, player_name: String::new(), host_port: DEFAULT_PORT, multiplayer_role: Role::Host }
     }
 }
 

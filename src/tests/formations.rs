@@ -20,7 +20,25 @@ fn the_formations_have_names_that_read_back_and_come_round_in_turn() {
     assert_eq!(Formation::from_name("Phalanx"), None);
     let mut formation = Formation::Free;
     for expected in [Formation::Ring, Formation::Wedge, Formation::Line, Formation::Free] {
-        formation = formation.next();
+        formation = formation.next(false);
+        assert_eq!(formation, expected);
+    }
+}
+
+#[test]
+fn a_game_with_others_in_it_has_a_ring_a_wedge_and_a_line_and_no_free() {
+    assert_eq!(Formation::choices(true), [Formation::Ring, Formation::Wedge, Formation::Line]);
+    assert_eq!(Formation::choices(false), FORMATIONS);
+    //(Free chosen alone is a ring there, and is still Free when the player is alone again)
+    assert_eq!(Formation::Free.in_game(true), Formation::Ring);
+    assert_eq!(Formation::Free.in_game(false), Formation::Free);
+    for formation in PARTY_FORMATIONS {
+        assert_eq!(formation.in_game(true), formation);
+    }
+    //the first press from Free goes on from the ring it was standing as, and the round never lands on Free
+    let mut formation = Formation::Free;
+    for expected in [Formation::Wedge, Formation::Line, Formation::Ring, Formation::Wedge] {
+        formation = formation.next(true);
         assert_eq!(formation, expected);
     }
 }

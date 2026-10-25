@@ -279,11 +279,11 @@ fn the_setting_is_ships_unless_the_player_picked_circles_and_is_kept_with_the_ot
 fn the_menu_row_flips_between_the_two() {
     let mut settings = Settings::default();
     assert_eq!(describe(Act::UnitShape, &settings), ("Unit shape", Look::Choice("Ships".to_owned())));
-    assert!(nudge(&mut settings, Act::UnitShape, 1));
+    assert!(nudge(&mut settings, Act::UnitShape, 1, false));
     assert_eq!(settings.unit_shape, UnitShape::Circles);
-    assert!(nudge(&mut settings, Act::UnitShape, 1), "and round again");
+    assert!(nudge(&mut settings, Act::UnitShape, 1, false), "and round again");
     assert_eq!(settings.unit_shape, UnitShape::Ships);
-    assert!(nudge(&mut settings, Act::UnitShape, -1));
+    assert!(nudge(&mut settings, Act::UnitShape, -1, false));
     assert_eq!(settings.unit_shape, UnitShape::Circles);
     assert!(!explain_in(Act::UnitShape, &settings, MenuMode::Solo).is_empty());
 }

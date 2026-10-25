@@ -15,7 +15,8 @@ are the fonts.
 - **Grow.** Enemies drop babies, villages are freed into more army, and barracks you take send recruits and sometimes a champion.
   The army fights on its own around you. Walk where you want it to be.
 - **Send squads.** Click an enemy to send part of the army at it, sized to what it takes to win. `R` recalls them. Three
-  formations (`F`) change how the rest of the army follows you: a ring with you safe in the middle, a wedge, or a line.
+  formations (`F`) change how the rest of the army follows you: a ring with you safe in the middle (the usual one), a wedge, or a line.
+  Playing alone there is also *Free*, where the units just pile up on you; in a hosted or joined game that one is left out, as it costs too much with several armies.
 - **Survive bosses.** Seven bosses with several phases each, plus the Sovereign. They raise barriers, call meteors, charge,
   slam and mark the ground in red. When you hear "get out of the red", walk. Slaying one gives you a choice of relics.
   A boss makes an entrance: the camera goes to it and back, with its name across the screen (`Space` skips it). Playing alone the

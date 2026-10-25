@@ -158,11 +158,34 @@ fn left_and_right_change_a_setting_and_report_it_when_they_do() {
     press(&mut menu, &mut settings, key(|i| i.left = true));
     assert_eq!(settings.difficulty, Difficulty::Normal);
     menu.selected = row_of(Page::Settings, Act::Formation);
+    assert_eq!(settings.formation, Formation::Ring, "a ring is the usual one");
+    settings.formation = Formation::Free;
     press(&mut menu, &mut settings, key(|i| i.right = true));
     assert_eq!(settings.formation, Formation::Ring);
     press(&mut menu, &mut settings, key(|i| i.left = true));
     press(&mut menu, &mut settings, key(|i| i.left = true));
     assert_eq!(settings.formation, Formation::Line, "and back round the other way");
+}
+
+#[test]
+fn the_formation_row_in_a_game_that_is_hosted_or_joined_has_no_free_to_land_on() {
+    let mut menu = Pause::new(saved(), Vec2::ZERO);
+    menu.online = true;
+    menu.page = Page::Settings;
+    menu.selected = row_of(Page::Settings, Act::Formation);
+    //(Free chosen alone is a ring here, so going on from it is a wedge, and round the other way a line)
+    let mut settings = Settings { formation: Formation::Free, ..Settings::default() };
+    press(&mut menu, &mut settings, key(|i| i.right = true));
+    assert_eq!(settings.formation, Formation::Wedge);
+    press(&mut menu, &mut settings, key(|i| i.right = true));
+    assert_eq!(settings.formation, Formation::Line);
+    press(&mut menu, &mut settings, key(|i| i.right = true));
+    assert_eq!(settings.formation, Formation::Ring, "round to the first, which is not Free");
+    press(&mut menu, &mut settings, key(|i| i.left = true));
+    assert_eq!(settings.formation, Formation::Line, "and back, never to Free");
+    let mut settings = Settings { formation: Formation::Free, ..Settings::default() };
+    press(&mut menu, &mut settings, key(|i| i.left = true));
+    assert_eq!(settings.formation, Formation::Line, "from Free, which is a ring, back is the line");
 }
 
 #[test]

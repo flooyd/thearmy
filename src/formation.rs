@@ -15,7 +15,20 @@ pub(crate) enum Formation {
 
 pub(crate) const FORMATIONS: [Formation; 4] = [Formation::Free, Formation::Ring, Formation::Wedge, Formation::Line];
 
+//what can be chosen in a game that is hosted or joined: every unit of every army piling up on its player costs too much, so there is no Free
+pub(crate) const PARTY_FORMATIONS: [Formation; 3] = [Formation::Ring, Formation::Wedge, Formation::Line];
+
 impl Formation {
+    //the shapes a player can choose from, `online` being a game that is hosted or joined
+    pub(crate) fn choices(online: bool) -> &'static [Formation] {
+        if online { &PARTY_FORMATIONS } else { &FORMATIONS }
+    }
+
+    //the shape the army keeps: the one chosen, or a ring where Free can't be had (what was chosen alone is kept for when the player is alone again)
+    pub(crate) fn in_game(self, online: bool) -> Formation {
+        if online && self == Formation::Free { Formation::Ring } else { self }
+    }
+
     pub(crate) fn name(self) -> &'static str {
         match self {
             Formation::Free => "Free",
@@ -38,9 +51,10 @@ impl Formation {
         FORMATIONS.into_iter().find(|formation| formation.name() == name)
     }
 
-    pub(crate) fn next(self) -> Formation {
-        let at = FORMATIONS.iter().position(|&formation| formation == self).unwrap_or(0);
-        FORMATIONS[(at + 1) % FORMATIONS.len()]
+    pub(crate) fn next(self, online: bool) -> Formation {
+        let choices = Formation::choices(online);
+        let at = choices.iter().position(|&formation| formation == self.in_game(online)).unwrap_or(0);
+        choices[(at + 1) % choices.len()]
     }
 }
 

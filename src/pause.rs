@@ -144,7 +144,7 @@ pub(crate) fn explain_in(act: Act, settings: &Settings, mode: MenuMode) -> &'sta
 
 //change a setting by a step in a direction (-1 or 1): sliders move, toggles flip, choices go to the next. returns whether
 //anything changed
-pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32) -> bool {
+pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32, online: bool) -> bool {
     let before = settings.clone();
     let slide = |level: &mut f32| *level = ((*level * 20.0).round() / 20.0 + 0.05 * direction as f32).clamp(0.0, 1.0);
     match act {
@@ -165,8 +165,9 @@ pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32) -> bool {
             settings.difficulty = DIFFICULTIES[(at + direction.signum()).rem_euclid(DIFFICULTIES.len() as i32) as usize];
         }
         Act::Formation => {
-            let at = FORMATIONS.iter().position(|&formation| formation == settings.formation).unwrap_or(0) as i32;
-            settings.formation = FORMATIONS[(at + direction.signum()).rem_euclid(FORMATIONS.len() as i32) as usize];
+            let choices = Formation::choices(online);
+            let at = choices.iter().position(|&formation| formation == settings.formation.in_game(online)).unwrap_or(0) as i32;
+            settings.formation = choices[(at + direction.signum()).rem_euclid(choices.len() as i32) as usize];
         }
         _ => {}
     }
@@ -297,6 +298,7 @@ impl MenuInput {
 
 pub(crate) struct Pause {
     pub(crate) mode: MenuMode,
+    pub(crate) online: bool, //whether the game is hosted or joined, which has fewer formations to choose from (a host with nobody in it yet is online, and is in `MenuMode::Solo`)
     confirm: Option<Act>, //the way out that has been asked for once, in a game of others, and is waiting to be asked for again
     pub(crate) page: Page,
     pub(crate) selected: usize,
@@ -309,7 +311,7 @@ pub(crate) struct Pause {
 
 impl Pause {
     pub(crate) fn new(saved: Option<SaveInfo>, mouse: Vec2) -> Pause {
-        Pause { mode: MenuMode::Solo, confirm: None, page: Page::Main, selected: 0, age: 0.0, dragging: None, last_mouse: mouse, saved, notice: None }
+        Pause { mode: MenuMode::Solo, online: false, confirm: None, page: Page::Main, selected: 0, age: 0.0, dragging: None, last_mouse: mouse, saved, notice: None }
     }
 
     //the rows of the page the menu is on
@@ -390,7 +392,7 @@ impl Pause {
         //left and right change a row's value, enter or a click does what the row says
         let direction = input.right as i32 - input.left as i32;
         if direction != 0 {
-            return if nudge(settings, act, direction) { PauseEvent::Changed } else { PauseEvent::Nothing };
+            return if nudge(settings, act, direction, self.online) { PauseEvent::Changed } else { PauseEvent::Nothing };
         }
         if !(input.enter || clicked.is_some()) {
             return PauseEvent::Nothing;
@@ -431,13 +433,15 @@ impl Pause {
             }
             Act::ResetArmyLimit => PauseEvent::Nothing,
             _ => {
-                if nudge(settings, act, 1) { PauseEvent::Changed } else { PauseEvent::Nothing }
+                if nudge(settings, act, 1, self.online) { PauseEvent::Changed } else { PauseEvent::Nothing }
             }
         }
     }
 
     //the menu over a darkened game. `now` is the time in seconds since 1970, `hosting` what to say of the game being hosted
     pub(crate) fn draw(&self, settings: &Settings, now: f64, hosting: Option<&str>) {
+        //(the formation row shows the shape the army is in, which is not Free where there is no Free)
+        let settings = &Settings { formation: settings.formation.in_game(self.online), ..settings.clone() };
         let saved = self.saved;
         let screen = Vec2::new(screen_width(), screen_height());
         draw_rectangle(0.0, 0.0, screen.x, screen.y, Color::new(0.0, 0.01, 0.03, 0.62 * (self.age / 0.12).min(1.0)));

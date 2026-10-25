@@ -22,7 +22,7 @@ fn a_settings_file_that_is_damaged_or_from_another_version_gives_what_it_can() {
     assert_eq!(settings.music, Settings::default().music, "what is not a number is left as it was");
     assert_eq!(settings.effects, 0.25);
     assert_eq!(settings.difficulty, Difficulty::Normal);
-    assert_eq!(settings.formation, Formation::Free);
+    assert_eq!(settings.formation, Formation::Ring, "one that is not a formation leaves the usual one");
     assert!(!settings.colourblind && !settings.hints);
 }
 

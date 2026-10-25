@@ -251,6 +251,26 @@ fn the_table_gives_each_step_what_each_player_asked_and_keeps_walking_them_for_a
 }
 
 #[test]
+fn a_player_at_another_machine_is_never_in_free_whatever_they_ask_for() {
+    let mut sim = Sim::from_snapshot(new_run(), RULES);
+    let mut table = Table::new();
+    table.seat(&mut sim, 1, "Bo").unwrap();
+    //(before they are heard from they are standing as the world has them, which starts as a ring)
+    assert_eq!(sim.players.list[1].formation, Formation::Ring);
+    assert_eq!(table.inputs(&sim, idle(), DT)[1].formation, Formation::Ring);
+    //(and one the world has as Free, as a save from before there was none may, is put right as well)
+    sim.players.list[1].formation = Formation::Free;
+    assert_eq!(table.inputs(&sim, idle(), DT)[1].formation, Formation::Ring);
+    for (seq, asked, given) in [(1, Formation::Free, Formation::Ring), (2, Formation::Wedge, Formation::Wedge), (3, Formation::Line, Formation::Line), (4, Formation::Free, Formation::Ring)] {
+        table.hear(vec![(1, frame_of(seq, PlayerInput { formation: asked, ..idle() }))]);
+        assert_eq!(table.inputs(&sim, idle(), DT)[1].formation, given, "asked for {asked:?}");
+    }
+    //(the host's own is theirs to choose, and is put right where the host's game takes it)
+    let local = PlayerInput { formation: Formation::Free, ..idle() };
+    assert_eq!(table.inputs(&sim, local, DT)[0].formation, Formation::Free);
+}
+
+#[test]
 fn a_frame_that_is_old_or_is_not_one_or_is_from_nobody_does_nothing() {
     let mut sim = Sim::from_snapshot(new_run(), RULES);
     let mut table = Table::new();
