@@ -511,6 +511,7 @@ impl Replica {
                 unit.power = extra.power;
                 unit.xp = extra.xp;
                 unit.ward = byte_share(extra.ward);
+                unit.ultimate = extra.ultimate;
             }
         }
         Some(())

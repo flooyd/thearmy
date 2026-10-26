@@ -215,18 +215,20 @@ impl UnitLook {
     }
 }
 
-//what a player is told of each of their own champions that is not in the look: their power's timer, their experience, and how much of the damage reaches them
+//what a player is told of each of their own champions that is not in the look: their power's timer, their experience, how much of the damage reaches them,
+//and how long until their ultimate is ready, for the roster
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) struct ChampionExtra {
     pub(crate) id: u32,
     pub(crate) power: f32,
     pub(crate) xp: f32,
     pub(crate) ward: u8,
+    pub(crate) ultimate: f32,
 }
 
 impl ChampionExtra {
     pub(crate) fn of(unit: &Unit) -> ChampionExtra {
-        ChampionExtra { id: unit.id, power: unit.power, xp: unit.xp, ward: share_byte(unit.ward) }
+        ChampionExtra { id: unit.id, power: unit.power, xp: unit.xp, ward: share_byte(unit.ward), ultimate: unit.ultimate }
     }
 
     pub(crate) fn write(&self, out: &mut Writer) {
@@ -234,10 +236,12 @@ impl ChampionExtra {
         out.f32(self.power);
         out.f32(self.xp);
         out.u8(self.ward);
+        out.f32(self.ultimate);
     }
 
     pub(crate) fn read(input: &mut Reader) -> Option<ChampionExtra> {
-        Some(ChampionExtra { id: input.u32()?, power: input.f32()?, xp: input.f32()?, ward: input.u8()? })
+        let (id, power, xp, ward, ultimate) = (input.u32()?, input.f32()?, input.f32()?, input.u8()?, input.f32()?);
+        Some(ChampionExtra { id, power, xp, ward, ultimate: ultimate.clamp(0.0, ULTIMATE_COOLDOWN) })
     }
 }
 

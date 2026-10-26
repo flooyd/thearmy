@@ -181,3 +181,18 @@ fn q_sets_off_the_ultimates_that_are_ready_and_they_wait_their_cooldown() {
     input.write(&mut out);
     assert!(PlayerInput::read(&mut Reader::new(&out.bytes)).expect("it reads").ultimate);
 }
+
+#[test]
+fn a_guest_is_told_how_long_until_each_of_its_champions_ultimates_is_ready() {
+    let mut champion = champion_unit(champion_named("Stormcaller").unwrap(), MIDDLE);
+    champion.ultimate = 42.5;
+    let mut out = Writer::new();
+    ChampionExtra::of(&champion).write(&mut out);
+    let told = ChampionExtra::read(&mut Reader::new(&out.bytes)).expect("it reads");
+    assert_eq!(told.ultimate, 42.5);
+    //(and a wild number is not believed)
+    let wild = ChampionExtra { ultimate: 1.0e9, ..told };
+    let mut out = Writer::new();
+    wild.write(&mut out);
+    assert_eq!(ChampionExtra::read(&mut Reader::new(&out.bytes)).unwrap().ultimate, ULTIMATE_COOLDOWN);
+}
