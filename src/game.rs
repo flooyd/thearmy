@@ -383,10 +383,11 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         if is_key_pressed(KeyCode::Tab) {
             map_view = map_view.other();
         }
-        if is_key_pressed(KeyCode::M) {
+        //(not in the run's first frame: the key that started it on the title screen, N for a new run, is still down then, and would turn the music off)
+        if played_for > 0.0 && is_key_pressed(KeyCode::M) {
             sounds.muted = !sounds.muted;
         }
-        if is_key_pressed(KeyCode::N) {
+        if played_for > 0.0 && is_key_pressed(KeyCode::N) {
             sounds.music.on = !sounds.music.on;
         }
         let screen = Vec2::new(screen_width(), screen_height());
