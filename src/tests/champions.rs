@@ -1300,7 +1300,7 @@ fn a_stormcaller_adds_a_ring_of_sparks_to_its_lightning_and_at_the_top_a_spiral_
 }
 
 #[test]
-fn every_champion_is_its_picture_when_it_can_be_made_out_and_its_polygon_when_not() {
+fn every_champion_is_its_picture_unless_simple_shapes_makes_it_its_polygon() {
     for (kind, champion) in CHAMPIONS.iter().enumerate() {
         assert!(champion_shape(kind).is_some(), "{} has a picture", champion.name);
         if let Some(shape) = champion_shape(kind) {
@@ -1310,9 +1310,25 @@ fn every_champion_is_its_picture_when_it_can_be_made_out_and_its_polygon_when_no
         }
     }
     let juggernaut = champion_at("Juggernaut", MIDDLE);
-    assert!(champion_art(&juggernaut, 1.0, false).is_some());
-    assert!(champion_art(&juggernaut, 1.0, true).is_none(), "Simple shapes makes it a polygon");
-    assert!(champion_art(&juggernaut, 0.05, false).is_none(), "and so does being too small to make out");
+    assert!(champion_art(&juggernaut, false).is_some());
+    assert!(champion_art(&juggernaut, true).is_none(), "Simple shapes makes it a polygon");
+}
+
+#[test]
+fn zoomed_out_a_champion_is_drawn_bigger_so_its_picture_can_still_be_made_out() {
+    for name in ["Medic", "Juggernaut"] {
+        let mut champion = champion_at(name, MIDDLE);
+        for level in [1, CHAMPION_MAX_LEVEL] {
+            champion.level = level;
+            //close up it is its own size, and however far out the camera goes it is never less than CHAMPION_FIGURE_PX across on the screen
+            assert_eq!(champion.drawn_radius(1.0), champion.radius());
+            for zoom in [DEFAULT_ZOOM, MIN_ZOOM, FURTHEST_ZOOM] {
+                assert!(champion.drawn_radius(zoom) * 2.0 * zoom >= CHAMPION_FIGURE_PX * 0.999, "{name} at level {level}, zoom {zoom}");
+                assert!(champion.drawn_radius(zoom) >= champion.radius());
+                assert!(champion.drawn_radius(zoom) > RADIUS * figure_scale(zoom), "and still bigger than a ship");
+            }
+        }
+    }
 }
 
 #[test]

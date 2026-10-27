@@ -1,6 +1,7 @@
 //! the player as a little stick figure that runs while it moves and stands when it stops. it shows its front, its back or a side, depending on where it is going.
 //! the pose is worked out from a stride phase each frame (`Runner::pose`, which needs no graphics card, so it is tested) and drawn with a few lines and circles
-//! (`draw_runner`): at most four are on screen, so none of this needs the instanced batch. zoomed out until it is too small to make out it is the circle it was
+//! (`draw_runner`): at most four are on screen, so none of this needs the instanced batch. zoomed out it is drawn bigger, as the army is (see figure_scale),
+//! and only out past that, too small to make out, is it the circle it was
 
 use crate::prelude::*;
 
@@ -239,22 +240,24 @@ fn draw_stroke(at: Vec2, points: &[Vec2; 3], width: f32, color: Color) {
     }
 }
 
-//the figure at a player's position, in the world (the camera does the zooming)
-pub(crate) fn draw_runner(runner: &Runner, position: Vec2, color: Color) {
-    let hip = position + Vec2::new(0.0, FIGURE_LIFT);
+//the figure at a player's position, in the world (the camera does the zooming), `scale` times its size (see figure_scale)
+pub(crate) fn draw_runner(runner: &Runner, position: Vec2, color: Color, scale: f32) {
+    let hip = position + Vec2::new(0.0, FIGURE_LIFT * scale);
     let edge = EDGE;
     for part in runner.pose() {
         match part {
-            RunnerPart::Shadow { half_width } => draw_ellipse(hip.x, hip.y + GROUND, half_width, 2.5, 0.0, Color::new(0.0, 0.0, 0.0, 0.38)),
+            RunnerPart::Shadow { half_width } => draw_ellipse(hip.x, hip.y + GROUND * scale, half_width * scale, 2.5 * scale, 0.0, Color::new(0.0, 0.0, 0.0, 0.38)),
             RunnerPart::Limb { points, tone, width } => {
-                draw_stroke(hip, &points, width + 2.0 * OUTLINE, edge);
-                draw_stroke(hip, &points, width, tone_color(tone, color));
+                let points = points.map(|point| point * scale);
+                draw_stroke(hip, &points, (width + 2.0 * OUTLINE) * scale, edge);
+                draw_stroke(hip, &points, width * scale, tone_color(tone, color));
             }
             RunnerPart::Head { at, tone, eyes } => {
-                draw_circle(hip.x + at.x, hip.y + at.y, HEAD_RADIUS + OUTLINE, edge);
-                draw_circle(hip.x + at.x, hip.y + at.y, HEAD_RADIUS, tone_color(tone, color));
+                let at = hip + at * scale;
+                draw_circle(at.x, at.y, (HEAD_RADIUS + OUTLINE) * scale, edge);
+                draw_circle(at.x, at.y, HEAD_RADIUS * scale, tone_color(tone, color));
                 for eye in eyes.into_iter().flatten() {
-                    draw_circle(hip.x + eye.x, hip.y + eye.y, EYE_RADIUS, edge);
+                    draw_circle(hip.x + eye.x * scale, hip.y + eye.y * scale, EYE_RADIUS * scale, edge);
                 }
             }
         }

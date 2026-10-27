@@ -401,12 +401,12 @@ impl TitleScene {
         //(what is drawn is what is on the screen, with some to spare for the nearer things moving with the mouse)
         let seen = camera_view(&big);
         let view = Rect::new(seen.x - 100.0, seen.y - 100.0, seen.w + 200.0, seen.h + 200.0);
-        draw_discs(Layer::Army, &unit_discs_in(&self.units, view, None, shape), &big);
+        draw_discs(Layer::Army, &unit_discs_in(&self.units, view, None, shape, 1.0), &big);
         //the player is drawn bigger than the ships, about the same place on the screen
         let hero = frame.zoom * army.zoom * army.hero;
         let target = middle - (middle - big.target) / army.hero;
         set_camera(&follow_camera(target.x, target.y, hero));
-        draw_runner(&self.runner, middle, blue);
+        draw_runner(&self.runner, middle, blue, 1.0);
     }
 }
 

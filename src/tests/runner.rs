@@ -269,7 +269,8 @@ fn a_player_is_the_circle_when_small_and_the_figure_when_big_and_never_both() {
     assert!(!runner_shown(RUNNER_MIN_RADIUS - 0.01));
     assert!(runner_shown(RUNNER_MIN_RADIUS));
     assert!(runner_shown(RADIUS * MAX_ZOOM), "zoomed all the way in it is the figure");
-    assert!(!runner_shown(RADIUS * MIN_ZOOM), "and all the way out the circle");
+    assert!(!runner_shown(RADIUS * MIN_ZOOM), "and the circle at the size a player is all the way out...");
+    assert!(runner_shown(RADIUS * figure_scale(FURTHEST_ZOOM) * FURTHEST_ZOOM), "...but zoomed out they are drawn bigger, so in the game it is always the figure");
     //(it is one or the other, so there is never a circle left round the figure: it is a step, from the small sizes to the big)
     let mut was = false;
     for step in 0..=200 {

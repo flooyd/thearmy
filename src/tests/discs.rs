@@ -116,7 +116,7 @@ fn a_baby_is_a_green_disc_with_a_ring_round_it_that_pops_out_when_it_drops() {
 // ---------- the ship ----------
 
 fn first_disc(shape: UnitShape, unit: &Unit) -> Disc {
-    unit_discs_in(std::slice::from_ref(unit), Rect::new(-1000.0, -1000.0, 3000.0, 3000.0), None, shape)[0]
+    unit_discs_in(std::slice::from_ref(unit), Rect::new(-1000.0, -1000.0, 3000.0, 3000.0), None, shape, 1.0)[0]
 }
 
 #[test]
@@ -165,13 +165,32 @@ fn a_unit_that_is_still_growing_swells_as_a_ship_too() {
 }
 
 #[test]
+fn zoomed_out_a_ship_is_drawn_bigger_so_it_can_still_be_made_out() {
+    assert_eq!(figure_scale(1.0), 1.0, "close up it is its own size");
+    assert_eq!(figure_scale(UNIT_FIGURE_PX / (RADIUS * 2.0)), 1.0, "down to the zoom where it is UNIT_FIGURE_PX across");
+    for zoom in [DEFAULT_ZOOM, MIN_ZOOM, FURTHEST_ZOOM] {
+        let scale = figure_scale(zoom);
+        assert!((RADIUS * scale * 2.0 * zoom - UNIT_FIGURE_PX).abs() < 0.01, "past it, that is its size on the screen at {zoom}");
+    }
+    let mut unit = unit_on(Vec2::new(100.0, 100.0));
+    unit.nose = Vec2::new(0.0, -1.0);
+    let scale = figure_scale(MIN_ZOOM);
+    let big = unit_discs_in(std::slice::from_ref(&unit), Rect::new(0.0, 0.0, 1000.0, 1000.0), None, UnitShape::Ships, scale)[0];
+    assert_eq!(big, Disc { radius: RADIUS * scale, ..first_disc(UnitShape::Ships, &unit) }, "only its size changes");
+    //(one just off the screen reaches into it when it is that big, so it is drawn)
+    let edge = unit_on(Vec2::new(-RADIUS * 2.0, 500.0));
+    assert!(unit_discs_in(std::slice::from_ref(&edge), Rect::new(0.0, 0.0, 1000.0, 1000.0), None, UnitShape::Ships, 1.0).is_empty());
+    assert_eq!(unit_discs_in(std::slice::from_ref(&edge), Rect::new(0.0, 0.0, 1000.0, 1000.0), None, UnitShape::Ships, scale).len(), 1);
+}
+
+#[test]
 fn champions_and_the_garrisoned_are_still_left_out_of_the_ships() {
     let mut champion = unit_on(Vec2::new(10.0, 10.0));
     champion.champion = 1;
     let mut in_tower = unit_on(Vec2::new(20.0, 10.0));
     in_tower.garrison = Some((3, 3));
     let view = Rect::new(0.0, 0.0, 1000.0, 1000.0);
-    assert_eq!(unit_discs_in(&[champion, in_tower, unit_on(Vec2::new(30.0, 10.0))], view, None, UnitShape::Ships).len(), 1);
+    assert_eq!(unit_discs_in(&[champion, in_tower, unit_on(Vec2::new(30.0, 10.0))], view, None, UnitShape::Ships, 1.0).len(), 1);
 }
 
 #[test]

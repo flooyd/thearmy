@@ -269,6 +269,12 @@ impl Unit {
         }
     }
 
+    //the radius a champion is drawn with at a zoom: its own, or zoomed out never less than CHAMPION_FIGURE_PX across on the screen, so its picture can still be
+    //made out (as a ship is drawn bigger, see figure_scale)
+    pub(crate) fn drawn_radius(&self, zoom: f32) -> f32 {
+        self.radius().max(CHAMPION_FIGURE_PX / 2.0 / zoom.max(FURTHEST_ZOOM))
+    }
+
     //the most health it can have: an ordinary unit's, or a champion's, which a level and its evolutions add to
     pub(crate) fn max_health(&self) -> f32 {
         if self.champion == 0 { UNIT_HEALTH } else { champion_health(self.level) * self.growth().health }
@@ -1047,10 +1053,10 @@ pub(crate) fn champion_shape(kind: usize) -> Option<usize> {
     SHAPES.get_or_init(|| CHAMPIONS.iter().map(|champion| shape_named(&format!("Champion {}", champion.name))).collect()).get(kind).copied().flatten()
 }
 
-//what a champion is drawn as at a zoom: its picture, unless its kind has none yet, the setting Simple shapes is on, or it is too small on the screen to make out
-//(under CHAMPION_ART_PIXELS across), when it is its polygon
-pub(crate) fn champion_art(unit: &Unit, zoom: f32, simple: bool) -> Option<usize> {
-    if simple || unit.radius() * 2.0 * zoom < CHAMPION_ART_PIXELS {
+//what a champion is drawn as: its picture, at any zoom (it is drawn big enough to make out, see Unit::drawn_radius), unless its kind has none yet or the
+//setting Simple shapes is on, when it is its polygon
+pub(crate) fn champion_art(unit: &Unit, simple: bool) -> Option<usize> {
+    if simple {
         return None;
     }
     champion_shape((unit.champion as usize).checked_sub(1)?)
@@ -1084,10 +1090,10 @@ fn draw_rank(x: f32, y: f32, level: u8, pixel: f32) {
 }
 
 //the champions in the world, over the army and everything else on the ground. one whose kind has a picture is drawn as it (see art/champions.py), turned to the
-//nearest enemy near it or else the way it is going, and swelling and brightening a moment when its power goes off; one that has none yet, or is too small to make out,
-//or all of them with `simple` (the setting Simple shapes), is a polygon of its kind with its two letters in the middle. under each is the ring of its grade, under it
-//its rank, and over it a bar when it is hurt. `zoom` keeps the lines and the letters the same size on screen; `camera` is the one the world is drawn with. the
-//auras are drawn apart, under the army (see `draw_champion_auras`)
+//nearest enemy near it or else the way it is going, and swelling and brightening a moment when its power goes off; one that has none yet, or all of them with
+//`simple` (the setting Simple shapes), is a polygon of its kind with its two letters in the middle. under each is the ring of its grade, under it
+//its rank, and over it a bar when it is hurt. `zoom` keeps the lines and the letters the same size on screen, and zoomed out the champions are drawn bigger (see
+//Unit::drawn_radius); `camera` is the one the world is drawn with. the auras are drawn apart, under the army (see `draw_champion_auras`)
 pub(crate) fn draw_champions(units: &[Unit], enemies: &[Enemy], view: Rect, zoom: f32, camera: &Camera2D, simple: bool) {
     let pixel = 1.0 / zoom;
     let dt = get_frame_time().min(0.1);
@@ -1095,7 +1101,7 @@ pub(crate) fn draw_champions(units: &[Unit], enemies: &[Enemy], view: Rect, zoom
         .iter()
         .filter(|unit| unit.champion != 0 && unit.garrison.is_none() && unit.champion_kind().is_some())
         .filter(|unit| {
-            let reach = unit.radius() * PICTURE;
+            let reach = unit.drawn_radius(zoom) * PICTURE;
             Rect::new(view.x - reach, view.y - reach, view.w + reach * 2.0, view.h + reach * 2.0).contains(Vec2::new(unit.x, unit.y))
         })
         .collect();
@@ -1104,7 +1110,7 @@ pub(crate) fn draw_champions(units: &[Unit], enemies: &[Enemy], view: Rect, zoom
         let Some(kind) = unit.champion_kind() else {
             continue;
         };
-        let (x, y, radius) = (unit.x, unit.y, unit.radius());
+        let (x, y, radius) = (unit.x, unit.y, unit.drawn_radius(zoom));
         let grade = kind.grade.color();
         draw_circle_lines(x, y, radius + 5.0, 2.5 * pixel.max(0.6), Color::new(grade.r, grade.g, grade.b, 0.85));
         if unit.age < 1.5 {
@@ -1116,7 +1122,7 @@ pub(crate) fn draw_champions(units: &[Unit], enemies: &[Enemy], view: Rect, zoom
     CHAMPION_HEADINGS.with_borrow_mut(|headings| {
         let mut kept = HashMap::with_capacity(shown.len());
         for unit in &shown {
-            let Some(shape) = champion_art(unit, zoom, simple) else {
+            let Some(shape) = champion_art(unit, simple) else {
                 continue;
             };
             let at = Vec2::new(unit.x, unit.y);
@@ -1131,16 +1137,16 @@ pub(crate) fn draw_champions(units: &[Unit], enemies: &[Enemy], view: Rect, zoom
             kept.insert(unit.id, heading);
             let act = power_cycle(unit).filter(|cycle| cycle.period >= 1.0).map_or(0.0, |cycle| (1.0 - cycle.since / ROSTER_PULSE).max(0.0));
             let color = lerp_color(unit_color(unit), WHITE, 0.35 * act);
-            creatures.push(Creature::new(shape, at, unit.radius() * 2.0 * (1.0 + CHAMPION_ACT_SWELL * act), facing, color).seeded(unit.id));
+            creatures.push(Creature::new(shape, at, unit.drawn_radius(zoom) * 2.0 * (1.0 + CHAMPION_ACT_SWELL * act), facing, color).seeded(unit.id));
         }
         *headings = kept;
     });
     draw_creatures(&creatures, camera);
-    for unit in shown.iter().filter(|unit| champion_art(unit, zoom, simple).is_none()) {
+    for unit in shown.iter().filter(|unit| champion_art(unit, simple).is_none()) {
         let Some(kind) = unit.champion_kind() else {
             continue;
         };
-        let (x, y, radius) = (unit.x, unit.y, unit.radius());
+        let (x, y, radius) = (unit.x, unit.y, unit.drawn_radius(zoom));
         let body = unit_color(unit);
         draw_poly(x, y, kind.sides, radius + UNIT_BORDER, kind.turn, BLACK);
         draw_poly(x, y, kind.sides, radius, kind.turn, body);
@@ -1150,7 +1156,7 @@ pub(crate) fn draw_champions(units: &[Unit], enemies: &[Enemy], view: Rect, zoom
         draw_label_scaled(kind.tag, x - width / 2.0, y + size * 0.36 * pixel, size, pixel, Color::new(0.04, 0.06, 0.1, 1.0), Face::Header);
     }
     for unit in &shown {
-        let (x, y, radius) = (unit.x, unit.y, unit.radius());
+        let (x, y, radius) = (unit.x, unit.y, unit.drawn_radius(zoom));
         draw_rank(x, y + radius + 10.0 * pixel.max(0.6), unit.level, pixel);
         if unit.health < unit.max_health() {
             let (width, height) = (radius * 2.0, 5.0 * pixel.max(0.5));
@@ -1525,7 +1531,7 @@ pub(crate) fn draw_champion_ping(units: &[Unit], id: u32, age: f32, zoom: f32) {
     };
     let pixel = 1.0 / zoom;
     let fade = (1.0 - age / PING_SECONDS).clamp(0.0, 1.0);
-    let radius = unit.radius();
+    let radius = unit.drawn_radius(zoom);
     for k in 0..3 {
         let phase = (age * 1.6 + k as f32 / 3.0).fract();
         draw_circle_lines(unit.x, unit.y, radius * (1.3 + 3.5 * (1.0 - phase)), 3.0 * pixel, Color::new(kind.color.r, kind.color.g, kind.color.b, 0.9 * fade * phase));

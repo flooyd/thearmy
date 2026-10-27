@@ -77,7 +77,7 @@ pub(crate) fn draw_tags(mates: &[Mate], camera: Vec2, zoom: f32) {
         }
         let size = 18.0;
         let width = text_width(&mate.name, size, Face::Bold);
-        let y = at.y - RUNNER_TOP * zoom - 8.0;
+        let y = at.y - RUNNER_TOP * figure_scale(zoom) * zoom - 8.0;
         draw_label_shadowed(&mate.name, at.x - width / 2.0, y, size, light(mate.color), Face::Bold);
         if mate.choosing {
             let line = "CHOOSING A RELIC";
@@ -181,7 +181,7 @@ pub(crate) fn draw_champion_rings(units: &[Unit], colors: &[Color], view: Rect, 
             continue;
         }
         let color = colors[owner_index(unit.owner).min(colors.len() - 1)];
-        draw_circle_lines(unit.x, unit.y, unit.radius() + 10.0 * pixel.max(0.6), 3.0 * pixel.max(0.6), color);
+        draw_circle_lines(unit.x, unit.y, unit.drawn_radius(zoom) + 10.0 * pixel.max(0.6), 3.0 * pixel.max(0.6), color);
     }
 }
 

@@ -49,7 +49,7 @@ fn a_game_of_one_looks_as_it_always_has() {
         assert_eq!(unit_color_in(unit, None), unit_color(unit));
     }
     let plain = unit_discs(&units, VIEW);
-    let again = unit_discs_in(&units, VIEW, None, UnitShape::Circles);
+    let again = unit_discs_in(&units, VIEW, None, UnitShape::Circles, 1.0);
     assert_eq!(plain, again);
     assert_eq!(unit_color(&units[3]), WHITE, "and an unhurt unit is white");
 }
@@ -68,7 +68,7 @@ fn each_army_is_drawn_in_the_colour_of_its_own_player() {
     assert_eq!(cy_color, team_color(WHITE, colors[2]));
     assert!(ada_color != bo_color && bo_color != cy_color && ada_color != cy_color, "three armies, three colours");
     //(the discs say the same as the colours do)
-    let discs = unit_discs_in(&[ada.clone(), bo.clone(), cy.clone()], VIEW, Some(&colors), UnitShape::Circles);
+    let discs = unit_discs_in(&[ada.clone(), bo.clone(), cy.clone()], VIEW, Some(&colors), UnitShape::Circles, 1.0);
     assert_eq!(discs.len(), 3);
     for (disc, unit) in discs.iter().zip([&ada, &bo, &cy]) {
         assert_eq!(disc.color, Disc::new(0.0, 0.0, 1.0, unit_color_in(unit, Some(&colors))).color);

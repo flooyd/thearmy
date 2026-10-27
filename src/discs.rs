@@ -162,28 +162,31 @@ fn to_bytes(color: Color) -> [u8; 4] {
 //tower is drawn by the tower, a champion by draw_champions, and the ones off screen would only cost the time to send them
 #[cfg(test)]
 pub(crate) fn unit_discs(units: &[Unit], view: Rect) -> Vec<Disc> {
-    unit_discs_in(units, view, None, UnitShape::Circles)
+    unit_discs_in(units, view, None, UnitShape::Circles, 1.0)
 }
 
 //the same, for a game with others in it: `team` is the colour of each player, which their army is tinted towards. `shape` is what a unit is drawn as: a
 //circle with a black edge, or a ship that points the way it is going, which the shader draws inside the same square (and which is a circle again
-//when it is too small on screen to make out)
-pub(crate) fn unit_discs_in(units: &[Unit], view: Rect, team: Option<&[Color]>, shape: UnitShape) -> Vec<Disc> {
+//when it is too small on screen to make out). `scale` is how many times its size a unit is drawn (see figure_scale), and the ones that much bigger
+//reach further into view from off it
+pub(crate) fn unit_discs_in(units: &[Unit], view: Rect, team: Option<&[Color]>, shape: UnitShape, scale: f32) -> Vec<Disc> {
     let styled = |disc: Disc, unit: &Unit| match shape {
         UnitShape::Circles => disc.edged(UNIT_BORDER),
         UnitShape::Ships => disc.edged(UNIT_BORDER).pointing(unit.nose),
     };
+    let spare = RADIUS * (scale - 1.0).max(0.0) * SHIP_REACH;
+    let view = Rect::new(view.x - spare, view.y - spare, view.w + spare * 2.0, view.h + spare * 2.0);
     units
         .iter()
         .filter(|unit| unit.garrison.is_none() && unit.champion == 0 && view.contains(Vec2::new(unit.x, unit.y)))
         .map(|unit| {
             if unit.age >= UNIT_GROW_SECONDS {
-                return styled(Disc::new(unit.x, unit.y, RADIUS, unit_color_in(unit, team)), unit);
+                return styled(Disc::new(unit.x, unit.y, RADIUS * scale, unit_color_in(unit, team)), unit);
             }
             //just grown from a baby: it swells from a green speck, overshoots a little, and turns from green to its own colour
             let grown = (unit.age / UNIT_GROW_SECONDS).clamp(0.0, 1.0);
             let swell = 0.35 + 0.65 * (1.0 - (1.0 - grown).powi(3)) + 0.18 * (grown * std::f32::consts::PI).sin();
-            styled(Disc::new(unit.x, unit.y, RADIUS * swell, lerp_color(pickup_color(), unit_color_in(unit, team), grown)), unit)
+            styled(Disc::new(unit.x, unit.y, RADIUS * scale * swell, lerp_color(pickup_color(), unit_color_in(unit, team), grown)), unit)
         })
         .collect()
 }

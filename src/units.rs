@@ -602,6 +602,13 @@ pub(crate) fn baby_figures(babies: &[Baby], view: Rect, time: f32, zoom: f32) ->
         .collect()
 }
 
+//how many times its size the army is drawn at a zoom. zoomed out past where a unit is UNIT_FIGURE_PX across on the screen, it gets no smaller there: the
+//units and the players are drawn bigger in the world, so they can be made out as the babies can (the champions have their own, see Unit::drawn_radius).
+//that holds out to FURTHEST_ZOOM, so a boss being shown off doesn't turn the army back into specks for a moment
+pub(crate) fn figure_scale(zoom: f32) -> f32 {
+    (UNIT_FIGURE_PX / (RADIUS * 2.0 * zoom.max(FURTHEST_ZOOM))).max(1.0)
+}
+
 //how much of its colour a baby shows: all of it, until the last BABY_BLINK_SECONDS of its life, when it flickers between
 //full and faint, quicker and fainter as the time runs out
 pub(crate) fn baby_blink(age: f32) -> f32 {

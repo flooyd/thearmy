@@ -622,7 +622,9 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         draw_pulls(pulls, get_time() as f32);
         draw_chests(&hordes.chests, drawn, get_time() as f32);
         draw_champion_auras(units, drawn, drawn_zoom, get_time() as f32);
-        draw_discs(Layer::Army, &unit_discs_in(units, drawn, team_tint, settings.unit_shape), &camera);
+        //(zoomed out, the army, the champions and the players are drawn bigger, so they are as easy to make out as the babies: see figure_scale)
+        let scale = figure_scale(drawn_zoom);
+        draw_discs(Layer::Army, &unit_discs_in(units, drawn, team_tint, settings.unit_shape, scale), &camera);
         //(a baby is a little figure at any zoom, made bigger when the camera is far out so it can be seen, and the plain disc with simple shapes)
         if settings.simple_shapes {
             draw_discs(Layer::Babies, &baby_discs(babies, drawn), &camera);
@@ -640,13 +642,13 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         draw_shots(shots);
         //(one that has gone is a faint mark of where they will find their army)
         //(a player is a little runner, or the circle they were when they are too small on the screen to make one out: never both)
-        let figure = runner_shown(RADIUS * camera.zoom.x.abs() * screen_width() / 2.0);
+        let figure = runner_shown(RADIUS * scale * camera.zoom.x.abs() * screen_width() / 2.0);
         let is_gone = |i: usize| mates.get(i).is_some_and(|mate| mate.away);
         let avatars: Vec<Disc> = players.list.iter().enumerate().filter_map(|(i, other)| {
             if is_gone(i) {
-                Some(Disc::new(other.position.x, other.position.y, RADIUS, Color::new(other.color.r, other.color.g, other.color.b, 0.3)))
+                Some(Disc::new(other.position.x, other.position.y, RADIUS * scale, Color::new(other.color.r, other.color.g, other.color.b, 0.3)))
             } else if !figure {
-                Some(Disc::new(other.position.x, other.position.y, RADIUS, other.color).edged(UNIT_BORDER))
+                Some(Disc::new(other.position.x, other.position.y, RADIUS * scale, other.color).edged(UNIT_BORDER))
             } else {
                 None
             }
@@ -659,7 +661,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         if figure {
             for (i, (other, runner)) in players.list.iter().zip(&feedback.runners).enumerate() {
                 if !is_gone(i) {
-                    draw_runner(runner, other.position, other.color);
+                    draw_runner(runner, other.position, other.color, scale);
                 }
             }
         }
