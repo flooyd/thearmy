@@ -97,14 +97,17 @@ pub(crate) fn grid_alpha(zoom: f32) -> f32 {
     0.1 * ((zoom - GRID_FADE_ZOOM / 2.0) / (GRID_FADE_ZOOM / 2.0)).clamp(0.0, 1.0)
 }
 
-//draw the world floor, hovered square, grid lines and border, which everything else is drawn over. the walls are drawn by
-//draw_walls, over everything. only the visible squares are drawn, and the grid is left out once it has faded to nothing
-pub(crate) fn draw_world(center_x: f32, center_y: f32, zoom: f32, hovered: Option<(i32, i32)>) {
+//draw the world's ground (the grass, see ground.rs, or the flat floor where it can't be drawn), hovered square, grid lines and border, which everything
+//else is drawn over. the walls are drawn by draw_walls, over everything. only the visible squares are drawn, and the grid is left out once it has faded
+//to nothing. `view` is the part of the world on the screen and `camera` the one it is drawn with
+pub(crate) fn draw_world(center_x: f32, center_y: f32, zoom: f32, hovered: Option<(i32, i32)>, view: Rect, camera: &Camera2D) {
     let line_color = Color::new(1.0, 1.0, 1.0, grid_alpha(zoom));
     let line_width = 1.0 / zoom; //so the grid lines stay one pixel wide on screen
     let (first_col, last_col, first_row, last_row) = visible_tiles(center_x, center_y, zoom);
 
-    draw_rectangle(0.0, 0.0, WORLD_SIZE, WORLD_SIZE, Color::new(0.08, 0.08, 0.1, 1.0));
+    if !draw_grass(view, camera, get_time() as f32) {
+        draw_rectangle(0.0, 0.0, WORLD_SIZE, WORLD_SIZE, Color::new(0.08, 0.08, 0.1, 1.0));
+    }
     if let Some((col, row)) = hovered {
         draw_rectangle(col as f32 * TILE_SIZE, row as f32 * TILE_SIZE, TILE_SIZE, TILE_SIZE, WHITE);
     }

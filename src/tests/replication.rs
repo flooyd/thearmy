@@ -16,6 +16,7 @@ struct Host {
     time: f32,
     boosts: Vec<f32>,
     pickups: Vec<f32>,
+    difficulty: Difficulty,
 }
 
 impl Host {
@@ -25,7 +26,7 @@ impl Host {
         for i in 1..players {
             sim.add_player(&format!("Player {}", i + 1)).expect("room for another player");
         }
-        Host { viewers: (0..players).map(Viewer::new).collect(), sim, time: 0.0, boosts: vec![1.0; players], pickups: vec![BABY_PICKUP_RANGE; players] }
+        Host { viewers: (0..players).map(Viewer::new).collect(), sim, time: 0.0, boosts: vec![1.0; players], pickups: vec![BABY_PICKUP_RANGE; players], difficulty: Difficulty::Normal }
     }
 
     //the same with nothing in the world but the players and their armies
@@ -62,7 +63,7 @@ impl Host {
     fn tick_acking(&mut self, who: usize, ack: u32) -> Vec<u8> {
         let ranges: Vec<Range<usize>> = self.sim.arrange();
         let index = WallIndex::build(&self.sim.walls);
-        let frame = Frame { sim: &self.sim, ranges: &ranges, walls: &index, time: self.time, boosts: &self.boosts, pickups: &self.pickups };
+        let frame = Frame { sim: &self.sim, ranges: &ranges, walls: &index, time: self.time, boosts: &self.boosts, pickups: &self.pickups, difficulty: self.difficulty };
         self.viewers[who].tick(&frame, ack)
     }
 
@@ -752,4 +753,19 @@ fn a_champions_volley_reaches_a_player_as_one_event_and_flies_there_hurting_noth
     }
     assert!(watcher.sim.bolts.is_empty(), "it stopped where it hit");
     assert_eq!(health, watcher.sim.enemies.iter().map(|enemy| enemy.health).collect::<Vec<f32>>(), "and hurt nothing there");
+}
+
+#[test]
+fn a_guest_is_told_the_difficulty_the_host_plays_on() {
+    let mut host = Host::bare(2);
+    host.difficulty = Difficulty::Insane(6);
+    host.step(vec![idle(), idle()]);
+    let mut watcher = Watcher::new();
+    watcher.hear(&host.tick(1));
+    assert_eq!(watcher.replica.difficulty, Difficulty::Insane(6));
+    //and told again when the host changes it
+    host.difficulty = Difficulty::Hard;
+    host.step(vec![idle(), idle()]);
+    watcher.hear(&host.tick(1));
+    assert_eq!(watcher.replica.difficulty, Difficulty::Hard);
 }

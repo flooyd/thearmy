@@ -339,10 +339,12 @@ impl Shot {
 
 //an enemy that shoots fires at the nearest unit within its range whenever it is ready: a volley of ordinary shots, a bolt that goes through
 //the units in its way, grenades that go off where they land, or orbs that home in on the army
+//(with Crossfire, on the Insane ladder, CROSSFIRE_PACE times as often)
 pub(crate) fn shoot_enemies(enemies: &mut [Enemy], units: &[Unit], shots: &mut Vec<Shot>, dt: f32, fx: &mut Effects) {
     let army = units.len();
+    let pace = if ruled_by(Mutator::Crossfire) { CROSSFIRE_PACE } else { 1.0 };
     for enemy in enemies.iter_mut().filter(|enemy| enemy.behavior == Behavior::Shooter && enemy.range > 0.0 && enemy.status.frozen <= 0.0 && !enemy.routed()) {
-        enemy.shot_in -= dt;
+        enemy.shot_in -= dt * pace;
         if enemy.shot_in > 0.0 {
             continue;
         }
@@ -636,6 +638,18 @@ pub(crate) struct Hazard {
 }
 
 impl Hazard {
+    //the same warning again, for Echo: ECHO_SIZE the size, hurting half as many, and going off ECHO_DELAY after this one
+    pub(crate) fn echoed(&self) -> Hazard {
+        let shape = match self.shape {
+            Shape::Ring { inner } => Shape::Ring { inner: inner * ECHO_SIZE },
+            Shape::Line { dir, length, width } => Shape::Line { dir, length: length * ECHO_SIZE, width: width * ECHO_SIZE },
+            Shape::Rect { dir, length, width } => Shape::Rect { dir, length: length * ECHO_SIZE, width: width * ECHO_SIZE },
+            shape => shape,
+        };
+        let warn = self.warn + ECHO_DELAY;
+        Hazard { radius: self.radius * ECHO_SIZE, warn, warn_total: warn, victims: (self.victims / 2).max(1), shape, ..*self }
+    }
+
     pub(crate) fn new(position: Vec2, radius: f32, warn: f32, damage: f32, victims: usize, color: Color, boom: Cue) -> Hazard {
         Hazard { position, radius, armed: true, warn, warn_total: warn.max(0.001), damage, victims, linger: 0.0, burn: 0.0, flash: 0.0, color, boom, wall_damage: damage * BLAST_WALL_FACTOR, circle: None, shape: Shape::Circle, group: 0, cause: 0, mine: false, hex: false }
     }
@@ -713,6 +727,31 @@ impl Hazard {
 }
 
 //count the hazards down, set off the ones that are due and burn the units in the ones that are burning
+//the warnings put down in a step go into the world, as the Insane ladder has them: with Ruin burning ground burns RUIN_BURN times as long, and with
+//Echo every warning (not a mine, which waits for a unit) comes again, ECHO_SIZE the size, ECHO_DELAY after it goes off
+pub(crate) fn lay_hazards(hazards: &mut Vec<Hazard>, laid: &mut Vec<Hazard>) {
+    if ruled_by(Mutator::Ruin) {
+        for hazard in laid.iter_mut().filter(|hazard| hazard.burn > 0.0) {
+            hazard.linger *= RUIN_BURN;
+        }
+    }
+    if ruled_by(Mutator::Echo) {
+        let echoes: Vec<Hazard> = laid.iter().filter(|hazard| hazard.armed && !hazard.mine && hazard.warn > 0.0 && hazard.damage > 0.0).map(Hazard::echoed).collect();
+        laid.extend(echoes);
+    }
+    hazards.append(laid);
+}
+
+//an enemy (not a boss) brought under WRATH_ENRAGE of its health is enraged, with Wrath on the Insane ladder: it is Frenzied, hitting twice as hard
+pub(crate) fn enrage_enemies(enemies: &mut [Enemy]) {
+    if !ruled_by(Mutator::Wrath) {
+        return;
+    }
+    for enemy in enemies.iter_mut().filter(|enemy| enemy.boss.is_none() && enemy.health > 0.0 && enemy.health < enemy.max_health * WRATH_ENRAGE && !enemy.has(Affix::Frenzied)) {
+        enemy.add_affix(Affix::Frenzied);
+    }
+}
+
 pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, units: &mut [Unit], relics: &R, dt: f32, fx: &mut Effects) {
     let mut burning: Vec<(Vec2, f32, Shape, f32, u16)> = Vec::new(); //where, how far it reaches, its shape, how hard it burns and what set it
     let mut cursing: Vec<(Vec2, f32, Shape)> = Vec::new();
@@ -809,7 +848,8 @@ pub(crate) fn update_hazards<R: Relics + ?Sized>(hazards: &mut Vec<Hazard>, unit
 //that could never grow isn't dropped
 pub(crate) fn drop_babies(enemy: &Enemy, babies: &mut Vec<Baby>, army: usize, bounty: f32, cap: usize) {
     let half = enemy.size / 2.0;
-    let count = ((enemy.babies as f32 * bounty).round() as usize).min(cap.saturating_sub(army + babies.len()));
+    let famine = if ruled_by(Mutator::Famine) { FAMINE_BOUNTY } else { 1.0 };
+    let count = ((enemy.babies as f32 * bounty * famine).round() as usize).min(cap.saturating_sub(army + babies.len()));
     for _ in 0..count {
         let offset = if count == 1 { Vec2::ZERO } else { Vec2::new(rand::gen_range(-half, half), rand::gen_range(-half, half)) };
         let position = (enemy.position + offset).clamp(Vec2::splat(BABY_RADIUS), Vec2::splat(WORLD_SIZE - BABY_RADIUS));

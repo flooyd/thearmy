@@ -49,6 +49,7 @@ pub(crate) struct Report {
     pub(crate) citadel: bool,           //the citadel fell
     pub(crate) save_soon: bool,         //a relic was taken or a chest opened: a good moment to save
     pub(crate) hit_stop: f32,           //seconds a world of one could stand still for a champion's crit
+    pub(crate) difficulty: Difficulty,  //what the world is played on (the host's, for a guest)
 }
 
 pub(crate) struct Step {
@@ -225,9 +226,10 @@ impl Sim {
     pub(crate) fn step(&mut self, inputs: Vec<PlayerInput>, pace: Pace, rules: Rules) -> Step {
         let Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots, hazards, pulls, bolts, fx, walls_dirty } = self;
         let Pace { real_dt, dt, player_dt, stands_still } = pace;
+        play_on(rules.difficulty);
         players.apply_settings(rules.army_limit, rules.difficulty.relic_answer());
         let count = players.len();
-        let mut report = Report::default();
+        let mut report = Report { difficulty: rules.difficulty, ..Report::default() };
         run.seconds += dt;
 
         let mut inputs: Vec<PlayerInput> = inputs.into_iter().take(count).map(PlayerInput::tidy).collect();
@@ -375,8 +377,10 @@ impl Sim {
             mend_at_villages(sites, units, &players.positions(), dt);
             walls_changed |= news.walls_changed;
             if news.citadel_woke {
+                //(with The Last Army, the top of the Insane ladder, it comes back a round tougher again for each time it has fallen, as if a tier higher)
+                let last_army = if rules.difficulty.has(Mutator::LastArmy) { run.citadels as u32 } else { 0 };
                 if let Some(lord) = enemies.iter_mut().find(|enemy| enemy.boss.is_some() && enemy.site.is_some()) {
-                    lord.harden(rules.difficulty.boss_rounds());
+                    lord.harden(rules.difficulty.boss_rounds() + last_army);
                 }
             }
             run.nests += news.nests;
@@ -430,7 +434,7 @@ impl Sim {
         shoot_enemies(enemies, units, shots, dt, fx);
         fire_towers(walls, enemies, players.archer(), dt, fx);
         chew_hostile_walls(units, walls, players, dt, fx);
-        hazards.append(&mut fx.hazards);
+        lay_hazards(hazards, &mut fx.hazards);
         update_shots(shots, units, walls, dt, players, fx);
         update_hazards(hazards, units, players, dt, fx);
         heal_armies(players, units, dt);
@@ -439,7 +443,8 @@ impl Sim {
         run.destroyed += destroyed;
         report.destroyed = destroyed;
         train_armies(players, units, fx);
-        hazards.append(&mut fx.hazards);
+        lay_hazards(hazards, &mut fx.hazards);
+        enrage_enemies(enemies);
         tick_enemy_numbers(enemies, dt, fx);
         run.lost += bury_units(units, fx);
         tally_killers(&mut run.killers, &std::mem::take(&mut fx.banes));

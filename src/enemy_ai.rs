@@ -33,6 +33,7 @@ pub(crate) fn patrol_enemies(enemies: &mut [Enemy], player: Vec2, dt: f32, speed
 //route the field of the player they are after gives them round the walls, and chew through the ones that are in the way, and the others
 //slide along a wall until they give up on the waypoint they were heading for
 pub(crate) fn patrol_enemies_among(enemies: &mut [Enemy], prey: &[Prey], dt: f32, walls: &Walls, fx: &mut Effects) {
+    let hunters = ruled_by(Mutator::Hunters);
     //a healer goes to the others, so where they are is needed while one of them is borrowed
     let others: Vec<Vec2> = if enemies.iter().any(|enemy| enemy.behavior == Behavior::Healer) {
         enemies.iter().filter(|enemy| enemy.behavior != Behavior::Healer).map(|enemy| enemy.position).collect()
@@ -143,8 +144,8 @@ pub(crate) fn patrol_enemies_among(enemies: &mut [Enemy], prey: &[Prey], dt: f32
             let at = enemy.position;
             let nearest_of = |spots: &[Vec2], reach: f32| spots.iter().copied().filter(|spot| spot.distance_squared(at) <= reach * reach).min_by(|a, b| a.distance_squared(at).total_cmp(&b.distance_squared(at)));
             let taunted = if enemy.boss.is_some() { None } else { nearest_of(&taunts[which], TAUNT_RANGE) };
-            //an elite, an executioner or a blinker goes for a champion near it rather than the player
-            let hunts = enemy.boss.is_none() && (enemy.modifier != Modifier::None || matches!(enemy.behavior, Behavior::Executioner | Behavior::Blinker));
+            //an elite, an executioner or a blinker goes for a champion near it rather than the player, and with Hunters every enemy does
+            let hunts = enemy.boss.is_none() && (hunters || enemy.modifier != Modifier::None || matches!(enemy.behavior, Behavior::Executioner | Behavior::Blinker));
             let marked = if hunts { nearest_of(&champions[which], CHAMPION_HUNT_RANGE) } else { None };
             //a pack comes round the side of the army before it closes in, half of it from each side
             let flank = {
@@ -299,6 +300,7 @@ pub(crate) fn army_reach(army: usize) -> f32 {
 //summoner calls up imps while a player is close, a mortar lobs a shell at the army of the player nearest to it. what depends on how
 //big an army is (the blasts, the broods of a nest) is for the army of the player nearest to the enemy
 pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt: f32, fx: &mut Effects) {
+    let ruin = ruled_by(Mutator::Ruin);
     let mut owned: HashMap<u32, usize> = HashMap::new();
     for owner in enemies.iter().filter_map(|enemy| enemy.owner) {
         *owned.entry(owner).or_default() += 1;
@@ -520,7 +522,7 @@ pub(crate) fn enemy_abilities_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt:
                     enemy.timer = 0.5;
                     continue;
                 }
-                enemy.timer = MINE_EVERY * rand::gen_range(0.8, 1.2);
+                enemy.timer = MINE_EVERY * rand::gen_range(0.8, 1.2) / if ruin { RUIN_BURN } else { 1.0 };
                 let mine = Hazard::new(enemy.position, MINE_RADIUS * blast_scale(enemy.scale), MINE_LIFE, UNIT_HEALTH * 3.0, MINE_VICTIMS, enemy.color, Cue::Explosion);
                 fx.hazards.push(mine.mined().vs_walls(enemy.scale).by(enemy.name));
             }

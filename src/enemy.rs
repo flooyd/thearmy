@@ -4,11 +4,13 @@ use crate::prelude::*;
 use std::cell::RefCell;
 
 //the chance that a new enemy is an elite: none for a small army, more the bigger it gets
+//(twice as likely with Veterans, on the Insane ladder)
 pub(crate) fn elite_chance(army: usize) -> f32 {
     if army < ELITE_FROM_UNITS {
         return 0.0;
     }
-    ELITE_MAX_CHANCE * ((army - ELITE_FROM_UNITS) as f32 / (ELITE_FULL_UNITS - ELITE_FROM_UNITS) as f32).min(1.0)
+    let veterans = if ruled_by(Mutator::Veterans) { VETERANS_ELITES } else { 1.0 };
+    (ELITE_MAX_CHANCE * ((army - ELITE_FROM_UNITS) as f32 / (ELITE_FULL_UNITS - ELITE_FROM_UNITS) as f32).min(1.0) * veterans).min(1.0)
 }
 
 //whether an enemy counts towards the ENEMY_COUNT that are kept alive: the ones that are not made by something else
@@ -327,14 +329,17 @@ pub(crate) fn kind_named(name: &str) -> &'static EnemyKind {
 
 //a random kind of enemy out of those that turn up for an army this big, the common ones more often. the ones with no
 //weight are never picked, they only come with something else
+//(with Hunters, on the Insane ladder, hexers and executioners are HUNTERS_WEIGHT times as common)
 pub(crate) fn random_kind(army: usize) -> &'static EnemyKind {
+    let hunters = ruled_by(Mutator::Hunters);
+    let weight = |kind: &EnemyKind| if hunters && matches!(kind.name, "Hexer" | "Executioner") { kind.weight * HUNTERS_WEIGHT } else { kind.weight };
     let kinds: Vec<&EnemyKind> = ENEMY_KINDS.iter().filter(|kind| army >= kind.from_army && kind.weight > 0.0).collect();
-    let mut pick = rand::gen_range(0.0, kinds.iter().map(|kind| kind.weight).sum::<f32>());
+    let mut pick = rand::gen_range(0.0, kinds.iter().map(|kind| weight(kind)).sum::<f32>());
     for kind in &kinds {
-        if pick < kind.weight {
+        if pick < weight(kind) {
             return kind;
         }
-        pick -= kind.weight;
+        pick -= weight(kind);
     }
     kinds[kinds.len() - 1]
 }
@@ -523,8 +528,10 @@ impl Enemy {
         if matches!(self.modifier, Modifier::None | Modifier::Captain) || self.boss.is_some() {
             return;
         }
-        for _ in 0..2 {
-            if rand::gen_range(0.0, 1.0) >= chance {
+        //(with Veterans the first of them is certain)
+        let certain = if ruled_by(Mutator::Veterans) { 1 } else { 0 };
+        for k in 0..2 {
+            if k >= certain && rand::gen_range(0.0, 1.0) >= chance {
                 break;
             }
             let open: Vec<Affix> = AFFIXES.into_iter().filter(|affix| !self.has(*affix)).collect();

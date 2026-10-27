@@ -177,6 +177,7 @@ fn across(player: Vec2, at: Vec2) -> Vec2 {
 fn make_side(def: &'static HordeDef, at: Vec2, count: usize, pressure: usize, clear: f32) -> Vec<Enemy> {
     let total: f32 = def.kinds.iter().map(|(_, share)| share).sum();
     let spread = HORDE_SPREAD + (count as f32).sqrt() * HORDE_SPREAD_PER_ROOT;
+    let crossfire = ruled_by(Mutator::Crossfire);
     let mut horde = Vec::with_capacity(count);
     for _ in 0..count {
         let mut pick = rand::gen_range(0.0, total);
@@ -187,6 +188,10 @@ fn make_side(def: &'static HordeDef, at: Vec2, count: usize, pressure: usize, cl
                 break;
             }
             pick -= share;
+        }
+        //(with Crossfire, on the Insane ladder, some of them are snipers and lancers, whatever the horde)
+        if crossfire && rand::gen_range(0.0, 1.0) < CROSSFIRE_LANES {
+            name = if rand::gen_range(0.0, 1.0) < 0.5 { "Sniper" } else { "Lancer" };
         }
         let kind = kind_named(name);
         let place = at + Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * (clear + spread * rand::gen_range(0.0, 1.0f32).sqrt());

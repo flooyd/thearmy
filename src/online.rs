@@ -172,7 +172,7 @@ impl Table {
         }
         let ranges = sim.arrange();
         let index = WallIndex::build(&sim.walls);
-        let frame = Frame { sim, ranges: &ranges, walls: &index, time: self.clock, boosts: &report.boosts, pickups: &report.pickup_ranges };
+        let frame = Frame { sim, ranges: &ranges, walls: &index, time: self.clock, boosts: &report.boosts, pickups: &report.pickup_ranges, difficulty: report.difficulty };
         for remote in self.remotes.iter_mut().filter(|remote| remote.here && remote.due <= 0.0) {
             //(one that is a long way behind is not caught up with in a burst)
             remote.due = (remote.due + SNAPSHOT_SECONDS).max(-SNAPSHOT_SECONDS);
@@ -315,7 +315,7 @@ impl Guest {
             *boost = self.replica.boost;
             *range = self.replica.pickup_range;
         }
-        Report { boosts, pickup_ranges, ..Report::default() }
+        Report { boosts, pickup_ranges, difficulty: self.replica.difficulty, ..Report::default() }
     }
 
     //say goodbye to the host

@@ -1,7 +1,7 @@
 # The Army
 
 A top-down game about a growing army, alone or with up to three others over the internet. You are one little runner at the centre of a few thousand of them, and the world is a
-1000 x 1000 tile field full of things that want to stop you: nests, raiding hordes, and eight bosses (the last one, the Sovereign,
+1000 x 1000 tile meadow full of things that want to stop you: nests, raiding hordes, and eight bosses (the last one, the Sovereign,
 comes back after you fell it). Pick up the babies that enemies drop, grow the army to the thousands, point it at whatever is
 in the way, and wall in whatever you can't fight.
 
@@ -50,11 +50,22 @@ are the fonts.
   Enemies path around what you build, and walls decide where a fight happens.
 - **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter in a burst of frost), Volley Drill, Chain Shot, Tracer Rounds and many more stack across the run.
 - **Combos.** Chain kills for a MASSACRE, then a RAMPAGE, and watch the numbers climb.
+- **Climb the Insane ladder.** Past Brutal are ten Insane tiers. Slaying the Sovereign on Brutal opens Insane 1, and slaying it on
+  each tier opens the next. Every tier is harder again and adds a rule to the ones below it: Veterans (elites twice as common,
+  each with two affixes), Faster Fate (shorter boss warnings, attacks sooner), Crossfire (faster shooters, snipers and lancers in
+  the hordes), Hunters (enemies go for your champions), Wrath (bosses cast two attacks at once at the end, enemies enrage when
+  low), Famine (fewer babies), Ruin (longer burning ground, more mines), Echo (every warning comes twice), Nightfall (the world
+  goes dark) and The Last Army (the Sovereign returns stronger each time). The settings show a card with the rules in play. In a
+  game with others the host chooses the difficulty for everyone.
 
 The game is built for a lot of units: 15,000 by default (the settings take it anywhere from 5,000 to 50,000), drawn as instanced ships (small darts that point the way they are going, drawn in the shader, with plain
 circles as a setting) with the army's work shared over all your processor cores. It runs at your display's refresh rate (it was developed on a 120 Hz screen).
+The ground is a meadow drawn by a shader: blades of grass at every zoom, bending as gusts of wind roll across it.
 
-You are a stick figure that runs: facing you going down, showing its back going up, in profile going across, and shrinking to a plain dot when the view is zoomed far out.
+You are a stick figure that runs: facing you going down, showing its back going up, in profile going across. Zoomed far out, you,
+the ships and the champions stop shrinking past a point, so the army is easy to see at any zoom.
+
+![The army and every champion in the starting house, on the meadow](docs/screenshots/meadow.jpg)
 
 | | |
 |---|---|

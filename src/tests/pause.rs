@@ -242,19 +242,21 @@ fn the_time_since_a_save_is_said_in_the_biggest_unit_that_fits() {
 
 #[test]
 fn a_choice_can_be_taken_back_from_either_end_with_either_key() {
-    for start in DIFFICULTIES {
+    //(the difficulties offered are the ones open: the tiers of the Insane ladder that have not been opened are not)
+    let choices = Difficulty::choices(ladder_open());
+    for &start in &choices {
         let mut menu = Pause::new(saved(), Vec2::ZERO);
         let mut settings = Settings { difficulty: start, ..Settings::default() };
         menu.page = Page::Settings;
         menu.selected = row_of(Page::Settings, Act::Difficulty);
-        let at = DIFFICULTIES.iter().position(|&difficulty| difficulty == start).unwrap();
+        let at = choices.iter().position(|&difficulty| difficulty == start).unwrap();
         press(&mut menu, &mut settings, key(|i| i.left = true));
-        assert_eq!(settings.difficulty, DIFFICULTIES[(at + DIFFICULTIES.len() - 1) % DIFFICULTIES.len()], "left from {start:?}");
+        assert_eq!(settings.difficulty, choices[(at + choices.len() - 1) % choices.len()], "left from {start:?}");
         press(&mut menu, &mut settings, key(|i| i.right = true));
         assert_eq!(settings.difficulty, start, "and right again");
         //Enter (or a click) goes on to the next, round to the first from the last
         press(&mut menu, &mut settings, key(|i| i.enter = true));
-        assert_eq!(settings.difficulty, DIFFICULTIES[(at + 1) % DIFFICULTIES.len()], "enter on {start:?}");
+        assert_eq!(settings.difficulty, choices[(at + 1) % choices.len()], "enter on {start:?}");
     }
 }
 

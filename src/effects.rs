@@ -332,6 +332,26 @@ pub(crate) fn shake_offset(shake: f32, zoom: f32) -> Vec2 {
     Vec2::from_angle(rand::gen_range(0.0, std::f32::consts::TAU)) * shake * shake * SHAKE_PIXELS / zoom
 }
 
+//the dark of Nightfall (Insane 9), in the world round `at` (the middle of the screen): clear out to NIGHT_LIGHT of the screen's height, darkening to
+//NIGHT_DARK by NIGHT_FADE of it, and that dark out past the corners. rings of the instanced discs, each a step darker, so the edge is soft. drawn over
+//the ground, the enemies and the army, and under what glows (see game.rs)
+pub(crate) fn draw_nightfall(at: Vec2, zoom: f32, camera: &Camera2D) {
+    const STEPS: usize = 14;
+    let (width, height) = (screen_width(), screen_height());
+    let (clear, dark) = (NIGHT_LIGHT * height / zoom, NIGHT_FADE * height / zoom);
+    let far = (width.hypot(height) / 2.0 + 8.0) / zoom;
+    let step = (dark - clear) / STEPS as f32;
+    let night = |alpha: f32| Color::new(0.0, 0.01, 0.04, alpha);
+    let mut rings: Vec<Disc> = (0..STEPS)
+        .map(|k| {
+            let share = (k as f32 + 0.5) / STEPS as f32;
+            Disc::ring(at.x, at.y, clear + step * (k as f32 + 0.5), step, night(NIGHT_DARK * share * share * (3.0 - 2.0 * share)))
+        })
+        .collect();
+    rings.push(Disc::ring(at.x, at.y, (dark + far) / 2.0, far - dark, night(NIGHT_DARK)));
+    draw_discs(Layer::Marks, &rings, camera);
+}
+
 //the floating numbers, at the same size on screen at any zoom, with a shadow so they can be read over anything
 pub(crate) fn draw_popups(popups: &[Popup], zoom: f32) {
     for popup in popups {

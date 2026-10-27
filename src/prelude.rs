@@ -13,6 +13,7 @@ pub(crate) use crate::champions::*;
 pub(crate) use crate::chests::*;
 pub(crate) use crate::creatures::*;
 pub(crate) use crate::discs::*;
+pub(crate) use crate::ground::*;
 pub(crate) use crate::combat::*;
 pub(crate) use crate::config::*;
 pub(crate) use crate::defenses::*;

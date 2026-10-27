@@ -29,6 +29,16 @@ pub(super) fn fight_a_boss(def: &'static BossDef, army: usize, tier: u32, style:
     fight_a_hardened_boss(def, army, tier, style, upgrades, seed, 0)
 }
 
+//a fight on a difficulty as the late-run tables have it: the boss `tier` rounds on and the difficulty's rounds further, the enemies answering the
+//relics as the difficulty says, and the rules of the Insane ladder in play (see `play_on`). the boss is made for the army itself, as in the tables
+//the difficulties were tuned with, and there are no champions
+pub(super) fn fight_on(def: &'static BossDef, army: usize, tier: u32, difficulty: Difficulty, relics: &Upgrades, seed: u64) -> Fought {
+    play_on(difficulty);
+    let mut upgrades = relics.clone();
+    upgrades.foe_answer = difficulty.relic_answer();
+    fight_a_hardened_boss(def, army, tier, Style::Dodge, &upgrades, seed, difficulty.boss_rounds())
+}
+
 //the same with a boss `rounds` further on, as the difficulty makes it
 pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u32, style: Style, upgrades: &Upgrades, seed: u64, rounds: u32) -> Fought {
     rand::srand(seed);
@@ -134,7 +144,7 @@ pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u3
         }
         pulls.append(&mut fx.pulls);
         shoot_enemies(&mut enemies, &units, &mut shots, dt, &mut fx);
-        hazards.append(&mut fx.hazards);
+        lay_hazards(&mut hazards, &mut fx.hazards);
         let h0 = army_health(&units);
         update_shots(&mut shots, &mut units, &walls, dt, upgrades, &mut fx);
         let h1 = army_health(&units);
@@ -154,7 +164,8 @@ pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u3
             let burning: Vec<String> = hazards.iter().map(|h| format!("r{:.0} dmg{:.0} burn{:.0} linger{:.1} armed{}", h.radius, h.damage, h.burn, h.linger, h.armed)).collect();
             eprintln!("{seconds:>6.2}s lost health: shots {:.0}, hazards {:.0}, contact {:.0}; hazards {burning:?}", h0 - h1, h1 - h2, h2 - h3);
         }
-        hazards.append(&mut fx.hazards);
+        lay_hazards(&mut hazards, &mut fx.hazards);
+        enrage_enemies(&mut enemies);
         tick_enemy_numbers(&mut enemies, dt, &mut fx);
         bury_units(&mut units, &mut fx);
         fx = Effects::default();
@@ -183,6 +194,40 @@ fn the_boss_balance_table() {
                 let recalls = runs.iter().map(|run| run.recalls).sum::<usize>() as f32 / 2.0;
                 eprintln!("{index} {:<16} army {army:>5} {style:?}: won {wins}/2, {seconds:>5.1} s, lost {:>3.0}%, recalls {recalls:.0}", def.name, lost * 100.0);
             }
+        }
+    }
+}
+
+//the Insane ladder against Brutal (5.4 of the plan): each boss on each difficulty against the late run's army and relics (see
+//`the_boss_balance_of_a_late_run`), dodging, over two seeds: how often it is won, how long it takes and how much of the army is lost. LADDER_TIERS=0,1,5
+//picks the tiers (0 is Brutal), BOSS_ONLY the bosses, ARMY the army (default 10000) and TIER the round (default 4)
+#[test]
+#[ignore]
+fn the_insane_ladder_table() {
+    let tiers: Vec<u8> = std::env::var("LADDER_TIERS").ok().map_or(vec![0, 1, 3, 5, 8, 10], |text| text.split(',').filter_map(|part| part.trim().parse().ok()).collect());
+    let army: usize = std::env::var("ARMY").ok().and_then(|v| v.parse().ok()).unwrap_or(10_000);
+    let round: u32 = std::env::var("TIER").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
+    let relics = late_run_upgrades();
+    eprintln!("{army} units, {} relics, round {round}, dodging", relics.taken.len());
+    for (index, def) in BOSSES.iter().enumerate() {
+        if let Ok(only) = std::env::var("BOSS_ONLY") {
+            if !only.split(',').any(|part| part.trim().parse::<usize>() == Ok(index)) {
+                continue;
+            }
+        }
+        for &tier in &tiers {
+            let difficulty = if tier == 0 { Difficulty::Brutal } else { Difficulty::Insane(tier) };
+            let runs: Vec<Fought> = (0..2).map(|seed| fight_on(def, army, round, difficulty, &relics, 300 + seed)).collect();
+            eprintln!(
+                "{index} {:<16} {:<9} +{:>2} rounds, answer {:.2}: won {}/2, {:>5.1} s, lost {:>3.0}%",
+                def.name,
+                difficulty.name(),
+                difficulty.boss_rounds(),
+                difficulty.relic_answer(),
+                runs.iter().filter(|run| run.won).count(),
+                runs.iter().map(|run| run.seconds).sum::<f32>() / 2.0,
+                runs.iter().map(|run| run.lost as f32 / run.army as f32 * 100.0).sum::<f32>() / 2.0
+            );
         }
     }
 }

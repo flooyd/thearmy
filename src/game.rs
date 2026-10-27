@@ -56,7 +56,7 @@ pub(crate) fn world_stands_still(players: usize, modal: bool) -> bool {
 
 //how a run came to an end
 pub(crate) enum Ending {
-    Fallen(Run),      //the army is gone
+    Fallen(Run, Difficulty), //the army is gone, on the difficulty it was played on
     Reload(Snapshot), //the player went back to their quick save
     Title,            //the player left for the title screen, the run kept as the game's own save
     Left(String),     //a stay in the game of another is over, and why
@@ -166,6 +166,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
     let mut peril_now = 0.0; //how badly the army was doing at the end of the last frame
     let mut pause: Option<Pause> = None; //the menu, while it is up
     let mut played_for = 0.0; //seconds of the run so far, for a showcase's shot (see showcase.rs)
+    let mut opened = 0; //the tier of the Insane ladder slaying the Sovereign last opened, for the victory screen
     let mut hit_stop_from = 0.0; //the time a champion's crit can next hold the world still
     let mut ping: Option<(u32, f32)> = None; //a champion picked out from the roster (by its id), and how long ago
     let mut evolve_shown: (Option<(u32, usize)>, f32) = (None, 0.0); //the champion (by its id) waiting for the player to choose how it grows, at which level of evolution, and for how long it has waited
@@ -450,6 +451,15 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         };
         let player = sim.players.list[me].position;
         feedback.absorb(events, me, player);
+        let playing = report.difficulty; //what the run is played on: the host's, for a guest
+        //the Sovereign slain on Brutal or on a tier of the ladder opens the next tier, for whoever's world it is (a guest's game is the host's)
+        if report.citadel && guest.is_none() && open_ladder(playing.ladder_opens()) {
+            saves.save_ladder(ladder_open());
+            opened = ladder_open();
+            if !solo {
+                banners.push(format!("{} IS OPEN", Difficulty::Insane(opened).name().to_uppercase()), TROPHY);
+            }
+        }
         if report.save_soon {
             autosave_in = 0.0;
         }
@@ -582,7 +592,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         update_particles(&mut feedback.particles, dt);
 
         //what the run is worth now, and the best there has been (the best run kept, or this one if it is better already)
-        let score = score_of(&sim.run, settings.difficulty);
+        let score = score_of(&sim.run, playing);
         //(the enemies near the player at this keyboard are as fast as their army makes them)
         let enemy_boost = speed_multiplier(my_army);
         let ranges = sim.arrange();
@@ -609,7 +619,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         set_camera(&camera);
         let drawn = visible_area(shaken.x, shaken.y, drawn_zoom);
         let hovered = if over_map || paused || entrance { None } else { hovered_tile(player.x, player.y, zoom) };
-        draw_world(camera_at.x, camera_at.y, drawn_zoom, hovered);
+        draw_world(camera_at.x, camera_at.y, drawn_zoom, hovered, drawn, &camera);
         draw_floor(camera_at.x, camera_at.y, drawn_zoom, walls, get_time() as f32);
         draw_discs(Layer::Marks, &mark_discs(&feedback.ground, drawn), &camera);
         draw_sites(sites, view, get_time() as f32);
@@ -630,6 +640,12 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             draw_discs(Layer::Babies, &baby_discs(babies, drawn), &camera);
         } else {
             draw_creatures(&baby_figures(babies, drawn, get_time() as f32, drawn_zoom), &camera);
+        }
+        //(with Nightfall, on the Insane ladder, the world is dark away from the player: the warnings are drawn again over the dark, and the champions glow)
+        if playing.has(Mutator::Nightfall) {
+            draw_nightfall(camera_at, drawn_zoom, &camera);
+            draw_hazards(hazards, get_time() as f32, drawn_zoom);
+            draw_champion_glow(units, drawn, drawn_zoom, &camera);
         }
         draw_champions(units, enemies, drawn, drawn_zoom, &camera, settings.simple_shapes);
         if let Some((id, age)) = ping {
@@ -745,7 +761,9 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
                 }),
                 _ => guest.as_ref().map(|seat| joined_line(&seat.lobby.members)),
             };
-            menu.draw(settings, miniquad::date::now(), hosting.as_deref());
+            //(a guest's shows the host's difficulty, which theirs can't change)
+            let shown = if guest.is_some() { Settings { difficulty: playing, ..settings.clone() } } else { settings.clone() };
+            menu.draw(&shown, miniquad::date::now(), hosting.as_deref());
         }
         //the relic choice has the screen to itself
         if let (Some(banner), None, None, None, None) = (&banners.shown, &players.list[me].choice, &evolve_shown.0, &victory, &pause) {
@@ -760,13 +778,13 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             }
         }
         if let Some(age) = victory {
-            draw_victory(age, run, score);
+            draw_victory(age, run, score, opened);
         }
         if fallen_for > 0.0 {
             let fade = (fallen_for / FALL_SECONDS).min(1.0);
             draw_rectangle(0.0, 0.0, screen_width(), screen_height(), Color::new(0.0, 0.0, 0.0, 0.85 * fade));
             if fallen_for >= FALL_SECONDS {
-                return Ending::Fallen(run.clone());
+                return Ending::Fallen(run.clone(), playing);
             }
         }
         played_for += real_dt;

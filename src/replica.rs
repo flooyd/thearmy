@@ -124,6 +124,7 @@ pub(crate) struct Replica {
     pub(crate) boost: f32,
     pub(crate) pickup_range: f32,
     pub(crate) armies: Vec<usize>, //how many units each player has, in view or not
+    pub(crate) difficulty: Difficulty, //what the host plays on
     //what the player has asked of their avatar and where that puts it
     pub(crate) predicted: Vec2,
     history: VecDeque<(u32, Vec2)>,
@@ -148,6 +149,7 @@ impl Replica {
             boost: 1.0,
             pickup_range: BABY_PICKUP_RANGE,
             armies: Vec::new(),
+            difficulty: Difficulty::Normal,
             predicted: Vec2::ZERO,
             history: VecDeque::new(),
             events: Vec::new(),
@@ -181,6 +183,7 @@ impl Replica {
             return None;
         }
         let (seq, millis, ack, me, first) = (input.u32()?, input.u32()?, input.u32()?, input.u8()? as usize, input.flag()?);
+        let difficulty = Difficulty::from_byte(input.u8()?)?;
         //(they arrive in order, so one that is not the next is a host that has lost its place)
         //(a first one starts the world again, as a host does that when a new run begins)
         if !first && (!self.ready || seq != self.seq.wrapping_add(1)) {
@@ -201,6 +204,7 @@ impl Replica {
         }
         self.seq = seq;
         self.me = me;
+        self.difficulty = difficulty;
         self.acked = ack;
         self.latest = t;
         if first {

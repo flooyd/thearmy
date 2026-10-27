@@ -3,19 +3,115 @@
 //! saves and read again the next time the game starts
 
 use crate::prelude::*;
-use std::sync::atomic::AtomicBool;
+use std::cell::Cell;
+use std::sync::atomic::{AtomicBool, AtomicU8};
 
 //how much harder than normal the enemies are made: the wild ones are built for an army this many times as big as the player's,
-//the bosses are made rounds further on, and the harder ones make up for some of what the army's relics add to its damage
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+//the bosses are made rounds further on, and the harder ones make up for some of what the army's relics add to its damage. past Brutal is the
+//Insane ladder, 1 to INSANE_TIERS: each tier is harder in those ways again and adds a rule of its own to the ones below it (see Mutator), and each
+//is opened by slaying the Sovereign on the one before (see `ladder_opens`)
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(crate) enum Difficulty {
     Easy,
+    #[default]
     Normal,
     Hard,
     Brutal,
+    Insane(u8),
 }
 
-pub(crate) const DIFFICULTIES: [Difficulty; 4] = [Difficulty::Easy, Difficulty::Normal, Difficulty::Hard, Difficulty::Brutal];
+pub(crate) const DIFFICULTIES: [Difficulty; 4 + INSANE_TIERS as usize] = [
+    Difficulty::Easy,
+    Difficulty::Normal,
+    Difficulty::Hard,
+    Difficulty::Brutal,
+    Difficulty::Insane(1),
+    Difficulty::Insane(2),
+    Difficulty::Insane(3),
+    Difficulty::Insane(4),
+    Difficulty::Insane(5),
+    Difficulty::Insane(6),
+    Difficulty::Insane(7),
+    Difficulty::Insane(8),
+    Difficulty::Insane(9),
+    Difficulty::Insane(10),
+];
+
+const INSANE_NAMES: [&str; INSANE_TIERS as usize] = ["Insane 1", "Insane 2", "Insane 3", "Insane 4", "Insane 5", "Insane 6", "Insane 7", "Insane 8", "Insane 9", "Insane 10"];
+//the same as one word, for the files that are read a word at a time
+const INSANE_WORDS: [&str; INSANE_TIERS as usize] = ["Insane1", "Insane2", "Insane3", "Insane4", "Insane5", "Insane6", "Insane7", "Insane8", "Insane9", "Insane10"];
+
+//the rule each tier of the Insane ladder adds, in the order they come: Insane n has the first n of them
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Mutator {
+    Veterans,   //elites twice as common, every one with two affixes
+    FasterFate, //the bosses' warnings are shorter, and their attacks come more often
+    Crossfire,  //shooters fire half again as fast, and snipers and lancers come with the waves
+    Hunters,    //enemies go for the champions first, and hexers and executioners are in the wild
+    Wrath,      //a boss in its last phase casts two patterns at once, and an enemy under 30% of its health is enraged
+    Famine,     //a quarter fewer babies are dropped
+    Ruin,       //burning ground lasts twice as long, and mines are laid twice as often
+    Echo,       //every warning on the ground comes again, at half the size
+    Nightfall,  //the world is dark: the warnings and the champions glow
+    LastArmy,   //the Sovereign comes back stronger each time round, as if a tier higher
+}
+
+pub(crate) const MUTATORS: [Mutator; INSANE_TIERS as usize] =
+    [Mutator::Veterans, Mutator::FasterFate, Mutator::Crossfire, Mutator::Hunters, Mutator::Wrath, Mutator::Famine, Mutator::Ruin, Mutator::Echo, Mutator::Nightfall, Mutator::LastArmy];
+
+impl Mutator {
+    //the tier of the ladder that adds it
+    pub(crate) fn tier(self) -> u8 {
+        MUTATORS.iter().position(|&mutator| mutator == self).map_or(INSANE_TIERS, |at| at as u8 + 1)
+    }
+
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Mutator::Veterans => "Veterans",
+            Mutator::FasterFate => "Faster Fate",
+            Mutator::Crossfire => "Crossfire",
+            Mutator::Hunters => "Hunters",
+            Mutator::Wrath => "Wrath",
+            Mutator::Famine => "Famine",
+            Mutator::Ruin => "Ruin",
+            Mutator::Echo => "Echo",
+            Mutator::Nightfall => "Nightfall",
+            Mutator::LastArmy => "The Last Army",
+        }
+    }
+
+    //what it does, as the tier card says it
+    pub(crate) fn what(self) -> &'static str {
+        match self {
+            Mutator::Veterans => "elites come twice as often, each with two affixes",
+            Mutator::FasterFate => "boss warnings 12% shorter, its attacks a quarter sooner",
+            Mutator::Crossfire => "shooters fire 50% faster, snipers and lancers join the waves",
+            Mutator::Hunters => "enemies go for champions first, hexers and executioners roam",
+            Mutator::Wrath => "bosses cast two at once at the end, enemies enrage under 30%",
+            Mutator::Famine => "a quarter fewer babies are dropped",
+            Mutator::Ruin => "burning ground lasts twice as long, mines laid twice as often",
+            Mutator::Echo => "every warning on the ground comes again, half the size",
+            Mutator::Nightfall => "the world is dark, and the warnings and champions glow",
+            Mutator::LastArmy => "the Sovereign comes back a tier stronger each time it falls",
+        }
+    }
+
+    //what the menu says of the tier that adds it
+    pub(crate) fn blurb(self) -> &'static str {
+        match self {
+            Mutator::Veterans => "harder than Brutal, and Veterans: elites come twice as often, each with two affixes",
+            Mutator::FasterFate => "harder again, and Faster Fate: shorter boss warnings, and its attacks come sooner",
+            Mutator::Crossfire => "harder again, and Crossfire: shooters fire 50% faster, snipers and lancers join the waves",
+            Mutator::Hunters => "harder again, and Hunters: enemies go for champions first, hexers and executioners roam",
+            Mutator::Wrath => "harder again, and Wrath: bosses cast two at once at the end, enemies enrage under 30%",
+            Mutator::Famine => "harder again, and Famine: a quarter fewer babies",
+            Mutator::Ruin => "harder again, and Ruin: burning ground lasts twice as long, mines twice as often",
+            Mutator::Echo => "harder again, and Echo: every warning on the ground comes twice",
+            Mutator::Nightfall => "harder again, and Nightfall: the world is dark",
+            Mutator::LastArmy => "everything, and The Last Army: the Sovereign returns a tier stronger each time",
+        }
+    }
+}
 
 //what the ordinary units of an army are drawn as
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -53,7 +149,34 @@ impl Difficulty {
             Difficulty::Normal => "Normal",
             Difficulty::Hard => "Hard",
             Difficulty::Brutal => "Brutal",
+            Difficulty::Insane(_) => INSANE_NAMES[self.tier() as usize - 1],
         }
+    }
+
+    //the name as one word, for the files that are read a word at a time ("Insane3")
+    pub(crate) fn word(self) -> &'static str {
+        match self {
+            Difficulty::Insane(_) => INSANE_WORDS[self.tier() as usize - 1],
+            _ => self.name(),
+        }
+    }
+
+    //how far up the Insane ladder it is: 0 below it
+    pub(crate) fn tier(self) -> u8 {
+        match self {
+            Difficulty::Insane(tier) => tier.clamp(1, INSANE_TIERS),
+            _ => 0,
+        }
+    }
+
+    //whether a rule of the Insane ladder is in play: a tier has its own and every one below it
+    pub(crate) fn has(self, mutator: Mutator) -> bool {
+        self.tier() >= mutator.tier()
+    }
+
+    //the rules in play, in the order the tiers add them
+    pub(crate) fn mutators(self) -> Vec<Mutator> {
+        MUTATORS.into_iter().filter(|&mutator| self.has(mutator)).collect()
     }
 
     //the enemies are made for an army this many times the size of the player's
@@ -63,6 +186,7 @@ impl Difficulty {
             Difficulty::Normal => 1.0,
             Difficulty::Hard => 1.8,
             Difficulty::Brutal => 2.8,
+            Difficulty::Insane(_) => 2.8 + INSANE_PRESSURE * self.tier() as f32,
         }
     }
 
@@ -72,16 +196,18 @@ impl Difficulty {
             Difficulty::Easy | Difficulty::Normal => 0,
             Difficulty::Hard => 1,
             Difficulty::Brutal => 3,
+            Difficulty::Insane(_) => 3 + self.tier() as u32,
         }
     }
 
-    //the chance an elite has each of up to two more affixes besides its first (see Enemy::roll_affixes)
+    //the chance an elite has each of up to two more affixes besides its first (see Enemy::roll_affixes). on the ladder Veterans sees to it that
+    //every elite has two
     pub(crate) fn affix_chance(self) -> f32 {
         match self {
             Difficulty::Easy => 0.0,
             Difficulty::Normal => 0.35,
             Difficulty::Hard => 0.6,
-            Difficulty::Brutal => 0.85,
+            Difficulty::Brutal | Difficulty::Insane(_) => 0.85,
         }
     }
 
@@ -91,6 +217,7 @@ impl Difficulty {
             Difficulty::Easy | Difficulty::Normal => 0.0,
             Difficulty::Hard => 0.5,
             Difficulty::Brutal => 0.55,
+            Difficulty::Insane(_) => (0.55 + INSANE_RELIC_ANSWER * self.tier() as f32).min(INSANE_RELIC_ANSWER_MOST),
         }
     }
 
@@ -101,6 +228,7 @@ impl Difficulty {
             Difficulty::Normal => 1.0,
             Difficulty::Hard => 1.6,
             Difficulty::Brutal => 2.4,
+            Difficulty::Insane(_) => 2.4 + INSANE_SCORE * self.tier() as f32,
         }
     }
 
@@ -110,12 +238,72 @@ impl Difficulty {
             Difficulty::Normal => "as it was meant to be played",
             Difficulty::Hard => "enemies for an army 80% bigger, tougher bosses, damage relics count for less",
             Difficulty::Brutal => "enemies for an army 2.8x as big, much tougher bosses, damage relics count for far less",
+            Difficulty::Insane(_) => MUTATORS[self.tier() as usize - 1].blurb(),
         }
     }
 
-    pub(crate) fn from_name(name: &str) -> Option<Difficulty> {
-        DIFFICULTIES.into_iter().find(|difficulty| difficulty.name() == name)
+    //the tier of the ladder slaying the Sovereign on it opens: Insane 1 from Brutal, and the next from each tier. 0 for none
+    pub(crate) fn ladder_opens(self) -> u8 {
+        match self {
+            Difficulty::Brutal => 1,
+            Difficulty::Insane(_) => (self.tier() + 1).min(INSANE_TIERS),
+            _ => 0,
+        }
     }
+
+    //a difficulty by its name or its word ("Insane 3" or "Insane3")
+    pub(crate) fn from_name(name: &str) -> Option<Difficulty> {
+        DIFFICULTIES.into_iter().find(|difficulty| difficulty.name() == name || difficulty.word() == name)
+    }
+
+    //as a byte, for the wire: Easy 0 to Brutal 3, and Insane n is 3 + n
+    pub(crate) fn byte(self) -> u8 {
+        DIFFICULTIES.iter().position(|&difficulty| difficulty == self).unwrap_or(1) as u8
+    }
+
+    pub(crate) fn from_byte(byte: u8) -> Option<Difficulty> {
+        DIFFICULTIES.get(byte as usize).copied()
+    }
+
+    //the ones a player can choose with the ladder open up to `open` (a guest plays on the host's, which needs nothing open of theirs)
+    pub(crate) fn choices(open: u8) -> Vec<Difficulty> {
+        DIFFICULTIES.into_iter().filter(|difficulty| difficulty.tier() <= open).collect()
+    }
+
+    //the hardest of the choices that is no harder than this one, for a setting from a file that names a tier not yet open
+    pub(crate) fn within(self, open: u8) -> Difficulty {
+        if self.tier() <= open { self } else if open == 0 { Difficulty::Brutal } else { Difficulty::Insane(open) }
+    }
+}
+
+thread_local! {
+    //the difficulty the world being stepped on this thread is played on. Sim::step sets it, and the rules of the Insane ladder deep in the world (the
+    //spawning, the enemies, the bosses) ask it (`ruled_by`) rather than being handed it down. one for each thread, as each test is a world of its own;
+    //the work shared out over the cores (parallel.rs) asks none of them
+    static PLAYED_ON: Cell<Difficulty> = const { Cell::new(Difficulty::Normal) };
+}
+
+pub(crate) fn play_on(difficulty: Difficulty) {
+    PLAYED_ON.with(|played| played.set(difficulty));
+}
+
+//whether a rule of the Insane ladder is in play in the world being stepped
+pub(crate) fn ruled_by(mutator: Mutator) -> bool {
+    PLAYED_ON.with(|played| played.get()).has(mutator)
+}
+
+//how far up the Insane ladder this player has opened: 0 until they slay the Sovereign on Brutal (see `ladder_opens`). read from the file of it
+//(see `Saves::load_ladder`) when the game starts
+static LADDER_OPEN: AtomicU8 = AtomicU8::new(0);
+
+pub(crate) fn ladder_open() -> u8 {
+    LADDER_OPEN.load(Ordering::Relaxed)
+}
+
+//open the ladder up to a tier (it never shuts). returns whether that opened a tier that was shut
+pub(crate) fn open_ladder(tier: u8) -> bool {
+    let tier = tier.min(INSANE_TIERS);
+    LADDER_OPEN.fetch_max(tier, Ordering::Relaxed) < tier
 }
 
 //how many of the bolts the front of the army fires are flown and drawn: on Low fewer, each doing more, which is lighter on the computer. what they do
@@ -204,7 +392,7 @@ impl Settings {
             self.shake,
             if self.fullscreen { "yes" } else { "no" },
             if self.colourblind { "yes" } else { "no" },
-            self.difficulty.name(),
+            self.difficulty.word(),
             if self.hints { "yes" } else { "no" },
             self.formation.name(),
             self.unit_shape.name(),
@@ -240,7 +428,7 @@ impl Settings {
                 "fullscreen" => settings.fullscreen = yes().unwrap_or(settings.fullscreen),
                 "colourblind" => settings.colourblind = yes().unwrap_or(settings.colourblind),
                 "hints" => settings.hints = yes().unwrap_or(settings.hints),
-                "difficulty" => settings.difficulty = Difficulty::from_name(value).unwrap_or(settings.difficulty),
+                "difficulty" => settings.difficulty = Difficulty::from_name(line.split_once(char::is_whitespace).map_or("", |(_, rest)| rest.trim())).unwrap_or(settings.difficulty),
                 "formation" => settings.formation = Formation::from_name(value).unwrap_or(settings.formation),
                 "unit_shape" => settings.unit_shape = UnitShape::from_name(value).unwrap_or(settings.unit_shape),
                 "simple_shapes" => settings.simple_shapes = yes().unwrap_or(settings.simple_shapes),

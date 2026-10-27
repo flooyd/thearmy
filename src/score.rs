@@ -62,9 +62,15 @@ impl HighScores {
     pub(crate) fn to_text(&self) -> String {
         let mut text = String::new();
         for record in &self.records {
-            text.push_str(&format!("{} {} {} {} {:.0} {}\n", record.score, record.difficulty.name(), record.bosses, record.peak_army, record.seconds, record.citadels));
+            text.push_str(&format!("{} {} {} {} {:.0} {}\n", record.score, record.difficulty.word(), record.bosses, record.peak_army, record.seconds, record.citadels));
         }
         text
+    }
+
+    //how far up the Insane ladder the runs kept show was opened: a run in which the Sovereign fell opened the tier above the one it was played on
+    //(which counts the runs from before the ladder was kept)
+    pub(crate) fn ladder(&self) -> u8 {
+        self.records.iter().filter(|record| record.citadels > 0).map(|record| record.difficulty.ladder_opens()).max().unwrap_or(0)
     }
 
     //the runs read back. a line that isn't understood is left out, and the rest are put in order, so a file that was edited or damaged
@@ -97,6 +103,23 @@ impl Saves {
     //the best runs so far, none if there are none yet
     pub(crate) fn load_high_scores(&self) -> HighScores {
         std::fs::read_to_string(self.high_scores_path()).map(|text| HighScores::from_text(&text)).unwrap_or_default()
+    }
+
+    pub(crate) fn ladder_path(&self) -> std::path::PathBuf {
+        self.folder().join("ladder.txt")
+    }
+
+    //how far up the Insane ladder the player has opened ("insane 3"), 0 if there is no file of it yet
+    pub(crate) fn load_ladder(&self) -> u8 {
+        let text = std::fs::read_to_string(self.ladder_path()).unwrap_or_default();
+        text.lines().filter_map(|line| line.strip_prefix("insane ")).filter_map(|tier| tier.trim().parse::<u8>().ok()).map(|tier| tier.min(INSANE_TIERS)).max().unwrap_or(0)
+    }
+
+    pub(crate) fn save_ladder(&self, open: u8) {
+        let result = std::fs::create_dir_all(self.folder()).and_then(|()| std::fs::write(self.ladder_path(), format!("insane {open}\n")));
+        if let Err(error) = result {
+            eprintln!("could not keep how far the ladder is open in {}: {error}", self.ladder_path().display());
+        }
     }
 
     pub(crate) fn save_high_scores(&self, scores: &HighScores) {

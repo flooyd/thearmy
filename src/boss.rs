@@ -772,23 +772,42 @@ pub(crate) fn boss_act_among(enemies: &mut Vec<Enemy>, prey: &[Prey], dt: f32, s
             }
         }
         if let Some(k) = due {
-            let cast = &def.phases[state.phase].casts[k];
-            state.timers[k] = cast.every * 0.92f32.powi(state.tier as i32) * rand::gen_range(0.85, 1.15);
+            let casts = def.phases[state.phase].casts;
+            //(with Wrath, on the Insane ladder, a boss in its last phase casts the next of its other attacks with it)
+            let mut casting = vec![k];
+            if ruled_by(Mutator::Wrath) && state.phase + 1 == def.phases.len() {
+                let next = (0..casts.len()).filter(|&other| other != k).min_by(|&a, &b| state.timers[a].total_cmp(&state.timers[b]));
+                casting.extend(next);
+            }
+            //(and with Faster Fate it attacks more often, and its circles come sooner after one another)
+            let fate = if ruled_by(Mutator::FasterFate) { FATE_PACE } else { 1.0 };
+            for &k in &casting {
+                state.timers[k] = casts[k].every * 0.92f32.powi(state.tier as i32) * rand::gen_range(0.85, 1.15) * fate;
+            }
             //the others wait their turn, and after an attack that kills what it lands on the next one waits until the army has had
             //time to get back to the boss
-            let blast = is_blast(cast.pattern);
-            for (timer, other) in state.timers.iter_mut().zip(def.phases[state.phase].casts) {
-                *timer = timer.max(if blast && is_blast(other.pattern) { BOSS_BLAST_HOLD } else { 0.8 });
+            let blast = casting.iter().any(|&k| is_blast(casts[k].pattern));
+            for (timer, other) in state.timers.iter_mut().zip(casts) {
+                *timer = timer.max(if blast && is_blast(other.pattern) { BOSS_BLAST_HOLD * fate } else { 0.8 });
             }
             let (first_shot, first_hazard) = (shots.len(), fx.hazards.len());
-            cast_pattern(enemy, &mut state, cast.pattern, units, player, owned, &mut born, shots, fx);
+            for &k in &casting {
+                cast_pattern(enemy, &mut state, casts[k].pattern, units, player, owned, &mut born, shots, fx);
+            }
             //(what it fired, and what it put down that is not one of its kinds of attack, is put down to the boss)
             let cause = cause_of(def.name);
             for shot in &mut shots[first_shot..] {
                 shot.cause = cause;
             }
-            for hazard in fx.hazards[first_hazard..].iter_mut().filter(|hazard| hazard.cause == 0) {
-                hazard.cause = cause;
+            for hazard in fx.hazards[first_hazard..].iter_mut() {
+                if hazard.cause == 0 {
+                    hazard.cause = cause;
+                }
+                //(with Faster Fate its warnings are shorter)
+                if fate < 1.0 && !hazard.mine {
+                    hazard.warn *= FATE_WARN;
+                    hazard.warn_total = hazard.warn.max(0.001);
+                }
             }
         }
         enemy.boss = Some(state);

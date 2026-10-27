@@ -153,6 +153,7 @@ pub(crate) fn explain_in(act: Act, settings: &Settings, mode: MenuMode) -> &'sta
         Act::SimpleShapes => "enemies and bosses drawn as plain squares, as they were before they had pictures",
         Act::Bolts => settings.bolts.blurb(),
         Act::Hints => "tips at the start of a run",
+        Act::Difficulty if mode == MenuMode::Guest => "the host chooses the difficulty for everyone in the game",
         Act::Difficulty => settings.difficulty.blurb(),
         Act::Formation => settings.formation.blurb(),
         Act::ArmyLimit => "the most units the army can have, 5,000 to 50,000. a bigger army is harder on the computer",
@@ -185,8 +186,9 @@ pub(crate) fn nudge(settings: &mut Settings, act: Act, direction: i32, online: b
             settings.bolts = DENSITIES[(at + direction.signum()).rem_euclid(DENSITIES.len() as i32) as usize];
         }
         Act::Difficulty => {
-            let at = DIFFICULTIES.iter().position(|&difficulty| difficulty == settings.difficulty).unwrap_or(1) as i32;
-            settings.difficulty = DIFFICULTIES[(at + direction.signum()).rem_euclid(DIFFICULTIES.len() as i32) as usize];
+            let choices = Difficulty::choices(ladder_open());
+            let at = choices.iter().position(|&difficulty| difficulty == settings.difficulty).unwrap_or(1) as i32;
+            settings.difficulty = choices[(at + direction.signum()).rem_euclid(choices.len() as i32) as usize];
         }
         Act::Turn => turn_bestiary(direction.signum()),
         Act::Formation => {
@@ -423,7 +425,7 @@ impl Pause {
         //left and right change a row's value, enter or a click does what the row says
         let direction = input.right as i32 - input.left as i32;
         if direction != 0 {
-            return if nudge(settings, act, direction, self.online) { PauseEvent::Changed } else { PauseEvent::Nothing };
+            return if !self.locked(act) && nudge(settings, act, direction, self.online) { PauseEvent::Changed } else { PauseEvent::Nothing };
         }
         if !(input.enter || clicked.is_some()) {
             return PauseEvent::Nothing;
@@ -468,12 +470,18 @@ impl Pause {
             }
             Act::ResetArmyLimit => PauseEvent::Nothing,
             _ => {
-                if nudge(settings, act, 1, self.online) { PauseEvent::Changed } else { PauseEvent::Nothing }
+                if !self.locked(act) && nudge(settings, act, 1, self.online) { PauseEvent::Changed } else { PauseEvent::Nothing }
             }
         }
     }
 
-    //the menu over a darkened game. `now` is the time in seconds since 1970, `hosting` what to say of the game being hosted
+    //whether a row can't be changed here: the difficulty, for a guest, as the host chooses it for everyone
+    pub(crate) fn locked(&self, act: Act) -> bool {
+        act == Act::Difficulty && self.mode == MenuMode::Guest
+    }
+
+    //the menu over a darkened game. `now` is the time in seconds since 1970, `hosting` what to say of the game being hosted. a guest is shown the
+    //host's difficulty
     pub(crate) fn draw(&self, settings: &Settings, now: f64, hosting: Option<&str>) {
         //(the formation row shows the shape the army is in, which is not Free where there is no Free)
         let settings = &Settings { formation: settings.formation.in_game(self.online), ..settings.clone() };
@@ -517,7 +525,7 @@ impl Pause {
             let chosen = i == self.selected;
             let (label, face) = describe_in(act, settings, self.mode);
             let label = if self.confirm == Some(act) { "Press again to end it" } else { label };
-            let disabled = act == Act::Load && saved.is_none();
+            let disabled = (act == Act::Load && saved.is_none()) || self.locked(act);
             draw_rectangle(row.x, row.y, row.w, row.h, if chosen { Color::new(CYAN.r, CYAN.g, CYAN.b, 0.16) } else { Color::new(1.0, 1.0, 1.0, 0.03) });
             if chosen {
                 draw_rectangle(row.x, row.y, 4.0, row.h, CYAN);
@@ -542,10 +550,16 @@ impl Pause {
                 Look::Toggle(on) => {
                     draw_label_right(if on { "ON" } else { "OFF" }, row.x + row.w - 14.0, baseline, size, if on { CYAN } else { MUTED }, Face::Bold);
                 }
+                Look::Choice(value) if disabled => {
+                    draw_label_right(&value, row.x + row.w - 14.0, baseline, size, Color::new(MUTED.r, MUTED.g, MUTED.b, 0.6), Face::Bold);
+                }
                 Look::Choice(value) => {
                     draw_label_right(&format!("<  {value}  >"), row.x + row.w - 14.0, baseline, size, CYAN, Face::Bold);
                 }
             }
+        }
+        if acts.get(self.selected) == Some(&Act::Difficulty) {
+            draw_tier_card(settings.difficulty, ladder_open(), self.mode == MenuMode::Guest, p, screen);
         }
         let (note, tint) = match &self.notice {
             Some((text, color, _)) => (text.as_str(), *color),
@@ -554,6 +568,49 @@ impl Pause {
         let (note_up, keys_up) = if frame.tight { (26.0, 8.0) } else { (34.0, 12.0) };
         draw_label_centered(note, p.x + p.w / 2.0, p.y + p.h - note_up, 16.0, tint, Face::Body);
         draw_label_centered("up and down choose   left and right change   enter selects   esc goes back", p.x + p.w / 2.0, p.y + p.h - keys_up, 13.0, Color::new(MUTED.r, MUTED.g, MUTED.b, 0.6), Face::Body);
+    }
+}
+
+//the card beside the menu while the difficulty is chosen: on the Insane ladder, the rules in play, the one this tier adds picked out, and how the next
+//tier is opened; on Brutal, how the ladder is opened while it is shut. `open` is how far up the ladder is open, `guest` whether the host chose it. it goes
+//on the right of the menu (`beside`), or the left, and not at all on a screen too narrow for it
+fn draw_tier_card(difficulty: Difficulty, open: u8, guest: bool, beside: Rect, screen: Vec2) {
+    let tier = difficulty.tier();
+    let next = if guest || tier >= INSANE_TIERS || tier < open || (tier == 0 && (difficulty != Difficulty::Brutal || open > 0)) {
+        None
+    } else {
+        Some(format!("slay the Sovereign on {} to open Insane {}", difficulty.name(), tier + 1))
+    };
+    if tier == 0 && next.is_none() {
+        return;
+    }
+    let width = 380.0;
+    let x = if beside.x + beside.w + 16.0 + width <= screen.x - 8.0 {
+        beside.x + beside.w + 16.0
+    } else if beside.x - 16.0 - width >= 8.0 {
+        beside.x - 16.0 - width
+    } else {
+        return;
+    };
+    let mutators = difficulty.mutators();
+    let row = 38.0;
+    let height = 64.0 + row * mutators.len() as f32 + if next.is_some() { 34.0 } else { 0.0 };
+    let y = beside.y.min(screen.y - height - 8.0).max(8.0);
+    panel(x, y, width, height);
+    let title = if tier == 0 { "THE INSANE LADDER".to_owned() } else { difficulty.name().to_uppercase() };
+    draw_label(&title, x + 18.0, y + 34.0, 22.0, if tier == 0 { INK } else { ALERT }, Face::Header);
+    if tier > 0 {
+        draw_label_right("THE RULES IN PLAY", x + width - 18.0, y + 32.0, 12.0, MUTED, Face::Bold);
+    }
+    for (i, mutator) in mutators.iter().enumerate() {
+        let top = y + 50.0 + row * i as f32;
+        let newest = mutator.tier() == tier;
+        draw_label(mutator.name(), x + 18.0, top + 15.0, 16.0, if newest { CYAN } else { INK }, Face::Bold);
+        draw_label(mutator.what(), x + 18.0, top + 31.0, fit_size(mutator.what(), 13.0, width - 36.0, Face::Body), MUTED, Face::Body);
+    }
+    if let Some(next) = next {
+        let size = fit_size(&next, 14.0, width - 36.0, Face::Body);
+        draw_label(&next, x + 18.0, y + height - 16.0, size, TROPHY, Face::Body);
     }
 }
 

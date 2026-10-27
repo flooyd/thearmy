@@ -40,6 +40,7 @@ mod events;
 mod feedback;
 mod formation;
 mod game;
+mod ground;
 mod handshake;
 mod hordes;
 mod homescreens;mod hud;
@@ -126,6 +127,9 @@ async fn main() {
     //closing the window is the game's to deal with, so that it can save first
     prevent_quit();
     load_fonts();
+    //the Insane ladder is open as far as its file says, or as far as the best runs show it was opened, and the difficulty is one that is open
+    open_ladder(saves.load_ladder().max(saves.load_high_scores().ladder()));
+    settings.difficulty = settings.difficulty.within(ladder_open());
     settings.apply();
     //the programs the graphics card draws the creatures with are made now, behind an empty window, for a moment, and the rest a little in each frame of the title
     //screen (and any still left when a run starts), not in the middle of a game
@@ -140,12 +144,12 @@ async fn main() {
     let (mut link, mut start) = if showcase_asked() { (Link::Solo, Some(showcase_run())) } else { show_splash(&saves, &mut settings, &mut sounds, None).await.into_parts() };
     loop {
         match play(&mut sounds, &saves, &mut settings, start.take(), &mut link).await {
-            Ending::Fallen(run) => {
+            Ending::Fallen(run, difficulty) => {
                 //a run that is over can't be gone back to, only the quick save the player made themselves
                 saves.delete(Slot::Auto);
                 //the run goes on the list of the best, if it is good enough
                 let mut scores = saves.load_high_scores();
-                let record = Record::of(&run, settings.difficulty);
+                let record = Record::of(&run, difficulty);
                 let place = scores.add(record.clone());
                 if place.is_some() {
                     saves.save_high_scores(&scores);

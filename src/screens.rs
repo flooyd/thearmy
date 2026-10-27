@@ -434,7 +434,8 @@ pub(crate) fn draw_intro(intro: &Intro) {
 pub(crate) const VICTORY_LOCKOUT: f32 = 2.0; //seconds before a key press leaves the victory screen
 
 //the screen after the citadel falls: how the run went so far, and that it goes on. `age` is how many seconds it has been up
-pub(crate) fn draw_victory(age: f32, run: &Run, score: u64) {
+//`opened` is the tier of the Insane ladder this victory opened, 0 for none
+pub(crate) fn draw_victory(age: f32, run: &Run, score: u64, opened: u8) {
     let (w, h) = (screen_width(), screen_height());
     let fade = (age / 0.8).clamp(0.0, 1.0);
     draw_rectangle(0.0, 0.0, w, h, Color::new(0.0, 0.01, 0.03, 0.82 * fade));
@@ -443,6 +444,13 @@ pub(crate) fn draw_victory(age: f32, run: &Run, score: u64) {
     let sub = if run.citadels > 1 { format!("THE SOVEREIGN HAS FALLEN {} TIMES", run.citadels) } else { "THE SOVEREIGN HAS FALLEN".to_owned() };
     let sub_size = fit_size(&sub, (h * 0.045).round(), w * 0.9, Face::Bold);
     draw_label_centered(&sub, w / 2.0, h * 0.25 + title_size * 0.5, sub_size, Color::new(CYAN.r, CYAN.g, CYAN.b, fade), Face::Bold);
+    let mut top = h * 0.25 + title_size * 0.5 + sub_size;
+    if opened > 0 {
+        let line = format!("{} IS OPEN: CHOOSE IT IN THE SETTINGS", Difficulty::Insane(opened).name().to_uppercase());
+        let size = fit_size(&line, (h * 0.036).round(), w * 0.9, Face::Bold);
+        draw_label_centered(&line, w / 2.0, top + size * 1.2, size, Color::new(TROPHY.r, TROPHY.g, TROPHY.b, fade), Face::Bold);
+        top += size * 1.6;
+    }
     let rows = [
         ("score so far", grouped(score as usize)),
         ("enemies destroyed", grouped(run.destroyed)),
@@ -453,7 +461,7 @@ pub(crate) fn draw_victory(age: f32, run: &Run, score: u64) {
         ("units lost", grouped(run.lost)),
         ("time", clock(run.seconds)),
     ];
-    draw_stats(&rows, w / 2.0, h * 0.25 + title_size * 0.5 + sub_size, (h * 0.052).min(42.0), fade);
+    draw_stats(&rows, w / 2.0, top, (h * 0.052).min(42.0), fade);
     if age >= VICTORY_LOCKOUT {
         let pulse = 0.6 + 0.4 * (age * 3.0).sin();
         let line = format!("THE SOVEREIGN RETURNS IN {}, STRONGER - PRESS ANY KEY", clock(CITADEL_RESPAWN_SECONDS));

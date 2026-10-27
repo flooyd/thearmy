@@ -53,6 +53,7 @@ pub(crate) struct Frame<'a> {
     pub(crate) time: f32,
     pub(crate) boosts: &'a [f32],
     pub(crate) pickups: &'a [f32],
+    pub(crate) difficulty: Difficulty, //what the host plays on, which a guest draws the dark of Nightfall from and scores by
 }
 
 #[derive(Clone, Copy)]
@@ -149,6 +150,7 @@ impl Viewer {
         out.u32(ack);
         out.u8(self.player as u8);
         out.flag(first);
+        out.u8(frame.difficulty.byte());
         self.seq += 1;
 
         self.write_players(&mut out, frame);

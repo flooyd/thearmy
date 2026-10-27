@@ -1053,6 +1053,21 @@ pub(crate) fn champion_shape(kind: usize) -> Option<usize> {
     SHAPES.get_or_init(|| CHAMPIONS.iter().map(|champion| shape_named(&format!("Champion {}", champion.name))).collect()).get(kind).copied().flatten()
 }
 
+//with Nightfall (Insane 9), a glow round each champion in its colour, so they can be found in the dark: a few discs, fainter the further out
+pub(crate) fn draw_champion_glow(units: &[Unit], view: Rect, zoom: f32, camera: &Camera2D) {
+    let mut glows = Vec::new();
+    for unit in units.iter().filter(|unit| unit.champion != 0 && unit.garrison.is_none() && view.contains(Vec2::new(unit.x, unit.y))) {
+        let Some(kind) = unit.champion_kind() else {
+            continue;
+        };
+        let radius = unit.drawn_radius(zoom);
+        for (reach, alpha) in [(2.6, 0.06), (2.0, 0.1), (1.5, 0.16)] {
+            glows.push(Disc::new(unit.x, unit.y, radius * reach, Color::new(kind.color.r, kind.color.g, kind.color.b, alpha)));
+        }
+    }
+    draw_discs(Layer::Puffs, &glows, camera);
+}
+
 //what a champion is drawn as: its picture, at any zoom (it is drawn big enough to make out, see Unit::drawn_radius), unless its kind has none yet or the
 //setting Simple shapes is on, when it is its polygon
 pub(crate) fn champion_art(unit: &Unit, simple: bool) -> Option<usize> {
