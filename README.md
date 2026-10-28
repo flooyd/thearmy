@@ -1,7 +1,7 @@
 # The Army
 
 A top-down game about a growing army, alone or with up to three others over the internet. You are one little runner at the centre of a few thousand of them, and the world is a
-1000 x 1000 tile meadow full of things that want to stop you: nests, raiding hordes, and eight bosses (the last one, the Sovereign,
+1000 x 1000 tile meadow, broken up by ice, lava and swamp, full of things that want to stop you: nests, raiding hordes, and eight bosses (the last one, the Sovereign,
 comes back after you fell it). Pick up the babies that enemies drop, grow the army to the thousands, point it at whatever is
 in the way, and wall in whatever you can't fight.
 
@@ -12,7 +12,7 @@ are the fonts.
 
 ## What you do
 
-- **Grow.** Enemies drop babies (little toddlers that wait to be picked up), villages are freed into more army, and barracks you take send recruits and sometimes a champion.
+- **Grow.** Enemies drop babies (little toddlers that wave and run to you when you come near), villages are freed into more army, and barracks you take send recruits and sometimes a champion.
   The army fights on its own around you. Walk where you want it to be.
 - **Send squads.** Click an enemy to send part of the army at it, sized to what it takes to win. `R` recalls them. Three
   formations (`F`) change how the rest of the army follows you: a ring with you safe in the middle (the usual one), a wedge, or a line.
@@ -48,7 +48,7 @@ are the fonts.
   Past a couple of thousand at the front, each bolt hits lighter, so big enemies still reach a huge army.
 - **Build.** Earn wall points by destroying enemies, then spend them on walls, gates, towers you can man, spikes and tar.
   Enemies path around what you build, and walls decide where a fight happens.
-- **Pick relics.** Whetstone, Iron Resolve, Magnet, Quarry, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter in a burst of frost), Volley Drill, Chain Shot, Tracer Rounds and many more stack across the run.
+- **Pick relics.** Whetstone, Iron Resolve, Muster, Bloodlust, Aegis, Freezing (frozen enemies shatter in a burst of frost), Venom, Kindling (fire that spreads), Mire (a slow), Static (shocks that make champions hit harder), Volley Drill, Chain Shot, Tracer Rounds and many more stack across the run. The elemental ones set off reactions together: fire and frost make steam, fire and shock an overload, fire and poison plague fire.
 - **Combos.** Chain kills for a MASSACRE, then a RAMPAGE, and watch the numbers climb.
 - **Climb the Insane ladder.** Past Brutal are ten Insane tiers. Slaying the Sovereign on Brutal opens Insane 1, and slaying it on
   each tier opens the next. Every tier is harder again and adds a rule to the ones below it: Veterans (elites twice as common,
@@ -60,12 +60,16 @@ are the fonts.
 
 The game is built for a lot of units: 15,000 by default (the settings take it anywhere from 5,000 to 50,000), drawn as instanced ships (small darts that point the way they are going, drawn in the shader, with plain
 circles as a setting) with the army's work shared over all your processor cores. It runs at your display's refresh rate (it was developed on a 120 Hz screen).
-The ground is a meadow drawn by a shader: blades of grass at every zoom, bending as gusts of wind roll across it.
+The ground is a meadow drawn by a shader: blades of grass at every zoom, bending as gusts of wind roll across it. Patches of other ground
+break it up, and each one changes the fight. On ice the army slides and enemies are chilled until they freeze. Lava burns units and sets
+enemies alight, so lure them across it and keep the army off it. In a swamp everyone wades at a crawl. The minimap shows where they are.
 
 You are a stick figure that runs: facing you going down, showing its back going up, in profile going across. Zoomed far out, you,
 the ships and the champions stop shrinking past a point, so the army is easy to see at any zoom.
 
 ![The army and every champion in the starting house, on the meadow](docs/screenshots/meadow.jpg)
+
+![Ice, lava and swamp round the army, and on the minimap](docs/screenshots/biomes.jpg)
 
 | | |
 |---|---|

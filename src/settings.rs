@@ -196,7 +196,7 @@ impl Difficulty {
             Difficulty::Easy | Difficulty::Normal => 0,
             Difficulty::Hard => 1,
             Difficulty::Brutal => 3,
-            Difficulty::Insane(_) => 3 + self.tier() as u32,
+            Difficulty::Insane(_) => 3 + self.tier().div_ceil(INSANE_ROUNDS_EVERY) as u32,
         }
     }
 

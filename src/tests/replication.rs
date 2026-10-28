@@ -218,6 +218,9 @@ fn the_first_message_gives_a_watcher_the_world_as_the_host_has_it_in_view() {
     other.hear(&host.tick(1));
     assert_eq!(other.replica.me, 1);
     assert_mirrors(&host, 1, &other);
+    //the ice, lava and swamp are not sent: a guest lays them from the sites, as the host did
+    assert!(!host.sim.patches.is_empty());
+    assert_eq!(watcher.sim.patches, host.sim.patches);
 }
 
 #[test]

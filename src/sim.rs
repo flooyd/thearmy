@@ -66,6 +66,7 @@ pub(crate) struct Sim {
     pub(crate) babies: Vec<Baby>,
     pub(crate) walls: Walls,
     pub(crate) sites: Vec<Site>,
+    pub(crate) patches: Vec<Patch>, //the ice, lava and swamp, laid out from the sites (see biomes.rs)
     pub(crate) enemies: Vec<Enemy>,
     pub(crate) shots: Vec<Shot>,
     pub(crate) hazards: Vec<Hazard>,
@@ -100,7 +101,8 @@ impl Sim {
         }
         players.apply_settings(rules.army_limit, rules.difficulty.relic_answer());
         let count = players.len();
-        let mut sim = Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots: Vec::new(), hazards: Vec::new(), pulls: Vec::new(), bolts: Vec::new(), fx: Effects::default(), walls_dirty: false };
+        let patches = lay_patches(&sites);
+        let mut sim = Sim { players, run, director, hordes, units, babies, walls, sites, patches, enemies, shots: Vec::new(), hazards: Vec::new(), pulls: Vec::new(), bolts: Vec::new(), fx: Effects::default(), walls_dirty: false };
         for player in 1..count {
             sim.hold(player);
         }
@@ -110,7 +112,7 @@ impl Sim {
     //a world with nothing in it, to be filled in from what a host says of its own (see `Replica`): it is only ever looked at, never stepped
     pub(crate) fn mirror() -> Sim {
         let run = Run { destroyed: 0, lost: 0, peak_army: 0, bosses: 0, nests: 0, villages: 0, seconds: 0.0, citadels: 0, killers: Vec::new() };
-        Sim { players: Players { list: Vec::new() }, run, director: Director::new(), hordes: Hordes::new(), units: Vec::new(), babies: Vec::new(), walls: Walls::default(), sites: Vec::new(), enemies: Vec::new(), shots: Vec::new(), hazards: Vec::new(), pulls: Vec::new(), bolts: Vec::new(), fx: Effects::default(), walls_dirty: false }
+        Sim { players: Players { list: Vec::new() }, run, director: Director::new(), hordes: Hordes::new(), units: Vec::new(), babies: Vec::new(), walls: Walls::default(), sites: Vec::new(), patches: Vec::new(), enemies: Vec::new(), shots: Vec::new(), hazards: Vec::new(), pulls: Vec::new(), bolts: Vec::new(), fx: Effects::default(), walls_dirty: false }
     }
 
     //a player joins the world as it is being played: at the starting house, with the few units a run starts with. returns where they are in the list of
@@ -224,7 +226,7 @@ impl Sim {
     //believed as far as it could have been asked for (see `PlayerInput::tidy`), and not at all for a player who is choosing a relic, who can do
     //nothing else until they have
     pub(crate) fn step(&mut self, inputs: Vec<PlayerInput>, pace: Pace, rules: Rules) -> Step {
-        let Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots, hazards, pulls, bolts, fx, walls_dirty } = self;
+        let Sim { players, run, director, hordes, units, babies, walls, sites, patches, enemies, shots, hazards, pulls, bolts, fx, walls_dirty } = self;
         let Pace { real_dt, dt, player_dt, stands_still } = pace;
         play_on(rules.difficulty);
         players.apply_settings(rules.army_limit, rules.difficulty.relic_answer());
@@ -316,8 +318,9 @@ impl Sim {
             let place: Vec<(i32, i32)> = input.place.iter().copied().filter(|&tile| input.reaches(at[i], tile)).collect();
             let delete: Vec<(i32, i32)> = input.delete.iter().copied().filter(|&tile| input.reaches(at[i], tile)).collect();
             let player = &mut players.list[i];
-            walls_changed |= edit_walls(&mut player.mason, walls, units, babies, at[i], select, &place, &delete, dt, armies.size(i), &player.upgrades, fx);
-            player.walk(input.direction, PLAYER_SPEED * armies.boosts[i], player_dt, walls);
+            walls_changed |= edit_walls(&mut player.mason, walls, units, babies, at[i], select, &place, &delete, dt, armies.size(i), fx);
+            let pace = ground_pace(patches, player.position);
+            player.walk(input.direction, PLAYER_SPEED * armies.boosts[i] * pace, player_dt, walls);
         }
         //a gravity well drags the army, and the players less
         let mut positions = players.positions();
@@ -405,11 +408,15 @@ impl Sim {
             other.foes.update(other.position, walls, walls_changed, foe_budget);
         }
         //squads follow their enemies, the armies walk and the champions in them give their auras to the units near
+        //(and the ground under them has its say: see biomes.rs)
+        let footing = footing_of(units, patches, &players.positions());
         step_armies(players, &armies, units, enemies, walls, walls_changed, dt, fx);
+        ground_the_army(units, &footing, &*players, dt);
 
         //the fighting: enemies walk, run at the player, dash, heal, summon or shoot, bosses wind up their attacks, the shots fly and the hazards
         //go off, everything touching an enemy hurts and is hurt, and whatever has run out of health is gone
         terrain_effects(enemies, walls, dt, fx);
+        ground_effects_on_enemies(enemies, patches, dt);
         champion_acts(units, enemies, babies, &armies.perked, dt, fx);
         //(the champions' volleys go into flight, and the bolts fly, before the fighting counts what has been destroyed)
         for (volley, hurt) in &fx.volleys {

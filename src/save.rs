@@ -303,7 +303,7 @@ stored_words!(WallKind { Wall, Gate, Tower, Spikes, Tar, Barrier });
 stored_words!(Side { Friendly, Hostile });
 stored_words!(SiteState { Dormant, Awake, Cleared });
 //a relic is kept as its name. a save from when there was a Barracks relic still has it: it is a Freezing where it was one of three on
-//offer (see `Upgrades`, where the ones taken drop it)
+//offer (see `Upgrades`, where the ones taken drop it). the weak ones taken out later come back as the ones that took their places (see `relic_named`)
 impl Stored for Relic {
     fn store(&self, w: &mut SaveWriter) {
         w.word(&format!("{self:?}"));
@@ -315,8 +315,16 @@ impl Stored for Relic {
     }
 }
 
+//a relic by its name, or by the name of one that has been taken out of the game, the one that took its place: Magnet, Masonry, Quarry and Archers
+//(babies from further, tougher walls, more wall points, harder towers) were the weakest, and made way for the elemental four
 fn relic_named(word: &str) -> Option<Relic> {
-    RELICS.iter().copied().find(|relic| format!("{relic:?}") == word)
+    RELICS.iter().copied().find(|relic| format!("{relic:?}") == word).or(match word {
+        "Magnet" => Some(Relic::Mire),
+        "Masonry" => Some(Relic::Static),
+        "Quarry" => Some(Relic::Venom),
+        "Archers" => Some(Relic::Kindling),
+        _ => None,
+    })
 }
 
 impl Stored for Mode {

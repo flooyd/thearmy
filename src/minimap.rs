@@ -101,11 +101,13 @@ pub(crate) fn draw_minimap(
     walls: &Walls,
     hazards: &[Hazard],
     sites: &[Site],
+    patches: &[Patch],
     team: Option<&Team>,
     time: f32,
 ) {
     let rect = map.rect;
     draw_rectangle(rect.x, rect.y, rect.w, rect.h, Color::new(0.0, 0.0, 0.0, 0.75));
+    draw_patch_marks(map, patches);
     //a dot is drawn only if all of it is on the map
     let on_map = |point: Vec2, margin: f32| point.x >= rect.x + margin && point.x <= rect.right() - margin && point.y >= rect.y + margin && point.y <= rect.bottom() - margin;
 

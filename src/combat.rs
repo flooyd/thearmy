@@ -96,6 +96,23 @@ pub(crate) fn fight<R: Relics + ?Sized>(enemies: &mut Vec<Enemy>, units: &mut [U
             fx.burst(enemy.position, ICE, 8, 160.0);
             fx.cue_at(Cue::Frost, enemy.position);
         }
+        //the elemental relics: blows that poison (building up to what the relics allow), bog down, and now and then set alight (for a share of what the
+        //army is doing to it) and shock. the fire and the shock are a chance a second, as the freeze is, so what they set off together goes off now and then
+        //rather than every frame
+        if !touching.is_empty() {
+            if leading.venom > enemy.status.poison {
+                poison(enemy, (VENOM_RATE * dt).min(leading.venom - enemy.status.poison));
+            }
+            bog(enemy, leading.mire, MIRE_SECONDS);
+            if leading.kindling > 0.0 && enemy.status.burning <= 0.0 && dt > 0.0 && rand::gen_range(0.0, 1.0) < in_a_frame(leading.kindling, dt) {
+                ignite(enemy, KINDLING_SECONDS, damage / dt * KINDLING_SHARE);
+                fx.burst(enemy.position, Color::new(1.0, 0.5, 0.1, 1.0), 6, 140.0);
+            }
+            if leading.charge > 0.0 && enemy.status.shocked <= 0.0 && rand::gen_range(0.0, 1.0) < in_a_frame(leading.charge, dt) {
+                shock(enemy, STATIC_SECONDS);
+                fx.burst(enemy.position, Color::new(0.7, 0.62, 1.0, 1.0), 5, 180.0);
+            }
+        }
         if enemy.behavior == Behavior::Bomber && enemy.mode == Mode::Roam && !touching.is_empty() {
             enemy.mode = Mode::Fuse { left: BOMB_FUSE };
             enemy.flash = 0.0;

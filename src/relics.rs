@@ -43,11 +43,11 @@ pub(crate) enum Relic {
     IronResolve,  //every unit takes less damage
     Regeneration, //hurt units heal faster
     FleetFeet,    //the player and the army move faster
-    Magnet,       //babies are picked up from further away
+    Venom,        //the army's blows poison what they hit
     Bounty,       //enemies drop more babies
-    Masonry,      //walls are built tougher
-    Quarry,       //enemies are worth more wall points
-    Archers,      //towers shoot harder
+    Kindling,     //enemies being fought catch fire now and then, and the fire spreads
+    Mire,         //enemies being fought are bogged down
+    Static,       //enemies being fought are shocked now and then, so a champion's next hit does more
     Thorns,       //an enemy takes back some of what it does to the units
     Bloodlust,    //every unit heals a little for each enemy destroyed
     Aegis,        //every unit has a shield that takes the first hits, and comes back when it is left alone
@@ -68,11 +68,11 @@ pub(crate) const RELICS: [Relic; 22] = [
     Relic::IronResolve,
     Relic::Regeneration,
     Relic::FleetFeet,
-    Relic::Magnet,
+    Relic::Venom,
     Relic::Bounty,
-    Relic::Masonry,
-    Relic::Quarry,
-    Relic::Archers,
+    Relic::Kindling,
+    Relic::Mire,
+    Relic::Static,
     Relic::Thorns,
     Relic::Bloodlust,
     Relic::Aegis,
@@ -95,11 +95,11 @@ impl Relic {
             Relic::IronResolve => "Iron Resolve",
             Relic::Regeneration => "Regeneration",
             Relic::FleetFeet => "Fleet Feet",
-            Relic::Magnet => "Magnet",
+            Relic::Venom => "Venom",
             Relic::Bounty => "Bounty",
-            Relic::Masonry => "Masonry",
-            Relic::Quarry => "Quarry",
-            Relic::Archers => "Archers",
+            Relic::Kindling => "Kindling",
+            Relic::Mire => "Mire",
+            Relic::Static => "Static",
             Relic::Thorns => "Thorns",
             Relic::Bloodlust => "Bloodlust",
             Relic::Aegis => "Aegis",
@@ -122,11 +122,11 @@ impl Relic {
             Relic::IronResolve => "units take 20% less damage",
             Relic::Regeneration => "hurt units heal twice as fast",
             Relic::FleetFeet => "you and the army move 12% faster",
-            Relic::Magnet => "babies are picked up from 50% further",
+            Relic::Venom => "units' blows poison: 4 more stacks on what they fight, cruellest to big enemies",
             Relic::Bounty => "enemies drop 40% more babies",
-            Relic::Masonry => "walls are built with 30% more health",
-            Relic::Quarry => "enemies are worth 50% more wall points",
-            Relic::Archers => "units in towers shoot 40% harder",
+            Relic::Kindling => "30% a second to set an enemy being fought alight. The fire spreads",
+            Relic::Mire => "enemies being fought move 20% slower for 2 seconds",
+            Relic::Static => "35% a second to shock what the army fights: champions hit it 50% harder",
             Relic::Thorns => "an enemy takes back 20% of the damage it does to your units",
             Relic::Bloodlust => "every unit heals 1.5 for each enemy destroyed",
             Relic::Aegis => "every unit has a 30 point shield that comes back after 10 quiet seconds",
@@ -150,11 +150,11 @@ impl Relic {
             Relic::IronResolve => "IR",
             Relic::Regeneration => "Rg",
             Relic::FleetFeet => "FF",
-            Relic::Magnet => "Mg",
+            Relic::Venom => "Ve",
             Relic::Bounty => "Bo",
-            Relic::Masonry => "Ms",
-            Relic::Quarry => "Qu",
-            Relic::Archers => "Ar",
+            Relic::Kindling => "Ki",
+            Relic::Mire => "Mi",
+            Relic::Static => "St",
             Relic::Thorns => "Th",
             Relic::Bloodlust => "Bl",
             Relic::Aegis => "Ae",
@@ -177,11 +177,11 @@ impl Relic {
             Relic::IronResolve => Color::new(0.6, 0.75, 1.0, 1.0),
             Relic::Regeneration => Color::new(0.5, 1.0, 0.6, 1.0),
             Relic::FleetFeet => Color::new(1.0, 1.0, 0.5, 1.0),
-            Relic::Magnet => Color::new(0.8, 0.5, 1.0, 1.0),
+            Relic::Venom => Color::new(0.55, 0.95, 0.3, 1.0),
             Relic::Bounty => Color::new(1.0, 0.85, 0.2, 1.0),
-            Relic::Masonry => Color::new(0.75, 0.7, 0.62, 1.0),
-            Relic::Quarry => Color::new(0.7, 0.55, 0.4, 1.0),
-            Relic::Archers => Color::new(0.55, 0.9, 0.5, 1.0),
+            Relic::Kindling => Color::new(1.0, 0.45, 0.12, 1.0),
+            Relic::Mire => Color::new(0.55, 0.68, 0.42, 1.0),
+            Relic::Static => Color::new(0.65, 0.58, 1.0, 1.0),
             Relic::Thorns => Color::new(0.4, 0.85, 0.35, 1.0),
             Relic::Bloodlust => Color::new(0.95, 0.25, 0.3, 1.0),
             Relic::Aegis => Color::new(0.4, 0.85, 1.0, 1.0),
@@ -200,8 +200,8 @@ impl Relic {
 
     pub(crate) fn rarity(self) -> Rarity {
         match self {
-            Relic::Whetstone | Relic::IronResolve | Relic::Regeneration | Relic::Magnet | Relic::Masonry | Relic::Quarry | Relic::VolleyDrill | Relic::TracerRounds => Rarity::Common,
-            Relic::FleetFeet | Relic::Bounty | Relic::Archers | Relic::Thorns | Relic::Bloodlust | Relic::Aegis | Relic::Muster | Relic::Freezing | Relic::Tailwind | Relic::ChainShot => Rarity::Uncommon,
+            Relic::Whetstone | Relic::IronResolve | Relic::Regeneration | Relic::Mire | Relic::Static | Relic::VolleyDrill | Relic::TracerRounds => Rarity::Common,
+            Relic::FleetFeet | Relic::Bounty | Relic::Venom | Relic::Kindling | Relic::Thorns | Relic::Bloodlust | Relic::Aegis | Relic::Muster | Relic::Freezing | Relic::Tailwind | Relic::ChainShot => Rarity::Uncommon,
             Relic::OpeningSalvo | Relic::Martyr | Relic::GlassCannon | Relic::Overclock => Rarity::Rare,
         }
     }
@@ -216,15 +216,16 @@ pub(crate) struct Upgrades {
     pub(crate) speed: f32,     //of the speed of the player and the army
     pub(crate) pickup: f32,    //of how far away babies are picked up from
     pub(crate) bounty: f32,    //of the babies enemies drop
-    pub(crate) masonry: f32,   //of the health walls are built with
-    pub(crate) archery: f32,   //of the damage towers do
-    pub(crate) quarry: f32,    //of the wall points enemies are worth
     pub(crate) thorns: f32,    //share of the damage an enemy does to units that it takes itself
     pub(crate) bloodlust: f32, //health every unit gets for each enemy destroyed
     pub(crate) guard: f32,     //points of shield every unit has
     pub(crate) salvo: f32,     //shockwaves' strength when a fight begins, 0 for none
     pub(crate) martyr: f32,    //of the damage a unit does to the enemy it dies in
     pub(crate) freeze: f32,   //chance a second, for an enemy being fought, of freezing solid
+    pub(crate) venom: f32,    //stacks of poison the army's blows build up on an enemy, 0 for none
+    pub(crate) kindling: f32, //chance a second, for an enemy being fought, of catching fire
+    pub(crate) mire: f32,     //share of its speed an enemy being fought keeps, 1 for all of it
+    pub(crate) charge: f32,   //chance a second, for an enemy being fought, of being shocked
     pub(crate) army_limit: usize, //the most units the army can have. not a relic: it is the player's setting, which the game copies in
     pub(crate) foe_answer: f32,    //the power of `damage` that the enemies make up for, from the difficulty chosen (the game copies it in too): 0 for none
     pub(crate) extra_boost: f32,   //the most the army's size can speed everyone up is this many times normal higher than MAX_SPEED_MULTIPLIER
@@ -236,7 +237,7 @@ pub(crate) struct Upgrades {
 
 impl Default for Upgrades {
     fn default() -> Upgrades {
-        Upgrades { damage: 1.0, toughness: 1.0, healing: 1.0, speed: 1.0, pickup: 1.0, bounty: 1.0, masonry: 1.0, archery: 1.0, quarry: 1.0, thorns: 0.0, bloodlust: 0.0, guard: 0.0, salvo: 0.0, martyr: 0.0, freeze: 0.0, army_limit: DEFAULT_ARMY_LIMIT, foe_answer: 0.0, extra_boost: 0.0, gunnery: 1.0, pierce: 0, sight: 1.0, taken: Vec::new() }
+        Upgrades { damage: 1.0, toughness: 1.0, healing: 1.0, speed: 1.0, pickup: 1.0, bounty: 1.0, thorns: 0.0, bloodlust: 0.0, guard: 0.0, salvo: 0.0, martyr: 0.0, freeze: 0.0, venom: 0.0, kindling: 0.0, mire: 1.0, charge: 0.0, army_limit: DEFAULT_ARMY_LIMIT, foe_answer: 0.0, extra_boost: 0.0, gunnery: 1.0, pierce: 0, sight: 1.0, taken: Vec::new() }
     }
 }
 
@@ -247,11 +248,11 @@ impl Upgrades {
             Relic::IronResolve => self.toughness *= 0.8,
             Relic::Regeneration => self.healing *= 2.0,
             Relic::FleetFeet => self.speed *= 1.12,
-            Relic::Magnet => self.pickup *= 1.5,
+            Relic::Venom => self.venom = (self.venom + VENOM_STACKS).min(POISON_MOST),
             Relic::Bounty => self.bounty *= 1.4,
-            Relic::Masonry => self.masonry *= 1.3,
-            Relic::Quarry => self.quarry *= 1.5,
-            Relic::Archers => self.archery *= 1.4,
+            Relic::Kindling => self.kindling = (self.kindling + KINDLING_CHANCE).min(MOST_KINDLING_CHANCE),
+            Relic::Mire => self.mire = (self.mire * MIRE_KEPT).max(MIRE_MOST),
+            Relic::Static => self.charge = (self.charge + STATIC_CHANCE).min(MOST_STATIC_CHANCE),
             Relic::Thorns => self.thorns += 0.2,
             Relic::Bloodlust => self.bloodlust += 1.5,
             Relic::Aegis => self.guard += 30.0,
@@ -314,8 +315,13 @@ impl Upgrades {
 
     //the chance that an enemy being fought freezes in a frame of `dt` seconds, from the chance a second of freezing
     pub(crate) fn freeze_chance(&self, dt: f32) -> f32 {
-        1.0 - (1.0 - self.freeze).powf(dt)
+        in_a_frame(self.freeze, dt)
     }
+}
+
+//the chance of something in a frame of `dt` seconds that has this chance a second
+pub(crate) fn in_a_frame(chance: f32, dt: f32) -> f32 {
+    1.0 - (1.0 - chance.clamp(0.0, 1.0)).powf(dt.max(0.0))
 }
 
 //whose relics count for a unit. everything that hurts or helps units asks for the relics of the unit's owner: with one set of

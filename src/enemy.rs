@@ -1107,7 +1107,7 @@ pub(crate) fn marks_of(enemy: &Enemy) -> Vec<(&'static str, Color)> {
     } else if enemy.status.chill >= CHILL_FULL * CHILL_SEEN {
         marks.push(("Chilled", Color::new(ICE.r, ICE.g, ICE.b, (enemy.status.chill / CHILL_FULL).clamp(0.3, 1.0))));
     }
-    if enemy.status.slow < SLOW_SEEN && enemy.status.frozen <= 0.0 {
+    if enemy.status.slow.min(enemy.status.mire) < SLOW_SEEN && enemy.status.frozen <= 0.0 {
         marks.push(("Slowed", Color::new(0.6, 0.7, 0.85, 1.0)));
     }
     if enemy.status.burning > 0.0 {

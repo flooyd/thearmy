@@ -522,7 +522,8 @@ pub(crate) struct Picker {
 }
 
 //babies grow into units of the army of the nearest player they are within range of (and whose army has room), once they have been
-//there a moment. a baby that no one can take, because it is out of reach or the armies in reach are full, waits, and one that has waited
+//there a moment. a baby that no one can take yet, but that a player with room has come within BABY_CALL_REACH times their reach of, runs to
+//them. one that no one can take, because it is out of reach or the armies in reach are full, waits, and one that has waited
 //BABY_LIFE seconds is gone. the new units are put at the end of the list, so the units are out of order of owner until they are
 //sorted again (see `sort_by_owner`)
 pub(crate) fn grow_babies_among(babies: &mut Vec<Baby>, units: &mut Vec<Unit>, pickers: &mut [Picker], dt: f32, fx: &mut Effects) {
@@ -541,6 +542,14 @@ pub(crate) fn grow_babies_among(babies: &mut Vec<Baby>, units: &mut Vec<Unit>, p
             .min_by(|a, b| baby.position.distance_squared(a.1.position).total_cmp(&baby.position.distance_squared(b.1.position)))
             .map(|(i, _)| i);
         let Some(owner) = taker else {
+            let caller = pickers
+                .iter()
+                .filter(|picker| picker.army < picker.cap && baby.position.distance(picker.position) <= picker.range * BABY_CALL_REACH)
+                .min_by(|a, b| baby.position.distance_squared(a.position).total_cmp(&baby.position.distance_squared(b.position)));
+            if let Some(caller) = caller {
+                let to = caller.position - baby.position;
+                baby.position += to.normalize_or_zero() * (BABY_RUN_SPEED * dt).min(to.length());
+            }
             return true;
         };
         units.push(new_unit(baby.position).owned_by(owner));
@@ -575,14 +584,18 @@ pub(crate) fn baby_discs(babies: &[Baby], view: Rect) -> Vec<Disc> {
 }
 
 //the babies in view as little figures (see art/babies.py), each in one of the BABY_POSES by where it lies: rocking from foot to foot as it waits,
-//tumbling up as it drops, and in its last seconds rocking harder as it fades (see `baby_blink`). in the colour of what is picked up, as the discs are.
-//`zoom` is the camera's: zoomed out, a baby is made bigger, so it is never less than BABY_FIGURE_PX across on the screen
-pub(crate) fn baby_figures(babies: &[Baby], view: Rect, time: f32, zoom: f32) -> Vec<Creature> {
+//tumbling up as it drops, and in its last seconds rocking harder as it fades (see `baby_blink`). one that a player has come for (`callers` are where the
+//players are and how far they reach, and a baby within BABY_CALL_REACH of that runs to them, see `grow_babies_among`) waves, taking turns at the
+//BABY_WAVES, and bobs as it runs. in the colour of what is picked up, as the discs are. `zoom` is the camera's: zoomed out, a baby is made bigger,
+//so it is never less than BABY_FIGURE_PX across on the screen
+pub(crate) fn baby_figures(babies: &[Baby], view: Rect, time: f32, zoom: f32, callers: &[(Vec2, f32)]) -> Vec<Creature> {
     let size = BABY_FIGURE_SIZE.max(BABY_FIGURE_PX / zoom.max(MIN_ZOOM));
     let poses: Vec<usize> = BABY_POSES.iter().filter_map(|name| shape_named(name)).collect();
+    let waves: Vec<usize> = BABY_WAVES.iter().filter_map(|name| shape_named(name)).collect();
     if poses.is_empty() {
         return Vec::new();
     }
+    let called = |baby: &Baby| baby.age >= BABY_PICKUP_DELAY && !waves.is_empty() && callers.iter().any(|&(at, reach)| baby.position.distance(at) <= reach * BABY_CALL_REACH);
     let pickup = pickup_color();
     babies
         .iter()
@@ -593,11 +606,15 @@ pub(crate) fn baby_figures(babies: &[Baby], view: Rect, time: f32, zoom: f32) ->
             let left = BABY_LIFE - baby.age;
             let shaky = if left < BABY_BLINK_SECONDS { 1.0 + 2.0 * (1.0 - left / BABY_BLINK_SECONDS).clamp(0.0, 1.0) } else { 1.0 };
             let phase = (which % 628) as f32 / 100.0;
-            let rock = (time * BABY_WADDLE + phase).sin() * BABY_ROCK * shaky + (1.0 - grown) * 1.5;
-            let bob = (time * BABY_WADDLE + phase).sin().abs() * size * 0.05;
+            //(running, it rocks and bobs twice as fast and higher)
+            let running = called(baby);
+            let pace = if running { 2.0 } else { 1.0 };
+            let rock = (time * BABY_WADDLE * pace + phase).sin() * BABY_ROCK * shaky + (1.0 - grown) * 1.5;
+            let bob = (time * BABY_WADDLE * pace + phase).sin().abs() * size * 0.05 * pace;
             let facing = Vec2::from_angle(-std::f32::consts::FRAC_PI_2 + rock);
             let color = Color { a: pickup.a * baby_blink(baby.age), ..pickup };
-            Creature::new(poses[which % poses.len()], baby.position - Vec2::new(0.0, bob), size * grown, facing, color)
+            let shape = if running { waves[(time * BABY_WAVE_RATE + phase) as usize % waves.len()] } else { poses[which % poses.len()] };
+            Creature::new(shape, baby.position - Vec2::new(0.0, bob), size * grown, facing, color)
         })
         .collect()
 }

@@ -193,84 +193,77 @@ fn a_barrier_crumbles_by_itself_when_its_time_is_up() {
 }
 
 #[test]
-fn walls_are_tougher_for_a_bigger_army_and_masonry_makes_them_tougher_still() {
-    let up = Upgrades::default();
-    let small = wall_health(WallKind::Wall, 5, &up);
-    let big = wall_health(WallKind::Wall, 1000, &up);
+fn walls_are_tougher_for_a_bigger_army() {
+    let small = wall_health(WallKind::Wall, 5);
+    let big = wall_health(WallKind::Wall, 1000);
     assert_eq!(small, WALL_HEALTH);
     assert!(big > small * 5.0, "{big} next to {small}");
-    let mut masonry = Upgrades::default();
-    masonry.masonry = 1.6;
-    assert!((wall_health(WallKind::Wall, 1000, &masonry) - big * 1.6).abs() < 0.01);
-    assert!(wall_health(WallKind::Tower, 100, &up) > wall_health(WallKind::Wall, 100, &up));
-    assert!(wall_health(WallKind::Gate, 100, &up) < wall_health(WallKind::Wall, 100, &up));
-    assert_eq!(wall_health(WallKind::Spikes, 1, &up), wall_health(WallKind::Spikes, 6000, &up));
+    assert!(wall_health(WallKind::Tower, 100) > wall_health(WallKind::Wall, 100));
+    assert!(wall_health(WallKind::Gate, 100) < wall_health(WallKind::Wall, 100));
+    assert_eq!(wall_health(WallKind::Spikes, 1), wall_health(WallKind::Spikes, 6000));
 }
 
 #[test]
 fn building_spends_wall_points_and_stops_when_there_are_not_enough() {
     let mut walls = Walls::default();
     let mut points = 3.0;
-    let up = Upgrades::default();
     let player = FAR;
     let (col, row) = tile_of(FAR.x + 500.0, FAR.y);
-    assert_eq!(build(&mut walls, WallKind::Wall, col, row, player, &[], &[], &mut points, 10, &up), Built::Placed);
+    assert_eq!(build(&mut walls, WallKind::Wall, col, row, player, &[], &[], &mut points, 10), Built::Placed);
     assert_eq!(points, 2.0);
-    assert_eq!(build(&mut walls, WallKind::Gate, col + 1, row, player, &[], &[], &mut points, 10, &up), Built::Placed);
+    assert_eq!(build(&mut walls, WallKind::Gate, col + 1, row, player, &[], &[], &mut points, 10), Built::Placed);
     assert_eq!(points, 0.0);
-    assert_eq!(build(&mut walls, WallKind::Wall, col + 2, row, player, &[], &[], &mut points, 10, &up), Built::Poor);
+    assert_eq!(build(&mut walls, WallKind::Wall, col + 2, row, player, &[], &[], &mut points, 10), Built::Poor);
     assert_eq!(walls.len(), 2);
     //a tower is expensive
     let mut points = 5.0;
-    assert_eq!(build(&mut walls, WallKind::Tower, col + 2, row, player, &[], &[], &mut points, 10, &up), Built::Poor);
+    assert_eq!(build(&mut walls, WallKind::Tower, col + 2, row, player, &[], &[], &mut points, 10), Built::Poor);
     points = 8.0;
-    assert_eq!(build(&mut walls, WallKind::Tower, col + 2, row, player, &[], &[], &mut points, 10, &up), Built::Placed);
+    assert_eq!(build(&mut walls, WallKind::Tower, col + 2, row, player, &[], &[], &mut points, 10), Built::Placed);
     assert_eq!(walls[&(col + 2, row)].kind, WallKind::Tower);
-    assert_eq!(walls[&(col + 2, row)].health, wall_health(WallKind::Tower, 10, &up));
+    assert_eq!(walls[&(col + 2, row)].health, wall_health(WallKind::Tower, 10));
 }
 
 #[test]
 fn building_where_the_player_or_a_unit_stands_is_refused_but_a_gate_goes_anywhere() {
-    let up = Upgrades::default();
     let mut walls = Walls::default();
     let mut points = 50.0;
     let tile = tile_of(FAR.x, FAR.y);
     let units = [Unit::new(FAR.x, FAR.y, 100.0)];
-    assert_eq!(build(&mut walls, WallKind::Wall, tile.0, tile.1, FAR + Vec2::new(900.0, 0.0), &units, &[], &mut points, 10, &up), Built::Nothing);
-    assert_eq!(build(&mut walls, WallKind::Wall, tile.0, tile.1, FAR, &[], &[], &mut points, 10, &up), Built::Nothing);
+    assert_eq!(build(&mut walls, WallKind::Wall, tile.0, tile.1, FAR + Vec2::new(900.0, 0.0), &units, &[], &mut points, 10), Built::Nothing);
+    assert_eq!(build(&mut walls, WallKind::Wall, tile.0, tile.1, FAR, &[], &[], &mut points, 10), Built::Nothing);
     assert_eq!(points, 50.0, "nothing was spent");
-    assert_eq!(build(&mut walls, WallKind::Gate, tile.0, tile.1, FAR, &units, &[], &mut points, 10, &up), Built::Placed);
+    assert_eq!(build(&mut walls, WallKind::Gate, tile.0, tile.1, FAR, &units, &[], &mut points, 10), Built::Placed);
     //a unit inside a tower is not in the way
     let mut inside = Unit::new(FAR.x + 300.0, FAR.y, 100.0);
     inside.garrison = Some((1, 1));
     let tile = tile_of(inside.x, inside.y);
-    assert_eq!(build(&mut walls, WallKind::Wall, tile.0, tile.1, FAR + Vec2::new(900.0, 0.0), &[inside], &[], &mut points, 10, &up), Built::Placed);
+    assert_eq!(build(&mut walls, WallKind::Wall, tile.0, tile.1, FAR + Vec2::new(900.0, 0.0), &[inside], &[], &mut points, 10), Built::Placed);
 }
 
 #[test]
 fn a_hurt_wall_is_mended_for_a_point_and_made_as_strong_as_a_new_one() {
-    let up = Upgrades::default();
     let (col, row) = tile_of(FAR.x, FAR.y);
     let mut walls = walls_with(vec![Wall::new(col, row)]);
     walls.get_mut(&(col, row)).unwrap().health = 100.0;
     let mut points = 5.0;
     //built for a small army, mended for a big one
-    assert_eq!(build(&mut walls, WallKind::Wall, col, row, FAR + Vec2::new(900.0, 0.0), &[], &[], &mut points, 1000, &up), Built::Repaired);
+    assert_eq!(build(&mut walls, WallKind::Wall, col, row, FAR + Vec2::new(900.0, 0.0), &[], &[], &mut points, 1000), Built::Repaired);
     assert_eq!(points, 5.0 - REPAIR_COST);
-    assert_eq!(walls[&(col, row)].health, wall_health(WallKind::Wall, 1000, &up));
+    assert_eq!(walls[&(col, row)].health, wall_health(WallKind::Wall, 1000));
     assert_eq!(walls[&(col, row)].max_health, walls[&(col, row)].health);
     //a wall that isn't hurt is left alone and costs nothing
-    assert_eq!(build(&mut walls, WallKind::Wall, col, row, FAR + Vec2::new(900.0, 0.0), &[], &[], &mut points, 1000, &up), Built::Nothing);
+    assert_eq!(build(&mut walls, WallKind::Wall, col, row, FAR + Vec2::new(900.0, 0.0), &[], &[], &mut points, 1000), Built::Nothing);
     assert_eq!(points, 5.0 - REPAIR_COST);
     //and one that is hurt can't be mended with no points
     walls.get_mut(&(col, row)).unwrap().health = 1.0;
     points = 0.5;
-    assert_eq!(build(&mut walls, WallKind::Wall, col, row, FAR + Vec2::new(900.0, 0.0), &[], &[], &mut points, 1000, &up), Built::Poor);
+    assert_eq!(build(&mut walls, WallKind::Wall, col, row, FAR + Vec2::new(900.0, 0.0), &[], &[], &mut points, 1000), Built::Poor);
     //a lair's wall is not the player's to mend
     let mut lair = walls_with(vec![made(WallKind::Wall, Side::Hostile, col, row)]);
     lair.get_mut(&(col, row)).unwrap().health = 1.0;
     points = 5.0;
-    assert_eq!(build(&mut lair, WallKind::Wall, col, row, FAR + Vec2::new(900.0, 0.0), &[], &[], &mut points, 1000, &up), Built::Nothing);
+    assert_eq!(build(&mut lair, WallKind::Wall, col, row, FAR + Vec2::new(900.0, 0.0), &[], &[], &mut points, 1000), Built::Nothing);
 }
 
 #[test]
@@ -407,14 +400,13 @@ fn a_manned_tower_shoots_the_nearest_enemy_in_range_and_an_empty_one_does_not() 
     //then it waits its turn
     fire_towers(&mut walls, &mut enemies, &up, 1.0 / 60.0, &mut fx);
     assert_eq!(fx.beams.len(), 1);
-    //archery and whetstones add to it
+    //and whetstones add to it
     let mut strong = Upgrades::default();
-    strong.archery = 2.0;
     strong.damage = 1.5;
     walls.get_mut(&(col, row)).unwrap().fire_in = 0.0;
     let before = enemies[1].health;
     fire_towers(&mut walls, &mut enemies, &strong, 1.0 / 60.0, &mut fx);
-    assert!((before - enemies[1].health - damage * 3.0).abs() < 1.0);
+    assert!((before - enemies[1].health - damage * 1.5).abs() < 1.0);
 }
 
 #[test]
@@ -480,14 +472,12 @@ fn units_pressed_against_a_lair_wall_wear_it_down_in_proportion_to_how_many() {
 }
 
 #[test]
-fn wall_points_a_kill_earns_are_spent_by_main_with_the_quarry_bonus() {
+fn wall_points_a_kill_earns_are_spent_by_main() {
     let mut mason = Mason::new();
     let mut fx = Effects::default();
     fx.spoils[0].points = 10.0;
-    let mut up = Upgrades::default();
-    up.quarry = 1.5;
-    mason.earn(std::mem::take(&mut fx.spoils[0].points) * up.quarry);
-    assert_eq!(mason.points, START_WALL_POINTS + 15.0);
+    mason.earn(std::mem::take(&mut fx.spoils[0].points));
+    assert_eq!(mason.points, START_WALL_POINTS + 10.0);
     assert_eq!(fx.spoils[0].points, 0.0);
 }
 

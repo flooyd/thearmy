@@ -7,7 +7,7 @@
 //! - `combat`: damage, shots and hazards; `effects`, `sound`: the feedback; `discs`: thousands of circles drawn in one go
 //! - `creatures`: the enemies, bosses and their marks drawn as the creatures they are, with `creature_art` (generated from the drawings in art/ by art/shader.py)
 //! - `champions`: special units won as loot, each with a power of its own
-//! - `parallel`: sharing the army's work out over the processor's cores
+//! - `parallel`: sharing the army's work out over the processor's cores; `dice`: the random numbers, a stream for each thread
 //! - `minimap`, `hud`, `screens`, `ui`: what is drawn on top of the world, and the fonts and panels it is drawn with
 //! - `sites`: nests and villages in the world, `defenses`, `building`: what the player raises against the enemies
 //! - `save`: a run kept in a file and read back; `game`: one run as the player at this keyboard has it (the menu, the saves, the camera, the drawing)
@@ -21,6 +21,7 @@
 
 mod prelude;
 mod armies;
+mod biomes;
 mod boss;
 mod bolts;
 mod building;
@@ -28,6 +29,7 @@ mod champions;
 mod chests;
 mod creature_art;
 mod creatures;
+mod dice;
 mod discs;
 mod combat;
 mod config;

@@ -26,21 +26,30 @@ pub(super) struct Fought {
 //a whole fight with one boss with an army of `army` units, in an empty world, played the way `style` says. there is nothing
 //else about, and nobody picks up babies
 pub(super) fn fight_a_boss(def: &'static BossDef, army: usize, tier: u32, style: Style, upgrades: &Upgrades, seed: u64) -> Fought {
-    fight_a_hardened_boss(def, army, tier, style, upgrades, seed, 0)
+    fight_a_hardened_boss(def, army, tier, style, upgrades, seed, 0, &[])
+}
+
+//the champions of a late run for the ladder table: twelve, at the top level with their first evolution chosen. the fighters, the tanks and the ones
+//that help in a boss fight, not the ones that bring wall points, babies or recruits (a Drummer's would muddle what the army lost)
+pub(super) const LATE_ROSTER: [&str; 12] = ["Juggernaut", "Bulwark", "Medic", "Warlord", "Pyromancer", "Sharpshooter", "Frostweaver", "Stormcaller", "Earthshaker", "Phoenix", "Emberlord", "Chronomancer"];
+
+pub(super) fn late_roster() -> Vec<usize> {
+    LATE_ROSTER.iter().map(|name| champion_named(name).expect(name)).collect()
 }
 
 //a fight on a difficulty as the late-run tables have it: the boss `tier` rounds on and the difficulty's rounds further, the enemies answering the
 //relics as the difficulty says, and the rules of the Insane ladder in play (see `play_on`). the boss is made for the army itself, as in the tables
-//the difficulties were tuned with, and there are no champions
-pub(super) fn fight_on(def: &'static BossDef, army: usize, tier: u32, difficulty: Difficulty, relics: &Upgrades, seed: u64) -> Fought {
+//the difficulties were tuned with, and the champions of `roster` (kinds) fight in the army
+pub(super) fn fight_on(def: &'static BossDef, army: usize, tier: u32, difficulty: Difficulty, relics: &Upgrades, seed: u64, roster: &[usize]) -> Fought {
     play_on(difficulty);
     let mut upgrades = relics.clone();
     upgrades.foe_answer = difficulty.relic_answer();
-    fight_a_hardened_boss(def, army, tier, Style::Dodge, &upgrades, seed, difficulty.boss_rounds())
+    fight_a_hardened_boss(def, army, tier, Style::Dodge, &upgrades, seed, difficulty.boss_rounds(), roster)
 }
 
-//the same with a boss `rounds` further on, as the difficulty makes it
-pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u32, style: Style, upgrades: &Upgrades, seed: u64, rounds: u32) -> Fought {
+//the same with a boss `rounds` further on, as the difficulty makes it, and the champions of `roster` (kinds, at the top level) in the army. with
+//champions the frame goes as the game's does: their auras, their powers and volleys, and the player sets off their ultimates when the boss is near
+pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u32, style: Style, upgrades: &Upgrades, seed: u64, rounds: u32, roster: &[usize]) -> Fought {
     rand::srand(seed);
     let dt = 1.0 / 60.0;
     let mut walls = Walls::default();
@@ -53,6 +62,15 @@ pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u3
             Unit::new(at.x, at.y, rand::gen_range(UNIT_MIN_SPEED, UNIT_MAX_SPEED))
         })
         .collect();
+    for (k, &kind) in roster.iter().enumerate() {
+        let spot = player + Vec2::from_angle(k as f32 * std::f32::consts::TAU / roster.len() as f32) * 260.0;
+        let mut champion = champion_unit(kind, spot);
+        champion.level = CHAMPION_MAX_LEVEL;
+        champion.evolutions = 0b01;
+        champion.health = champion.max_health();
+        units.push(champion);
+    }
+    let champions = !roster.is_empty();
     let mut enemies = vec![Enemy::boss(def, army, tier, player + Vec2::new(BOSS_SPAWN_MIN_TILES * TILE_SIZE, 0.0))];
     enemies[0].harden(rounds);
     let (mut babies, mut shots, mut hazards, mut squads) = (Vec::new(), Vec::new(), Vec::<Hazard>::new(), Squads::new());
@@ -78,6 +96,9 @@ pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u3
             eprintln!("{seconds:>5.1}s army {:>5} bosses {family:?} others {others} hazards {} shots {} squads {}", units.len(), hazards.len(), shots.len(), squads.len());
         }
         let enemy_boost = speed_multiplier(units.len());
+        //(what the champions add to the relics, as the game works it out each frame)
+        let perked = if champions { Perks::of(&units).applied(upgrades) } else { upgrades.clone() };
+        let upgrades = &perked;
         let boost = upgrades.army_boost(units.len());
         //what the player does
         let mut threat: Option<Vec2> = None; //the way out of the one to get out of
@@ -134,8 +155,28 @@ pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u3
         }
         player = update_pulls(&mut pulls, &mut units, player, &walls, dt);
         update_squads(&mut squads, &enemies, &mut units, &walls, false);
-        update_units(&mut units, player.x, player.y, dt, &walls, &field, boost, &squads);
+        if champions {
+            let drill = Drill::FREE.guarding(guard_radius(units.iter()));
+            update_units_in(&mut units, player.x, player.y, dt, &walls, &field, boost, &squads, &drill);
+            apply_champions(&mut units, dt);
+            //the player sets off the ultimates that are ready once the boss is near
+            if let Some(boss) = current_boss(&enemies) {
+                if boss.position.distance(player) < boss.size / 2.0 + 1500.0 {
+                    let size = units.len();
+                    fire_ultimates(&mut units, &mut enemies, 0, facing, size, upgrades, &mut fx);
+                }
+            }
+        } else {
+            update_units(&mut units, player.x, player.y, dt, &walls, &field, boost, &squads);
+        }
         //the same order as in the game
+        if champions {
+            terrain_effects(&mut enemies, &walls, dt, &mut fx);
+            champion_acts(&mut units, &mut enemies, &mut babies, upgrades, dt, &mut fx);
+            for (volley, hurt) in &fx.volleys {
+                launch_volley(&mut bolts, volley, *hurt);
+            }
+        }
         patrol_free(&mut enemies, player, dt, enemy_boost, &mut fx);
         enemy_abilities(&mut enemies, &units, player, dt, &mut fx);
         boss_act(&mut enemies, &units, player, dt, &mut shots, &mut fx);
@@ -168,9 +209,12 @@ pub(super) fn fight_a_hardened_boss(def: &'static BossDef, army: usize, tier: u3
         enrage_enemies(&mut enemies);
         tick_enemy_numbers(&mut enemies, dt, &mut fx);
         bury_units(&mut units, &mut fx);
-        fx = Effects::default();
+        //(a phoenix that fell rises next frame)
+        let rebirths = std::mem::take(&mut fx.rebirths);
+        fx = Effects { rebirths, ..Effects::default() };
     }
-    Fought { won: current_boss(&enemies).is_none() && !units.is_empty(), seconds, lost: army - units.len().min(army), army, recalls, changes }
+    let left = units.iter().filter(|unit| unit.champion == 0).count();
+    Fought { won: current_boss(&enemies).is_none() && !units.is_empty(), seconds, lost: army - left.min(army), army, recalls, changes }
 }
 
 #[test]
@@ -198,9 +242,10 @@ fn the_boss_balance_table() {
     }
 }
 
-//the Insane ladder against Brutal (5.4 of the plan): each boss on each difficulty against the late run's army and relics (see
-//`the_boss_balance_of_a_late_run`), dodging, over two seeds: how often it is won, how long it takes and how much of the army is lost. LADDER_TIERS=0,1,5
-//picks the tiers (0 is Brutal), BOSS_ONLY the bosses, ARMY the army (default 10000) and TIER the round (default 4)
+//the Insane ladder against Brutal (5.4 of the plan): each boss on each difficulty against the late run's army, relics and champions (see
+//`the_boss_balance_of_a_late_run` and LATE_ROSTER), dodging, over two seeds: how often it is won, how long it takes and how much of the army is lost.
+//LADDER_TIERS=0,1,5 picks the tiers (0 is Brutal), BOSS_ONLY the bosses, ARMY the army (default 10000), TIER the round (default 4) and CHAMPIONS=0
+//leaves the champions out
 #[test]
 #[ignore]
 fn the_insane_ladder_table() {
@@ -208,7 +253,8 @@ fn the_insane_ladder_table() {
     let army: usize = std::env::var("ARMY").ok().and_then(|v| v.parse().ok()).unwrap_or(10_000);
     let round: u32 = std::env::var("TIER").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
     let relics = late_run_upgrades();
-    eprintln!("{army} units, {} relics, round {round}, dodging", relics.taken.len());
+    let roster = if std::env::var("CHAMPIONS").as_deref() == Ok("0") { Vec::new() } else { late_roster() };
+    eprintln!("{army} units, {} champions, {} relics, round {round}, dodging", roster.len(), relics.taken.len());
     for (index, def) in BOSSES.iter().enumerate() {
         if let Ok(only) = std::env::var("BOSS_ONLY") {
             if !only.split(',').any(|part| part.trim().parse::<usize>() == Ok(index)) {
@@ -217,7 +263,7 @@ fn the_insane_ladder_table() {
         }
         for &tier in &tiers {
             let difficulty = if tier == 0 { Difficulty::Brutal } else { Difficulty::Insane(tier) };
-            let runs: Vec<Fought> = (0..2).map(|seed| fight_on(def, army, round, difficulty, &relics, 300 + seed)).collect();
+            let runs: Vec<Fought> = (0..2).map(|seed| fight_on(def, army, round, difficulty, &relics, 300 + seed, &roster)).collect();
             eprintln!(
                 "{index} {:<16} {:<9} +{:>2} rounds, answer {:.2}: won {}/2, {:>5.1} s, lost {:>3.0}%",
                 def.name,
@@ -414,7 +460,7 @@ fn the_boss_balance_of_a_late_run() {
         upgrades.foe_answer = difficulty.relic_answer();
         for style in [Style::Tank, Style::Dodge] {
             let rounds = difficulty.boss_rounds();
-            let run = fight_a_hardened_boss(def, army, tier, style, &upgrades, 300, rounds);
+            let run = fight_a_hardened_boss(def, army, tier, style, &upgrades, 300, rounds, &[]);
             eprintln!(
                 "{:<7} {style:?}: damage x{:.1} +{rounds} rounds: {} in {:>5.1} s, lost {:>3.0}%, {} of {} changes",
                 difficulty.name(),
@@ -452,7 +498,7 @@ fn the_boss_balance_of_a_late_run_for_a_few_answers() {
         for answer in [0.0f32, 0.5, 0.6, 0.7, 0.8, 0.9] {
             let mut upgrades = late_run_upgrades();
             upgrades.foe_answer = answer;
-            let runs: Vec<Fought> = (0..2).map(|seed| fight_a_hardened_boss(def, army, tier, Style::Dodge, &upgrades, 300 + seed, rounds)).collect();
+            let runs: Vec<Fought> = (0..2).map(|seed| fight_a_hardened_boss(def, army, tier, Style::Dodge, &upgrades, 300 + seed, rounds, &[])).collect();
             eprintln!(
                 "{} +{rounds} rounds, answer {answer:.1} (damage x{:>4.1}): won {}/2, {:>5.1} s, lost {:>3.0}%",
                 def.name,

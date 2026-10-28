@@ -156,7 +156,7 @@ pub(crate) fn refresh_armies(players: &Players, units: &mut [Unit], fx: &mut Eff
 //and what their quartermasters make
 pub(crate) fn earn_wall_points(players: &mut Players, armies: &Armies, dt: f32, fx: &mut Effects) {
     for (i, player) in players.list.iter_mut().enumerate() {
-        player.mason.earn(std::mem::take(&mut fx.spoils[i].points) * player.upgrades.quarry);
+        player.mason.earn(std::mem::take(&mut fx.spoils[i].points));
         player.mason.earn(armies.perks[i].points * dt);
     }
 }

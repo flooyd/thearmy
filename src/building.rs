@@ -111,7 +111,7 @@ pub(crate) enum Built {
 
 //a left click on a square: a hurt wall of the player's is mended and made as strong as a new one, an empty square gets the
 //chosen kind. both cost wall points
-pub(crate) fn build(walls: &mut Walls, kind: WallKind, col: i32, row: i32, player: Vec2, units: &[Unit], babies: &[Baby], points: &mut f32, army: usize, upgrades: &Upgrades) -> Built {
+pub(crate) fn build(walls: &mut Walls, kind: WallKind, col: i32, row: i32, player: Vec2, units: &[Unit], babies: &[Baby], points: &mut f32, army: usize) -> Built {
     if let Some(wall) = walls.get_mut(&(col, row)) {
         if wall.side != Side::Friendly || wall.health >= wall.max_health {
             return Built::Nothing;
@@ -120,7 +120,7 @@ pub(crate) fn build(walls: &mut Walls, kind: WallKind, col: i32, row: i32, playe
             return Built::Poor;
         }
         *points -= REPAIR_COST;
-        let fresh = wall_health(wall.kind, army, upgrades).max(wall.max_health);
+        let fresh = wall_health(wall.kind, army).max(wall.max_health);
         wall.health = fresh;
         wall.max_health = fresh;
         wall.hurt = 0.0;
@@ -129,7 +129,7 @@ pub(crate) fn build(walls: &mut Walls, kind: WallKind, col: i32, row: i32, playe
     if *points < kind.cost() {
         return Built::Poor;
     }
-    if !place_wall(walls, kind, wall_health(kind, army, upgrades), col, row, player.x, player.y, units, babies) {
+    if !place_wall(walls, kind, wall_health(kind, army), col, row, player.x, player.y, units, babies) {
         return Built::Nothing;
     }
     *points -= kind.cost();
@@ -162,7 +162,6 @@ pub(crate) fn edit_walls(
     delete: &[(i32, i32)],
     dt: f32,
     army: usize,
-    upgrades: &Upgrades,
     fx: &mut Effects,
 ) -> bool {
     mason.nag_in -= dt;
@@ -172,7 +171,7 @@ pub(crate) fn edit_walls(
     let mut changed = false;
     let kind = mason.selected;
     for &(col, row) in place {
-        match build(walls, kind, col, row, player, units, babies, &mut mason.points, army, upgrades) {
+        match build(walls, kind, col, row, player, units, babies, &mut mason.points, army) {
             Built::Placed | Built::Repaired => {
                 changed = true;
             }

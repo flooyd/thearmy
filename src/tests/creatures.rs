@@ -31,7 +31,7 @@ fn every_enemy_and_boss_and_mark_has_a_drawing() {
     }
     //(and nothing is drawn that nothing in the game is: the rest are the champions' pictures)
     let champions = (0..CHAMPIONS.len()).filter(|&kind| champion_shape(kind).is_some()).count();
-    assert_eq!(ARTS.len(), ENEMY_KINDS.len() + BOSSES.len() + 1 + MARKS.len() + champions + BABY_POSES.len());
+    assert_eq!(ARTS.len(), ENEMY_KINDS.len() + BOSSES.len() + 1 + MARKS.len() + champions + BABY_POSES.len() + BABY_WAVES.len());
     assert_eq!(shape_named("nothing"), None);
 }
 
@@ -328,12 +328,25 @@ fn a_baby_is_a_little_figure_in_one_of_its_poses_that_pops_up_and_fades_at_the_e
         Baby { position: Vec2::new(500.0, 180.0), age: BABY_LIFE - 0.3 },
         Baby { position: Vec2::new(9000.0, 100.0), age: 5.0 },
     ];
-    let figures = baby_figures(&babies, view, 1.0, 1.0);
+    let figures = baby_figures(&babies, view, 1.0, 1.0, &[]);
     assert_eq!(figures.len(), 3, "only the ones in view");
     //zoomed all the way out, a baby is still big enough on the screen to make out
-    let far = baby_figures(&babies[1..2], view, 1.0, MIN_ZOOM);
+    let far = baby_figures(&babies[1..2], view, 1.0, MIN_ZOOM, &[]);
     assert!(far[0].instance.radius * 2.0 * MIN_ZOOM >= BABY_FIGURE_PX * PICTURE * 0.99, "{}", far[0].instance.radius);
     let drawn = |figure: &Creature| figure.instance.radius;
     assert!(drawn(&figures[0]) < drawn(&figures[1]), "one just dropped is still popping up");
     assert!(figures[2].instance.color[3] < figures[1].instance.color[3] || baby_blink(BABY_LIFE - 0.3) == 1.0, "and one at its end fades");
+}
+
+#[test]
+fn a_baby_a_player_has_come_for_waves_one_hand_and_then_the_other() {
+    let waves: Vec<usize> = BABY_WAVES.iter().map(|name| shape_named(name).expect(name)).collect();
+    let view = Rect::new(0.0, 0.0, 9000.0, 9000.0);
+    let babies = vec![Baby { position: Vec2::new(1000.0, 1000.0), age: 5.0 }, Baby { position: Vec2::new(8000.0, 1000.0), age: 5.0 }, Baby { position: Vec2::new(1010.0, 1000.0), age: 0.0 }];
+    let callers = [(Vec2::new(1000.0 + BABY_PICKUP_RANGE * 1.5, 1000.0), BABY_PICKUP_RANGE)];
+    let shapes = |time: f32| baby_figures(&babies, view, time, 1.0, &callers).iter().map(|figure| figure.shape).collect::<Vec<_>>();
+    let (now, later) = (shapes(1.0), shapes(1.0 + 1.0 / BABY_WAVE_RATE));
+    assert!(waves.contains(&now[0]) && waves.contains(&later[0]) && now[0] != later[0], "it waves: {now:?} then {later:?}");
+    assert!(!waves.contains(&now[1]), "one no one has come for doesn't");
+    assert!(!waves.contains(&now[2]), "nor one still tumbling up");
 }

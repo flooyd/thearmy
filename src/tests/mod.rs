@@ -6,6 +6,7 @@ use crate::prelude::*;
 mod ambush;
 mod arena;
 mod army;
+mod biomes;
 mod boost;
 mod bolts;
 mod boss_fights;

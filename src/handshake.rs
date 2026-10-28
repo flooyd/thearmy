@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::net::IpAddr;
 
 //changes whenever what is sent between two copies of the game changes, so a host and a player that are not the same can tell
-pub(crate) const PROTOCOL: u16 = 10;
+pub(crate) const PROTOCOL: u16 = 11;
 pub(crate) const MAGIC: [u8; 4] = *b"ARMY";
 pub(crate) const MAX_FRAME: usize = 8192; //the most bytes in one message on the first stream
 pub(crate) const MAX_VERSION_BYTES: usize = 32;

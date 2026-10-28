@@ -8,7 +8,7 @@
 //! the zoom, in place of SHOWCASE_ARMY and SHOWCASE_ZOOM, and a big army has a crowd as wide as it ahead of it. ARMY_SHOWCASE set to the name of a boss's
 //! attack (acid, rush, whirlwind, leap, sweep, blackhole, twin, barrage or judgement) puts the boss whose it is above the army, cracked, with no champions
 //! or crowd, and has it make that attack at once (see showcase_attack). ARMY_SHOWCASE=babies scatters babies of all ages round the army, with no
-//! champions or crowd
+//! champions or crowd. ARMY_SHOWCASE=biomes puts a patch of ice, of lava and of swamp round the player (see showcase_patches)
 //!
 //!     THE_ARMY_HOME=<folder> ARMY_SHOWCASE=1 ARMY_SHOT=<shot.png> mygame
 
@@ -105,6 +105,17 @@ fn showcase_is(kind: &str) -> bool {
 
 //the warnings a showcase of them puts down round the player, `at`: a slam, a gravity ring, a fan of beams, a cleave and a piston line on the screen, each
 //a long way from going off, and a nova off it. none for any other showcase, or none asked for
+//with ARMY_SHOWCASE=biomes, the ground round the player in place of the world's: ice to the left, lava ahead (where the crowd is) and swamp to the right
+pub(crate) fn showcase_patches(at: Vec2) -> Option<Vec<Patch>> {
+    showcase_is("biomes").then(|| {
+        vec![
+            Patch { biome: Biome::Ice, position: at + Vec2::new(-2400.0, -300.0), radius: 1500.0 },
+            Patch { biome: Biome::Lava, position: at + Vec2::new(0.0, -2500.0), radius: 1500.0 },
+            Patch { biome: Biome::Swamp, position: at + Vec2::new(2400.0, -300.0), radius: 1500.0 },
+        ]
+    })
+}
+
 pub(crate) fn showcase_hazards(at: Vec2, units: &[Unit]) -> Vec<Hazard> {
     if let Some((def, pattern)) = showcase_attack() {
         let mut boss = Enemy::boss(def, units.len(), 0, at + SHOWCASE_BOSS);

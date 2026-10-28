@@ -349,12 +349,12 @@ fn relics_multiply_what_they_say_and_stack() {
     up.take(Relic::Whetstone);
     up.take(Relic::Whetstone);
     assert!((up.damage - 1.25 * 1.25).abs() < 1e-5);
-    assert_eq!((up.count(Relic::Whetstone), up.count(Relic::Magnet), up.taken.len()), (2, 0, 2));
+    assert_eq!((up.count(Relic::Whetstone), up.count(Relic::Venom), up.taken.len()), (2, 0, 2));
     let mut up = Upgrades::default();
     for relic in RELICS {
         up.take(relic);
     }
-    assert!(up.damage > 1.0 && up.speed > 1.0 && up.pickup > 1.0 && up.bounty > 1.0 && up.masonry > 1.0 && up.archery > 1.0 && up.quarry > 1.0);
+    assert!(up.damage > 1.0 && up.speed > 1.0 && up.bounty > 1.0 && up.venom > 0.0 && up.kindling > 0.0 && up.mire < 1.0 && up.charge > 0.0);
     assert!(up.thorns > 0.0 && up.bloodlust > 0.0 && up.guard > 0.0 && up.salvo > 0.0 && up.martyr > 0.0);
     let mut names = HashSet::new();
     for relic in RELICS {

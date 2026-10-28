@@ -354,7 +354,11 @@ impl Replica {
     fn read_sites(&mut self, sim: &mut Sim, input: &mut Reader) -> Option<()> {
         match input.u8()? {
             0 => {}
-            1 => sim.sites = from_text(input.blob(MAX_TEXT_BLOB)?)?,
+            1 => {
+                sim.sites = from_text(input.blob(MAX_TEXT_BLOB)?)?;
+                //(the ice, lava and swamp come from where the sites are, as the host's did)
+                sim.patches = lay_patches(&sim.sites);
+            }
             2 => {
                 let count = input.varint()? as usize;
                 if count > MAX_RECORDS {
@@ -636,7 +640,8 @@ impl Replica {
     //the avatar is where the player has taken it, and what it has been thought to do is remembered against the number of the input that asked for it,
     //so that it can be put right when the host says where it was after that one
     pub(crate) fn walked(&mut self, sim: &Sim, direction: Vec2, dt: f32) {
-        self.predicted = walk_player(self.predicted, direction, PLAYER_SPEED * self.boost, dt, &sim.walls);
+        let pace = ground_pace(&sim.patches, self.predicted);
+        self.predicted = walk_player(self.predicted, direction, PLAYER_SPEED * self.boost * pace, dt, &sim.walls);
     }
 
     //the input with this number has been sent, with the avatar where it is now

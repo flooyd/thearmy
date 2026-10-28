@@ -292,7 +292,7 @@ impl EnemyDyn {
             (enemy.status.burning > 0.0, FLAG_BURNING),
             (enemy.status.shocked > 0.0, FLAG_SHOCKED),
             (enemy.status.poison > 0.0, FLAG_POISONED),
-            (enemy.status.slow < SLOW_SEEN, FLAG_SLOWED),
+            (enemy.status.slow.min(enemy.status.mire) < SLOW_SEEN, FLAG_SLOWED),
         ] {
             if on {
                 flags |= flag;

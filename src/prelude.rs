@@ -1,11 +1,14 @@
 //everything a module needs from the others and from macroquad and std, so each starts with one use line
 pub(crate) use macroquad::audio;
 pub(crate) use macroquad::prelude::*;
+//(in place of macroquad's `rand`, which is one stream for every thread)
+pub(crate) use crate::dice as rand;
 pub(crate) use std::cmp::Reverse;
 pub(crate) use std::collections::{BinaryHeap, HashMap, HashSet};
 pub(crate) use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 pub(crate) use std::time::{Duration, Instant};
 pub(crate) use crate::armies::*;
+pub(crate) use crate::biomes::*;
 pub(crate) use crate::boss::*;
 pub(crate) use crate::bolts::*;
 pub(crate) use crate::building::*;

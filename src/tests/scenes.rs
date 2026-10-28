@@ -20,7 +20,7 @@ fn army_at(count: usize, at: Vec2, zoom: f32) -> Snapshot {
     respawn_enemies(&mut world.enemies, at.x, at.y, count * 2);
     world.run = Run { destroyed: 4120, lost: 380, peak_army: count + 300, bosses: 2, nests: 7, villages: 4, seconds: 1480.0, citadels: 0, killers: Vec::new() };
     world.wall_points = 340.0;
-    for relic in [Relic::Whetstone, Relic::Whetstone, Relic::IronResolve, Relic::FleetFeet, Relic::Magnet, Relic::Bounty, Relic::Thorns, Relic::Bloodlust, Relic::Freezing, Relic::Freezing, Relic::Aegis, Relic::Archers] {
+    for relic in [Relic::Whetstone, Relic::Whetstone, Relic::IronResolve, Relic::FleetFeet, Relic::Venom, Relic::Bounty, Relic::Thorns, Relic::Bloodlust, Relic::Freezing, Relic::Freezing, Relic::Aegis, Relic::Kindling] {
         world.upgrades.take(relic);
     }
     //a line of walls with towers in it, behind the army

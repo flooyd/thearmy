@@ -202,6 +202,30 @@ fn a_baby_nobody_picks_up_is_gone_after_thirty_seconds() {
 }
 
 #[test]
+fn a_baby_runs_to_a_player_who_has_come_near_with_room_in_their_army() {
+    let at = Vec2::new(3000.0, 3000.0);
+    let near = at + Vec2::new(BABY_PICKUP_RANGE * (BABY_CALL_REACH - 0.1), 0.0);
+    let grow = |player: Vec2, cap: usize, age: f32| {
+        let mut babies = vec![Baby { position: at, age }];
+        let mut units = vec![new_unit(Vec2::splat(100.0))];
+        grow_babies(&mut babies, &mut units, player.x, player.y, 0.25, BABY_PICKUP_RANGE, cap, &mut Effects::default());
+        babies.first().map(|baby| baby.position)
+    };
+    let ran = grow(near, DEFAULT_ARMY_LIMIT, 2.0).expect("still a baby");
+    assert!((ran.x - (at.x + BABY_RUN_SPEED * 0.25)).abs() < 0.01 && ran.y == at.y, "a quarter of a second's run towards the player: {ran}");
+    assert_eq!(grow(near, 1, 2.0), Some(at), "but not to one whose army is full");
+    assert_eq!(grow(at + Vec2::new(BABY_PICKUP_RANGE * (BABY_CALL_REACH + 0.1), 0.0), DEFAULT_ARMY_LIMIT, 2.0), Some(at), "nor one too far off");
+    assert_eq!(grow(near, DEFAULT_ARMY_LIMIT, 0.0), Some(at), "nor while it is still tumbling up");
+    //and, running, it gets there: half a second more and the player has it
+    let mut babies = vec![Baby { position: at, age: 2.0 }];
+    let mut units = Vec::new();
+    for _ in 0..60 {
+        grow_babies(&mut babies, &mut units, near.x, near.y, 1.0 / 30.0, BABY_PICKUP_RANGE, DEFAULT_ARMY_LIMIT, &mut Effects::default());
+    }
+    assert_eq!((babies.len(), units.len()), (0, 1));
+}
+
+#[test]
 fn a_baby_that_waited_for_room_in_the_army_expires_too() {
     //the army is full, so the baby can't grow however close the player is
     let mut babies = vec![Baby { position: Vec2::new(3000.0, 3000.0), age: BABY_LIFE - 1.0 }];

@@ -73,7 +73,7 @@ pub(crate) fn fire_towers(walls: &mut Walls, enemies: &mut [Enemy], upgrades: &U
             continue;
         };
         wall.fire_in = TOWER_INTERVAL;
-        let damage = wall.garrison as f32 * TOWER_DAMAGE * TOWER_INTERVAL * upgrades.hit() * upgrades.archery;
+        let damage = wall.garrison as f32 * TOWER_DAMAGE * TOWER_INTERVAL * upgrades.hit();
         let dealt = enemy.take_damage(damage);
         enemy.hurt += dealt;
         fx.beams.push(Beam { from: at, to: enemy.position, color: SQUAD_COLOR, age: 0.0 });

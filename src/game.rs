@@ -125,9 +125,12 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             return Ending::Left(why);
         }
     } else if let Some(first) = sim.players.list.first() {
-        //(a showcase of the warnings puts one of each shape down, see showcase.rs)
+        //(a showcase of the warnings puts one of each shape down, and one of the ground one of each patch round the player: see showcase.rs)
         let laid = showcase_hazards(first.position, &sim.units);
         sim.hazards.extend(laid);
+        if let Some(patches) = showcase_patches(first.position) {
+            sim.patches = patches;
+        }
     }
     //the players at other machines that are in the game already
     let mut table = Table::new();
@@ -608,7 +611,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
             }
             _ => tick_in = 0.0,
         }
-        let Sim { players, run, director, hordes, units, babies, walls, sites, enemies, shots, hazards, pulls, bolts, .. } = &sim;
+        let Sim { players, run, director, hordes, units, babies, walls, sites, patches, enemies, shots, hazards, pulls, bolts, .. } = &sim;
         let fx = &feedback.fx;
 
         clear_background(BLACK);
@@ -619,7 +622,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         set_camera(&camera);
         let drawn = visible_area(shaken.x, shaken.y, drawn_zoom);
         let hovered = if over_map || paused || entrance { None } else { hovered_tile(player.x, player.y, zoom) };
-        draw_world(camera_at.x, camera_at.y, drawn_zoom, hovered, drawn, &camera);
+        draw_world(camera_at.x, camera_at.y, drawn_zoom, hovered, drawn, &camera, patches);
         draw_floor(camera_at.x, camera_at.y, drawn_zoom, walls, get_time() as f32);
         draw_discs(Layer::Marks, &mark_discs(&feedback.ground, drawn), &camera);
         draw_sites(sites, view, get_time() as f32);
@@ -639,7 +642,8 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         if settings.simple_shapes {
             draw_discs(Layer::Babies, &baby_discs(babies, drawn), &camera);
         } else {
-            draw_creatures(&baby_figures(babies, drawn, get_time() as f32, drawn_zoom), &camera);
+            let callers: Vec<(Vec2, f32)> = players.list.iter().zip(&report.pickup_ranges).map(|(other, &reach)| (other.position, reach)).collect();
+            draw_creatures(&baby_figures(babies, drawn, get_time() as f32, drawn_zoom, &callers), &camera);
         }
         //(with Nightfall, on the Insane ladder, the world is dark away from the player: the warnings are drawn again over the dark, and the champions glow)
         if playing.has(Mutator::Nightfall) {
@@ -714,7 +718,7 @@ pub(crate) async fn play(sounds: &mut Sounds, saves: &Saves, settings: &mut Sett
         } else {
             enemy_at(mouse_world(player.x, player.y, zoom), enemies, ENEMY_CLICK_MARGIN / zoom)
         };
-        draw_minimap(&map, map_view, player, view, if over_map { under_mouse } else { None }, units, enemies, babies, &players.list[me].squads, walls, hazards, sites, team.as_ref(), get_time() as f32);
+        draw_minimap(&map, map_view, player, view, if over_map { under_mouse } else { None }, units, enemies, babies, &players.list[me].squads, walls, hazards, sites, patches, team.as_ref(), get_time() as f32);
         if let Some(coming) = &hordes.coming {
             for at in [Some(coming.at), coming.other].into_iter().flatten() {
                 draw_horde_ping(&map, at, get_time() as f32);

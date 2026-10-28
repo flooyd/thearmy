@@ -179,7 +179,7 @@ impl Players {
 
     //whose relics the towers fire with, which no one player built: the best archer's, so that every player is better for the others being there
     pub(crate) fn archer(&self) -> &Upgrades {
-        let strength = |player: &&Player| player.upgrades.hit() * player.upgrades.archery;
+        let strength = |player: &&Player| player.upgrades.hit();
         &self.list.iter().max_by(|a, b| strength(a).total_cmp(&strength(b))).unwrap_or(&self.list[0]).upgrades
     }
 

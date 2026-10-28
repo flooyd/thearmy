@@ -6,9 +6,10 @@
 use crate::prelude::*;
 use std::sync::Mutex;
 
-//every name a cause of death can have, in the order of their numbers from 1 (0 is nothing known): the kinds of enemy, the bosses, the kinds of attack
+//every name a cause of death can have, in the order of their numbers from 1 (0 is nothing known): the kinds of enemy, the bosses, the kinds of attack,
+//and lava (see biomes.rs)
 fn cause_names() -> impl Iterator<Item = &'static str> {
-    ENEMY_KINDS.iter().map(|kind| kind.name).chain(BOSSES.iter().map(|boss| boss.name)).chain([FINAL_BOSS.name]).chain(CIRCLES.iter().map(|circle| circle.name()))
+    ENEMY_KINDS.iter().map(|kind| kind.name).chain(BOSSES.iter().map(|boss| boss.name)).chain([FINAL_BOSS.name]).chain(CIRCLES.iter().map(|circle| circle.name())).chain([Biome::Lava.name()])
 }
 
 //the number a cause of death has, from its name: 0 for one that is not known

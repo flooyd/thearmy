@@ -36,3 +36,21 @@ def _(a):
 @sym('baby_3', 'Baby III', 'a toddler hugging a little rattle', 29, '#4ce64c')
 def _(a):
     toddler(a, lambda: (a.line([(-8, -2), (-12, 10), (-3, 8)], 6, 'b'), a.line([(8, -2), (12, 10), (3, 8)], 6, 'b'), a.circ(0, 6, 5, 'ey', o='ot')))
+
+
+#a toddler waving to the player who has come for it: two drawings, the waving arm out to one side and then the other, which the game takes turns at
+#(see `baby_figures`), with the other arm out for balance as it runs
+def waving(a, reach):
+    a.line([(7, -4), (12, -18), (12 + reach, -31)], 6, 'b')
+    a.circ(12 + reach, -33, 4.6, 'b')
+    a.line([(-8, -2), (-24, 4)], 6, 'b')
+
+
+@sym('baby_wave_1', 'Baby wave I', 'a toddler waving, its hand up and out', 29, '#4ce64c')
+def _(a):
+    toddler(a, lambda: waving(a, 6))
+
+
+@sym('baby_wave_2', 'Baby wave II', 'a toddler waving, its hand up and in', 29, '#4ce64c')
+def _(a):
+    toddler(a, lambda: waving(a, -5))

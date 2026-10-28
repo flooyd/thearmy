@@ -94,10 +94,10 @@ impl WallKind {
 
 //the health a wall of a kind is built with for an army of this many units. walls get tougher as the enemies do, and a
 //wall built for a small army is weak against a big one until it is repaired
-pub(crate) fn wall_health(kind: WallKind, army: usize, upgrades: &Upgrades) -> f32 {
+pub(crate) fn wall_health(kind: WallKind, army: usize) -> f32 {
     match kind {
         WallKind::Spikes | WallKind::Tar => SPIKE_HEALTH,
-        _ => WALL_HEALTH * kind.health_factor() * army_scale(army) * upgrades.masonry,
+        _ => WALL_HEALTH * kind.health_factor() * army_scale(army),
     }
 }
 

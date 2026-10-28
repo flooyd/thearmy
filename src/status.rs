@@ -1,6 +1,6 @@
 //! what is being done to an enemy that comes and goes (`Statuses`): chill that builds up to a freeze, the freeze that holds it and makes it brittle, burning
-//! that catches on what it touches, a shock that makes the next hit worse, poison that stacks, and how much of its speed the ground and the auras leave it.
-//! what puts each on is here (`chill`, `freeze`, `ignite`, `shock`, `poison`), and `tick_statuses` runs them all, once a frame. a boss resists: it takes
+//! that catches on what it touches, a shock that makes the next hit worse, poison that stacks, being bogged down, and how much of its speed the ground and
+//! the auras leave it. what puts each on is here (`chill`, `freeze`, `ignite`, `shock`, `poison`, `bog`), and `tick_statuses` runs them all, once a frame. a boss resists: it takes
 //! BOSS_CHILL of the chill, burning and poison put on it, and it is never held frozen, only slowed, to FROZEN_BOSS_SLOW at the most. a frozen enemy that dies,
 //! or takes a big hit, shatters (see `resolve_deaths_among` and `strike`)
 
@@ -16,11 +16,13 @@ pub(crate) struct Statuses {
     pub(crate) spread_in: f32, //seconds until it next does
     pub(crate) shocked: f32,   //seconds left in which the next hit from a power does SHOCK_BONUS times as much
     pub(crate) poison: f32,    //stacks, each taking POISON_SHARE of its most health a second, ebbing
+    pub(crate) mire: f32,      //the share of its speed it keeps while it is bogged down (the Mire relic)...
+    pub(crate) mired: f32,     //...for this many seconds more
 }
 
 impl Default for Statuses {
     fn default() -> Statuses {
-        Statuses { slow: 1.0, chill: 0.0, frozen: 0.0, burning: 0.0, burn: 0.0, spread_in: 0.0, shocked: 0.0, poison: 0.0 }
+        Statuses { slow: 1.0, chill: 0.0, frozen: 0.0, burning: 0.0, burn: 0.0, spread_in: 0.0, shocked: 0.0, poison: 0.0, mire: 1.0, mired: 0.0 }
     }
 }
 
@@ -69,11 +71,21 @@ pub(crate) fn poison(enemy: &mut Enemy, stacks: f32) {
     enemy.status.poison = (enemy.status.poison + stacks.max(0.0)).min(POISON_MOST);
 }
 
+//an enemy bogged down for `seconds`, keeping `kept` of its speed (the less of what it had and this). a boss is slowed BOSS_CHILL as much
+pub(crate) fn bog(enemy: &mut Enemy, kept: f32, seconds: f32) {
+    if kept >= 1.0 || seconds <= 0.0 {
+        return;
+    }
+    let kept = 1.0 - (1.0 - kept) * taken(enemy);
+    enemy.status.mire = enemy.status.mire.min(kept);
+    enemy.status.mired = enemy.status.mired.max(seconds);
+}
+
 //the share of its speed what is done to it leaves an enemy: the ground's and the auras' slow, and chill on top, down to CHILL_SLOW at full (FROZEN_BOSS_SLOW for
 //a boss). one that is frozen does not move at all, which the moving sees to
 pub(crate) fn speed_kept(enemy: &Enemy) -> f32 {
     let most = if enemy.boss.is_some() { FROZEN_BOSS_SLOW } else { CHILL_SLOW };
-    enemy.status.slow * (1.0 - (1.0 - most) * enemy.status.chill / CHILL_FULL)
+    enemy.status.slow * enemy.status.mire * (1.0 - (1.0 - most) * enemy.status.chill / CHILL_FULL)
 }
 
 //damage that is not a hit (burning, poison): it shows as a number, and the credit stays with whoever hurt the enemy last
@@ -104,6 +116,10 @@ pub(crate) fn tick_statuses(enemies: &mut [Enemy], dt: f32) {
             status.chill = (status.chill - CHILL_EBB * dt).max(0.0);
         }
         status.shocked = (status.shocked - dt).max(0.0);
+        status.mired = (status.mired - dt).max(0.0);
+        if status.mired == 0.0 {
+            status.mire = 1.0;
+        }
         let mut harm = 0.0;
         if status.burning > 0.0 {
             harm += status.burn * share * dt.min(status.burning);

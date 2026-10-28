@@ -350,6 +350,7 @@ fn a_file_that_is_not_a_save_is_refused() {
 
 #[test]
 fn a_save_that_stops_part_way_is_refused_wherever_it_stops() {
+    rand::srand(23);
     let text = busy_world().to_text();
     let words: Vec<usize> = text.match_indices(' ').map(|(i, _)| i).collect();
     assert!(words.len() > 1000);
@@ -359,10 +360,13 @@ fn a_save_that_stops_part_way_is_refused_wherever_it_stops() {
     //(and so is one cut off just where the hordes would begin, a save from before they were kept)
     let before_hordes = text[..text.find("
 hordes ").unwrap()].trim_end();
+    //(and one cut off just where how the champions have grown would begin, a save from before that was kept)
+    let before_evolutions = text[..text.find(&format!("{}evolutions ", "
+")).unwrap()].trim_end();
     let mut cuts = 0;
     for i in (0..words.len() - 1).step_by(words.len() / 300) {
         let cut = &text[..words[i]];
-        if cut.trim_end() == old_format || cut.trim_end() == before_hordes {
+        if cut.trim_end() == old_format || cut.trim_end() == before_hordes || cut.trim_end() == before_evolutions {
             assert!(Snapshot::from_text(cut).is_ok());
         } else {
             assert!(Snapshot::from_text(cut).is_err(), "cut after {} words", i);

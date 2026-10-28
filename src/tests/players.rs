@@ -207,14 +207,14 @@ fn the_armies_are_held_to_the_same_limit_when_there_is_more_than_one_player() {
 }
 
 #[test]
-fn the_towers_fire_with_the_best_archers_relics_in_the_world() {
+fn the_towers_fire_with_the_relics_of_the_player_who_hits_hardest() {
     let (mut players, _) = pair();
-    assert_eq!(players.archer().archery, 1.0);
-    players.list[1].upgrades.take(Relic::Archers);
-    assert!(players.archer().archery > 1.0);
-    players.list[0].upgrades.take(Relic::Archers);
-    players.list[0].upgrades.take(Relic::Archers);
-    assert_eq!(players.archer().archery, players.list[0].upgrades.archery);
+    assert_eq!(players.archer().damage, 1.0);
+    players.list[1].upgrades.take(Relic::Whetstone);
+    assert!(players.archer().damage > 1.0);
+    players.list[0].upgrades.take(Relic::Whetstone);
+    players.list[0].upgrades.take(Relic::Whetstone);
+    assert_eq!(players.archer().damage, players.list[0].upgrades.damage);
 }
 
 // ---------- walking ----------
@@ -512,11 +512,10 @@ fn babies_become_units_of_the_player_whose_army_is_near_and_the_list_is_put_in_o
 }
 
 #[test]
-fn the_bigger_the_army_the_further_its_players_reach_for_babies_and_a_magnet_adds_to_it() {
-    let (mut players, _) = pair();
-    players.list[1].upgrades.take(Relic::Magnet);
+fn the_bigger_the_army_the_further_its_players_reach_for_babies() {
+    let (players, _) = pair();
     let mut units = army_for(0, 5, ADA);
-    units.extend(army_for(1, 5, BO));
+    units.extend(army_for(1, 400, BO));
     let armies = Armies::of(&mut units, &players);
     let reaches = grow_armies(&players, &armies, &mut units, &mut Vec::new(), &[Vec2::new(1920.0, 1080.0); 2], 0.01, &mut Effects::default());
     assert!(reaches[1] > reaches[0] && reaches[0] > 0.0, "{reaches:?}");
@@ -736,7 +735,6 @@ fn the_health_a_kill_gives_and_the_experience_it_teaches_go_to_the_army_that_got
 #[test]
 fn wall_points_go_to_the_player_who_earned_them_by_their_kills_or_from_the_world() {
     let (mut players, _) = pair();
-    players.list[1].upgrades.take(Relic::Quarry);
     let mut units = army_for(0, 3, ADA);
     units.extend(army_for(1, 3, BO));
     let armies = Armies::of(&mut units, &players);
@@ -745,7 +743,7 @@ fn wall_points_go_to_the_player_who_earned_them_by_their_kills_or_from_the_world
     fx.earn(0, 7.0);
     earn_wall_points(&mut players, &armies, 1.0 / 60.0, &mut fx);
     assert!((players.list[0].mason.points - (START_WALL_POINTS + 7.0)).abs() < 0.001, "{}", players.list[0].mason.points);
-    assert!((players.list[1].mason.points - (START_WALL_POINTS + 10.0 * players.list[1].upgrades.quarry)).abs() < 0.001, "{}", players.list[1].mason.points);
+    assert!((players.list[1].mason.points - (START_WALL_POINTS + 10.0)).abs() < 0.001, "{}", players.list[1].mason.points);
     assert_eq!((fx.spoils[0].points, fx.spoils[1].points), (0.0, 0.0));
 }
 

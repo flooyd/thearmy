@@ -83,12 +83,96 @@ fn the_trade_offs_trade() {
 }
 
 #[test]
-fn masonry_quarry_and_archers_change_the_walls_and_towers() {
-    let up = with(&[Relic::Masonry]);
-    assert!((wall_health(WallKind::Wall, 1, &up) / wall_health(WallKind::Wall, 1, &Upgrades::default()) - 1.3).abs() < 1e-4);
-    let up = with(&[Relic::Quarry]);
-    assert!((up.quarry - 1.5).abs() < 1e-5);
-    assert!((with(&[Relic::Archers]).archery - 1.4).abs() < 1e-5);
+fn the_elemental_relics_add_up_to_no_more_than_their_most() {
+    let up = with(&[Relic::Venom, Relic::Kindling, Relic::Mire, Relic::Static]);
+    assert_eq!((up.venom, up.kindling, up.mire, up.charge), (VENOM_STACKS, KINDLING_CHANCE, MIRE_KEPT, STATIC_CHANCE));
+    let many = with(&[Relic::Venom; 30].iter().chain(&[Relic::Kindling; 30]).chain(&[Relic::Mire; 30]).chain(&[Relic::Static; 30]).copied().collect::<Vec<_>>());
+    assert_eq!((many.venom, many.kindling, many.mire, many.charge), (POISON_MOST, MOST_KINDLING_CHANCE, MIRE_MOST, MOST_STATIC_CHANCE));
+    assert_eq!(in_a_frame(0.5, 0.0), 0.0);
+    assert!((in_a_frame(0.5, 1.0) - 0.5).abs() < 1e-6 && (in_a_frame(0.5, 2.0) - 0.75).abs() < 1e-6);
+}
+
+//an enemy with a crowd of units in it, fought for `seconds` by an army with these relics
+fn fought_with(relics: &[Relic], seconds: f32, boss: bool) -> Enemy {
+    fought_watching(relics, seconds, boss, |_| false).0
+}
+
+//the same, and whether `seen` was ever true of it on the way
+fn fought_watching(relics: &[Relic], seconds: f32, boss: bool, seen: impl Fn(&Enemy) -> bool) -> (Enemy, bool) {
+    let at = Vec2::splat(3000.0);
+    let mut enemy = if boss { Enemy::boss(&BOSSES[0], 400, 0, at) } else { Enemy::new(at, kind_named("Brute"), 1.0) };
+    enemy.max_health = 1.0e7;
+    enemy.health = 1.0e7;
+    enemy.attack = 0.0;
+    let mut enemies = vec![enemy];
+    let mut units: Vec<Unit> = (0..40).map(|i| unit_at(at.x + (i % 5) as f32 * 4.0, at.y + (i / 5) as f32 * 4.0)).collect();
+    let (mut babies, mut fx, up) = (Vec::new(), Effects::default(), with(relics));
+    let dt = 1.0 / 60.0;
+    let mut ever = false;
+    for _ in 0..(seconds / dt) as usize {
+        fight(&mut enemies, &mut units, &mut babies, dt, &up, &mut fx);
+        ever |= seen(&enemies[0]);
+    }
+    (enemies.remove(0), ever)
+}
+
+#[test]
+fn venom_poisons_what_the_army_fights_up_to_the_stacks_it_allows() {
+    rand::srand(5);
+    let plain = fought_with(&[], 2.0, false);
+    assert_eq!(plain.status.poison, 0.0);
+    let one = fought_with(&[Relic::Venom], 0.25, false);
+    assert!(one.status.poison > 0.0 && one.status.poison < VENOM_STACKS, "it builds up: {}", one.status.poison);
+    let held = fought_with(&[Relic::Venom], 3.0, false);
+    assert!((held.status.poison - VENOM_STACKS).abs() < 0.2, "and holds at what the relics allow: {}", held.status.poison);
+    assert!(held.health < plain.health, "and it hurts");
+    let two = fought_with(&[Relic::Venom, Relic::Venom], 3.0, false);
+    assert!(two.status.poison > VENOM_STACKS * 1.8);
+}
+
+#[test]
+fn kindling_sets_what_the_army_fights_alight_now_and_then() {
+    rand::srand(6);
+    let burning = |enemy: &Enemy| enemy.status.burning > 0.0;
+    assert!(!fought_watching(&[], 5.0, false, burning).1);
+    //(eight seconds of it is all but sure to catch: 30% a second), and what it lights burns for no longer than it says
+    let lit = (0..6).filter(|_| fought_watching(&[Relic::Kindling], 8.0, false, burning).1).count();
+    assert!(lit >= 4, "alight {lit} of 6");
+    let odd = |enemy: &Enemy| enemy.status.burning > KINDLING_SECONDS || (enemy.status.burning > 0.0 && enemy.status.burn <= 0.0);
+    assert!(!fought_watching(&[Relic::Kindling], 8.0, false, odd).1);
+}
+
+#[test]
+fn mire_bogs_down_what_the_army_fights_and_a_boss_less() {
+    let plain = fought_with(&[], 0.5, false);
+    assert_eq!(speed_kept(&plain), 1.0);
+    let bogged = fought_with(&[Relic::Mire], 0.5, false);
+    assert!((speed_kept(&bogged) - MIRE_KEPT).abs() < 1e-4, "{}", speed_kept(&bogged));
+    let boss = fought_with(&[Relic::Mire], 0.5, true);
+    assert!(speed_kept(&boss) > MIRE_KEPT && speed_kept(&boss) < 1.0, "{}", speed_kept(&boss));
+    //and it wears off once the fighting stops
+    let mut enemies = vec![bogged];
+    for _ in 0..(MIRE_SECONDS * 60.0) as usize + 2 {
+        tick_statuses(&mut enemies, 1.0 / 60.0);
+    }
+    assert_eq!(speed_kept(&enemies[0]), 1.0);
+}
+
+#[test]
+fn static_shocks_what_the_army_fights_now_and_then() {
+    rand::srand(7);
+    let shocked = |enemy: &Enemy| enemy.status.shocked > 0.0;
+    assert!(!fought_watching(&[], 5.0, false, shocked).1);
+    let times = (0..6).filter(|_| fought_watching(&[Relic::Static], 8.0, false, shocked).1).count();
+    assert!(times >= 4, "shocked {times} of 6");
+}
+
+#[test]
+fn a_save_with_a_relic_that_was_taken_out_has_the_one_that_took_its_place() {
+    for (old, new) in [("Magnet", Relic::Mire), ("Masonry", Relic::Static), ("Quarry", Relic::Venom), ("Archers", Relic::Kindling)] {
+        let relic: Relic = from_text(old.as_bytes()).expect(old);
+        assert_eq!(relic, new);
+    }
 }
 
 #[test]
@@ -285,8 +369,8 @@ fn every_relic_has_its_own_tag_that_fits_its_tile() {
 }
 
 //everything a relic can change, as numbers
-fn signature(up: &Upgrades) -> [f32; 19] {
-    [up.damage, up.toughness, up.healing, up.speed, up.pickup, up.bounty, up.masonry, up.archery, up.quarry, up.thorns, up.bloodlust, up.guard, up.salvo, up.martyr, up.freeze, up.extra_boost, up.gunnery, up.pierce as f32, up.sight]
+fn signature(up: &Upgrades) -> [f32; 20] {
+    [up.damage, up.toughness, up.healing, up.speed, up.pickup, up.bounty, up.venom, up.kindling, up.mire, up.charge, up.thorns, up.bloodlust, up.guard, up.salvo, up.martyr, up.freeze, up.extra_boost, up.gunnery, up.pierce as f32, up.sight]
 }
 
 #[test]
